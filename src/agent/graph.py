@@ -22,7 +22,7 @@ from langgraph.graph import END, START, MessagesState, StateGraph
 from langgraph.prebuilt import ToolNode
 from langgraph.types import Command, interrupt
 
-from src import config
+from src import config, family
 from src.grounding import allowed_urls, enforce_grounding
 
 _SYSTEM_TEMPLATE = (config.PROMPTS_DIR / "agent_system.md").read_text(encoding="utf-8")
@@ -33,9 +33,10 @@ class AgentState(MessagesState):
 
     country: str
     city: str | None
-    child_age: int | None
-    # Budget day trip settings (Germany): budget_eur, adults, children_ages,
-    # deutschlandticket_holders. None when the parent has not switched trip planning on.
+    # Children's age groups only ("Child 1", "Child 2" by position); never names or exact ages.
+    children: list[str]
+    # Budget day trip settings (Germany): budget_eur, adults, deutschlandticket_holders.
+    # None when the parent has not switched trip planning on.
     trip: dict | None
     grounding: dict | None
 
@@ -54,25 +55,22 @@ def trip_context(trip: dict | None) -> str:
     """Describe the budget day trip settings for the system prompt."""
     if not trip:
         return "off (the parent has not switched on budget day trip planning)"
-    ages = ", ".join(str(a) for a in trip.get("children_ages", [])) or "none"
     return (
-        f"on · budget {trip['budget_eur']:.0f} EUR · adults (15+): {trip['adults']} · "
-        f"children's ages: {ages} · Deutschlandticket holders: "
-        f"{trip['deutschlandticket_holders']}"
+        f"on · budget {trip['budget_eur']:.0f} EUR · adults: {trip['adults']} · "
+        f"Deutschlandticket holders (aged 15+): {trip['deutschlandticket_holders']}"
     )
 
 
 def system_prompt(state: AgentState, today: date | None = None) -> str:
-    """Fill the system prompt with today's date, the chosen place, age and trip settings."""
+    """Fill the system prompt with today's date, the chosen place, children and trip settings."""
     country = state.get("country") or "DE"
-    age = state.get("child_age")
     today = today or date.today()
     return _SYSTEM_TEMPLATE.format(
         today=f"{today.isoformat()} ({today.strftime('%A')})",
         country=country,
         country_name=config.COUNTRIES.get(country, country),
         city=state.get("city") or "All cities",
-        child_age=f"{age} years" if age is not None else "not given",
+        children=family.describe_children(state.get("children") or []),
         trip=trip_context(state.get("trip")),
     )
 
@@ -80,6 +78,11 @@ def system_prompt(state: AgentState, today: date | None = None) -> str:
 def needs_approval(message: AIMessage) -> list[dict]:
     """Return the tool calls in a message that need the parent's approval."""
     return [tc for tc in message.tool_calls if tc["name"] in config.TOOLS_REQUIRING_APPROVAL]
+
+
+def always_reviewed(message: AIMessage) -> bool:
+    """Return True when a message calls a tool that pauses even with auto-approve on."""
+    return any(tc["name"] in config.TOOLS_ALWAYS_REVIEWED for tc in message.tool_calls)
 
 
 def build_graph(llm: BaseChatModel, tools: list[BaseTool], checkpointer: BaseCheckpointSaver):
@@ -99,6 +102,8 @@ def build_graph(llm: BaseChatModel, tools: list[BaseTool], checkpointer: BaseChe
         if not isinstance(last, AIMessage) or not last.tool_calls:
             return "grounding"
         auto = config.get("configurable", {}).get("auto_approve", False)
+        if always_reviewed(last):
+            return "human_review"
         return "tools" if auto or not needs_approval(last) else "human_review"
 
     def human_review(state: AgentState) -> Command:

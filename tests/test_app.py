@@ -23,15 +23,18 @@ def test_changing_country_changes_city_list():
     assert "Chicago" in city_box.options
 
 
-def test_trip_settings_are_offered_in_germany_and_validate_ages():
-    """The budget trip settings appear for Germany only and reject a 15+ child's age."""
+def test_children_are_age_groups_and_trip_settings_are_germany_only():
+    """Each child is "Child N" with an age group; a 15-17 child can hold a Deutschlandticket."""
     at = AppTest.from_file(APP, default_timeout=30).run()
+    assert at.sidebar.selectbox(key="child_band_0").value == "3-5"
+    assert not any(t.key == "trip_ages" for t in at.sidebar.text_input)
+    at.sidebar.number_input(key="child_count").set_value(2).run()
+    at.sidebar.selectbox(key="child_band_1").set_value("15-17").run()
+    assert at.sidebar.selectbox(key="child_band_1").label == "Child 2"
     at.sidebar.toggle(key="trip_on").set_value(True).run()
     assert at.sidebar.number_input(key="trip_budget").value == 100.0
-    at.sidebar.text_input(key="trip_ages").set_value("4, 20").run()
-    assert any("15+ count as adults" in e.value for e in at.sidebar.error)
-    at.sidebar.text_input(key="trip_ages").set_value("4, 8").run()
-    assert not at.sidebar.error
+    # Two adults plus the 15-17 child: up to three Deutschlandticket holders.
+    assert at.sidebar.number_input(key="trip_holders").max == 3
     at.sidebar.selectbox(key="country").set_value("GB").run()
     assert not [t for t in at.sidebar.toggle if t.key == "trip_on"]
 
@@ -59,3 +62,24 @@ def test_budget_editor_keeps_unknown_amounts_empty():
     edited = at.session_state["edited"]
     assert edited["budget_eur"] == 80.0
     assert edited["items"][0]["amount_eur"] == 34.0 and edited["items"][1]["amount_eur"] is None
+
+
+def test_idle_conversations_are_deleted_from_server_memory(monkeypatch):
+    """A thread idle longer than the retention limit is deleted from the checkpointer."""
+    from views import chat
+
+    deleted = []
+
+    class FakeSaver:
+        """Records which threads were deleted."""
+
+        def delete_thread(self, thread_id):
+            """Remember the deleted thread."""
+            deleted.append(thread_id)
+
+    activity = {"old": 0.0, "fresh": 10_000.0}
+    monkeypatch.setattr(chat, "_thread_activity", lambda: activity)
+    monkeypatch.setattr(chat, "_checkpointer", lambda: FakeSaver())
+    now = 2 * 60 * 60 + 5_000.0
+    chat._forget_old_threads(now=now)
+    assert deleted == ["old"] and set(activity) == {"fresh"}

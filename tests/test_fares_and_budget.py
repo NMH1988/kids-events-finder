@@ -5,7 +5,7 @@ from datetime import date, time
 import pytest
 
 from src.budget import BudgetItem, check_budget
-from src.fares import Party, compare_tickets, load_fares, parse_ages, state_code
+from src.fares import Party, compare_tickets, load_fares, state_code
 
 SATURDAY = date(2026, 11, 21)
 MONDAY = date(2026, 11, 23)
@@ -31,14 +31,14 @@ def test_state_names_map_to_codes():
 
 def test_family_without_deutschlandticket_gets_the_state_ticket():
     """Two adults with children 4 and 8 in Bavaria: Bayern-Ticket for 2, the children ride free."""
-    party = Party(adults=2, children_ages=(4, 8))
+    party = Party(adults=2, children_bands=("3-5", "6-9"))
     best = _cheapest(compare_tickets(party, "BY", "BY", SATURDAY))
     assert best["total_eur"] == 44.0 and "Bayern-Ticket" in best["tickets"][0]
 
 
 def test_children_need_a_ticket_even_when_parents_hold_a_deutschlandticket():
     """Both parents hold a Deutschlandticket: one 1-person Bayern-Ticket takes the children."""
-    party = Party(adults=2, children_ages=(8, 10), deutschlandticket_holders=2)
+    party = Party(adults=2, children_bands=("6-9", "10-14"), deutschlandticket_holders=2)
     best = _cheapest(compare_tickets(party, "BY", "BY", SATURDAY))
     assert best["total_eur"] == 34.0
     assert best["tickets"][0] == "Deutschlandticket"
@@ -46,7 +46,7 @@ def test_children_need_a_ticket_even_when_parents_hold_a_deutschlandticket():
 
 def test_everyone_with_a_deutschlandticket_travels_for_free():
     """Holders with only a toddler pay nothing extra."""
-    party = Party(adults=2, children_ages=(3,), deutschlandticket_holders=2)
+    party = Party(adults=2, children_bands=("3-5",), deutschlandticket_holders=2)
     assert _cheapest(compare_tickets(party, "BY", "BY", SATURDAY))["total_eur"] == 0.0
 
 
@@ -61,10 +61,12 @@ def test_weekday_start_before_nine_skips_tickets_that_start_later():
 
 def test_hessenticket_counts_school_children_as_people():
     """The Hessenticket has one price for up to 5 people, school children included."""
-    party = Party(adults=2, children_ages=(7, 9, 11))
+    party = Party(adults=2, children_bands=("6-9", "6-9", "10-14"))
     best = _cheapest(compare_tickets(party, "HE", "HE", SATURDAY))
     assert best["total_eur"] == 43.5
-    too_many = compare_tickets(Party(adults=3, children_ages=(7, 9, 11)), "HE", "HE", SATURDAY)
+    too_many = compare_tickets(
+        Party(adults=3, children_bands=("6-9", "6-9", "10-14")), "HE", "HE", SATURDAY
+    )
     assert all("Hessenticket" not in o["label"] for o in too_many["options"])
 
 
@@ -75,16 +77,15 @@ def test_trip_across_states_falls_back_to_quer_durchs_land():
 
 
 def test_party_and_ages_are_validated():
-    """Impossible parties and badly typed ages are rejected."""
+    """Impossible parties and unknown age groups are rejected."""
     with pytest.raises(ValueError):
         Party(adults=0)
     with pytest.raises(ValueError):
         Party(adults=1, deutschlandticket_holders=2)
     with pytest.raises(ValueError):
-        Party(adults=1, children_ages=(16,))
-    assert parse_ages("4, 8;12") == (4, 8, 12) and parse_ages("") == ()
+        Party(adults=1, children_bands=("16",))
     with pytest.raises(ValueError):
-        parse_ages("four")
+        Party(adults=1, children_bands=("3-5",) * 7)
     with pytest.raises(ValueError):
         compare_tickets(Party(adults=1), "Atlantis", "BY", SATURDAY)
 
@@ -103,3 +104,12 @@ def test_budget_reports_remaining_and_unknown_costs():
     assert check_budget(50, items)["status"] == "over_budget"
     with pytest.raises(ValueError):
         check_budget(-1, items)
+
+
+def test_teenagers_pay_the_adult_fare_and_may_hold_a_deutschlandticket():
+    """A 15-17 child counts as a paying traveller and can be one of the ticket holders."""
+    party = Party(adults=1, children_bands=("15-17", "6-9"))
+    assert party.adult_fare_travellers == 2 and party.school_age_children == 1
+    assert _cheapest(compare_tickets(party, "BY", "BY", SATURDAY))["total_eur"] == 44.0
+    both = Party(adults=1, children_bands=("15-17",), deutschlandticket_holders=2)
+    assert _cheapest(compare_tickets(both, "BY", "BY", SATURDAY))["total_eur"] == 0.0

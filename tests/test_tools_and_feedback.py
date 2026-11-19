@@ -6,7 +6,7 @@ import pytest
 from langchain_core.embeddings import DeterministicFakeEmbedding
 from pydantic import ValidationError
 
-from src.feedback import load_feedback, save_feedback
+from src.feedback import delete_shared_feedback, load_feedback, save_feedback
 from src.knowledge import load_places
 from src.rag.index import build_index, open_index
 from src.rag.retriever import AdvancedRetriever
@@ -42,7 +42,7 @@ def test_ticket_and_budget_tools_return_json(tools):
                 "to_state": "BY",
                 "travel_date": "2026-11-21",
                 "adults": 2,
-                "children_ages": [4, 8],
+                "children_age_bands": ["3-5", "6-9"],
             }
         )
     )
@@ -68,7 +68,7 @@ def test_knowledge_base_tool_returns_links_and_directions(tools):
     """Results carry the official website and a Google Maps directions link."""
     out = json.loads(
         tools["search_knowledge_base"].invoke(
-            {"query": "chocolate", "country": "DE", "city": "Cologne", "child_age": 8}
+            {"query": "chocolate", "country": "DE", "city": "Cologne", "age_bands": ["6-9"]}
         )
     )
     first = out["results"][0]
@@ -113,3 +113,51 @@ def test_feedback_is_appended_and_read_back(tmp_path):
     assert [r["rating"] for r in records] == [1, 0]
     with pytest.raises(ValueError):
         save_feedback(5, "q", "a", model="m", country="DE", tools_used=[], grounded=None, path=path)
+
+
+def test_feedback_keeps_text_only_with_consent_and_expires(tmp_path):
+    """Question and answer are stored only when shared; records older than 90 days are deleted."""
+    from datetime import UTC, datetime, timedelta
+
+    from src.feedback import purge_old_feedback
+
+    path = tmp_path / "fb.jsonl"
+    save_feedback(
+        1,
+        "my question",
+        "the answer",
+        model="m",
+        country="DE",
+        tools_used=[],
+        grounded=True,
+        path=path,
+    )
+    save_feedback(
+        0,
+        "shared q",
+        "shared a",
+        model="m",
+        country="DE",
+        tools_used=[],
+        grounded=True,
+        share_text=True,
+        path=path,
+    )
+    first, second = load_feedback(path)
+    assert "question" not in first and first["text_shared"] is False
+    assert second["question"] == "shared q"
+    later = datetime.now(UTC) + timedelta(days=91)
+    assert purge_old_feedback(path, now=later) == 2
+    assert load_feedback(path) == []
+
+
+def test_shared_feedback_can_be_deleted_by_its_session(tmp_path):
+    """Consent can be withdrawn: a session deletes only the text it shared."""
+    path = tmp_path / "fb.jsonl"
+    common = {"model": "m", "country": "DE", "tools_used": [], "grounded": True, "path": path}
+    save_feedback(1, "q1", "a1", share_text=True, session_id="s1", **common)
+    save_feedback(1, "q2", "a2", share_text=True, session_id="s2", **common)
+    path.write_text(path.read_text(encoding="utf-8") + "not json\n", encoding="utf-8")
+    assert delete_shared_feedback("s1", path) == 1
+    assert [r["question"] for r in load_feedback(path)] == ["q2"]
+    assert delete_shared_feedback("", path) == 0

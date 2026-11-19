@@ -15,8 +15,10 @@ from src import config, fares, geo
 ATTRIBUTION_OSM = "Data © OpenStreetMap contributors, ODbL (openstreetmap.org/copyright)"
 ATTRIBUTION_TICKETMASTER = "Event data from Ticketmaster Discovery API"
 ATTRIBUTION_WEATHER = "Weather data by Open-Meteo.com (CC BY 4.0)"
+TRANSITOUS_SOURCES_URL = "https://transitous.org/sources/"
 ATTRIBUTION_TRANSITOUS = (
-    "Journeys by Transitous (transitous.org/sources); timetables by DELFI e.V. and others"
+    "Journeys by Transitous (https://transitous.org/sources/); timetables by DELFI e.V. and "
+    "others; street data © OpenStreetMap contributors"
 )
 
 # OpenStreetMap tag filters for each category the agent may ask for.
@@ -339,6 +341,8 @@ def find_train_connection(
         )
     return {
         "source": ATTRIBUTION_TRANSITOUS,
+        # Transitous asks for a visible link to its sources; as a field it passes grounding.
+        "source_url": TRANSITOUS_SOURCES_URL,
         "from": origin.name,
         "from_state": fares.state_code(origin.state),
         "to": destination.name,

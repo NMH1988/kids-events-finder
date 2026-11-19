@@ -2,6 +2,8 @@
 
 import json
 import logging
+import threading
+import time
 import uuid
 
 import streamlit as st
@@ -9,8 +11,9 @@ from langgraph.checkpoint.memory import InMemorySaver
 
 from src import config, services
 from src.agent.runner import InputRejected, TurnResult, resume_turn, start_turn
-from src.feedback import save_feedback
+from src.feedback import delete_shared_feedback, purge_old_feedback, save_feedback
 from src.llm import MissingAPIKeyError
+from src.tools.external import TRANSITOUS_SOURCES_URL
 from src.tools.registry import RagSettings
 from views.sidebar import Settings
 
@@ -21,8 +24,8 @@ TOOL_EXPLANATIONS = {
     "find_nearby_places": "Sends the city and a place category to OpenStreetMap (Overpass API).",
     "search_family_events": "Sends the city, country and dates to Ticketmaster's event search.",
     "get_weather_forecast": "Sends the city, country and dates to Open-Meteo's weather service.",
-    "find_train_connection": "Sends the two town names and the date to Transitous (journey "
-    "planner, regional trains only).",
+    "find_train_connection": "Looks up the two towns with Open-Meteo, then sends their "
+    "coordinates and the date and time to Transitous (journey planner, regional trains only).",
     "compare_train_tickets": "Compares day tickets from the app's own fare table. Nothing leaves "
     "the app.",
     "check_budget": "Adds up the costs inside the app. Fill in the amounts you know (entry fees, "
@@ -60,14 +63,70 @@ def _graph(model: str, multi_query: bool, rerank: bool):
     )
 
 
+@st.cache_resource
+def _thread_activity() -> dict[str, float]:
+    """Return when each conversation thread was last used (shared by all sessions)."""
+    return {}
+
+
+def _forget_old_threads(now: float | None = None) -> None:
+    """Delete conversations from server memory that were idle longer than the retention limit."""
+    activity = _thread_activity()
+    now = now or time.time()
+    for thread_id, last_used in list(activity.items()):
+        if now - last_used > config.CONVERSATION_RETENTION_SECONDS:
+            _checkpointer().delete_thread(thread_id)
+            activity.pop(thread_id, None)
+
+
+def _cleanup_loop() -> None:
+    """Every few minutes, delete idle conversations and expired feedback, even with no visitors."""
+    while True:
+        try:
+            _forget_old_threads()
+            purge_old_feedback()
+        except Exception as exc:  # noqa: BLE001 - keep the cleaner alive; log only the type
+            logger.warning("cleanup_failed", extra={"type": type(exc).__name__})
+        time.sleep(config.CLEANUP_INTERVAL_SECONDS)
+
+
+@st.cache_resource
+def start_cleaner() -> threading.Thread:
+    """Start the background cleaner once per app process (called from app.py)."""
+    thread = threading.Thread(target=_cleanup_loop, name="retention-cleaner", daemon=True)
+    thread.start()
+    return thread
+
+
 def _state() -> dict:
     """Return the chat's session state, creating it on first use."""
+    start_cleaner()
     ss = st.session_state
+    ended = ss.pop("delete_thread", None)
+    if ended:
+        # "New conversation" deletes the old one from server memory, not only from the page.
+        _checkpointer().delete_thread(ended)
+        _thread_activity().pop(ended, None)
+    if "thread_id" in ss and ss.thread_id not in _thread_activity() and ss.get("history"):
+        # The cleaner deleted this idle conversation: drop the page's copy too.
+        for key in ("thread_id", "history", "pending", "feedback_saved"):
+            ss.pop(key, None)
     ss.setdefault("thread_id", str(uuid.uuid4()))
+    _thread_activity()[ss.thread_id] = time.time()
     ss.setdefault("history", [])
     ss.setdefault("pending", None)
     ss.setdefault("feedback_saved", set())
+    # Random id of this browser session; stored only with feedback the parent chose to share.
+    ss.setdefault("feedback_session", uuid.uuid4().hex)
     return ss
+
+
+@st.fragment(run_every=config.CLEANUP_INTERVAL_SECONDS)
+def _watch_retention() -> None:
+    """While the tab stays open, drop the page's copy once the cleaner deleted the conversation."""
+    ss = st.session_state
+    if ss.get("history") and ss.get("thread_id") not in _thread_activity():
+        st.rerun(scope="app")
 
 
 def _store_result(result: TurnResult, question: str, model: str) -> None:
@@ -106,6 +165,8 @@ def _render_details(message: dict) -> None:
                 st.markdown(f"- `{tool['name']}` `{json.dumps(tool['args'], ensure_ascii=False)}`")
         else:
             st.markdown("- No tools were called.")
+        if any(t["name"] == "find_train_connection" for t in tools):
+            st.caption(f"Journeys by [Transitous]({TRANSITOUS_SOURCES_URL}) and its data sources.")
         tin, tout = message.get("tokens", (0, 0))
         st.caption(
             f"{message.get('model')} · {tin} input / {tout} output tokens · "
@@ -115,7 +176,15 @@ def _render_details(message: dict) -> None:
 
 def _render_feedback(index: int, message: dict, settings: Settings) -> None:
     """Show thumbs up/down under an answer and save the rating once."""
-    rating = st.feedback("thumbs", key=f"fb_{st.session_state.thread_id}_{index}")
+    key = f"{st.session_state.thread_id}_{index}"
+    share = st.checkbox(
+        "Also share my question and this answer: stored on this app's server only to improve "
+        f"the answers, deleted after {config.FEEDBACK_RETENTION_DAYS} days. You can delete it "
+        "again with the button at the end of the chat while this page is open.",
+        value=False,
+        key=f"fb_share_{key}",
+    )
+    rating = st.feedback("thumbs", key=f"fb_{key}")
     saved: set = st.session_state.feedback_saved
     if rating is not None and index not in saved:
         save_feedback(
@@ -126,7 +195,11 @@ def _render_feedback(index: int, message: dict, settings: Settings) -> None:
             country=settings.country,
             tools_used=[t["name"] for t in message.get("tools") or []],
             grounded=not (message.get("grounding") or {}).get("removed"),
+            share_text=share,
+            session_id=st.session_state.feedback_session,
         )
+        if share:
+            st.session_state.shared_feedback = True
         saved.add(index)
         st.toast("Thanks for the feedback!")
 
@@ -161,6 +234,10 @@ def _budget_editor(call: dict) -> dict:
             "note": st.column_config.TextColumn("Note", max_chars=160),
         },
         use_container_width=True,
+    )
+    st.caption(
+        "Amounts already filled in were written by the AI (for example the ticket price from the "
+        "fare comparison). Please check every amount; leave a cell empty if you don't know it."
     )
     items = [
         {
@@ -202,7 +279,9 @@ def _render_approval(settings: Settings) -> None:
                     edited.append({"id": call["id"], "args": json.loads(text)})
                 except json.JSONDecodeError:
                     bad_json = True
-                    st.error("This is not valid JSON.")
+                    # "Approve" then runs this call unchanged, but still uses the budget table.
+                    edited.append({"id": call["id"], "args": call["args"]})
+                    st.error("This is not valid JSON. Approve will send the original arguments.")
         feedback = st.text_input(
             "Reason if you reject (optional)",
             key="reject_reason",
@@ -211,11 +290,9 @@ def _render_approval(settings: Settings) -> None:
         c1, c2, c3 = st.columns(3)
         decision = None
         if c1.button("✅ Approve", type="primary", use_container_width=True):
-            # The budget table is part of approving: the parent's amounts are what runs.
+            # The budget table is part of approving: the parent's amounts are always what runs.
             decision = (
-                {"action": "edit", "tool_calls": edited}
-                if has_budget and not bad_json
-                else {"action": "approve"}
+                {"action": "edit", "tool_calls": edited} if has_budget else {"action": "approve"}
             )
         if c2.button("✏️ Run with my edits", disabled=bad_json, use_container_width=True):
             decision = {"action": "edit", "tool_calls": edited}
@@ -284,6 +361,12 @@ def render_chat(settings: Settings) -> None:
     if ss.pending:
         _render_approval(settings)
 
+    if ss.get("shared_feedback") and st.button("🗑️ Delete the questions and answers I shared"):
+        deleted = delete_shared_feedback(ss.feedback_session)
+        ss.shared_feedback = False
+        st.toast(f"Deleted {deleted} shared record(s).")
+
+    _watch_retention()
     typed = st.chat_input("Ask about events and places for kids…", disabled=bool(ss.pending))
     question = typed or ss.pop("queued_question", None)
     if question and not ss.pending:
@@ -295,7 +378,7 @@ def render_chat(settings: Settings) -> None:
                 question,
                 country=settings.country,
                 city=settings.city,
-                child_age=settings.child_age,
+                children=settings.children,
                 trip=settings.trip,
                 auto_approve=settings.auto_approve,
             ),

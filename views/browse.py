@@ -49,7 +49,7 @@ def render_browse(settings: Settings) -> None:
     setting = right.selectbox(
         "Indoor or outdoor", [None, "indoor", "outdoor"], format_func=lambda s: s or "Both"
     )
-    places = filter_places(settings.country, settings.city, category, settings.child_age, setting)
+    places = filter_places(settings.country, settings.city, category, settings.children, setting)
     st.caption(f"{len(places)} places · opening times and prices change, check the website first.")
     if not places:
         st.info("No curated places match these filters. Try the chat for live results.")

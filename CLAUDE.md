@@ -4,13 +4,22 @@ Kids Outing Finder: Turing College AI Engineering capstone (deadline 2026-12-16)
 
 The owner writes in Vietnamese: reply in Vietnamese. Everything in the repo is in English.
 
+## Legal compliance comes first (mandatory)
+- **Before starting any ticket, read `docs/LEGAL_COMPLIANCE.md` in full** and check the planned change against every section it touches (children's data, no health data, GDPR, no trackers, AI Act, advertising/ranking, licences).
+- If a change would break a rule, or it is unclear, **stop and ask the owner before writing code**. Never implement first and check later.
+- **After finishing a ticket, before opening the PR, run the `legal-reviewer` subagent** (`.claude/agents/legal-reviewer.md`) on the branch's changes. Fix every BLOCK and CHANGE finding (or get the owner's decision on it), re-run until the verdict is PASS, and paste the verdict and any open questions into the PR's Legal check. Run it again on a PR after later commits change what data leaves the app.
+- Every PR fills in the **Legal check** section of `.github/pull_request_template.md`. A PR without it is not merged.
+- A new data source, service, data flow or legally relevant feature updates `docs/LEGAL_COMPLIANCE.md` (rules and registers) in the same PR.
+- These rules are not legal advice; tell the owner when something needs a lawyer or Datenschutzberater.
+
 ## Conventions
 - Every function, method and class gets a one-line docstring.
 - Business logic in `src/`; UI in `views/`; `app.py` only composes the page.
 - Settings and limits live in `src/config.py`. Build model clients only with `src/llm.py`; never pass `model`, `max_tokens` or `base_url` at call time.
 - The OpenRouter and Ticketmaster keys are read only through `config.get_secret()`; never log, print or show them.
 - Chroma runs embedded only, with embeddings from OpenRouter (never Chroma's built-in embedding functions).
-- Outside services receive only city, country, dates and category; never the question, the child's age, the budget or the family size.
+- Map, event, weather and transit services receive only town or city names (or their coordinates), country, dates, times and category; never the question, the children's age groups, the budget or the family size. The AI model via OpenRouter receives the question, the age groups and the trip settings, as disclosed on the About page.
+- Children are only "Child 1", "Child 2" with an age group (`src/family.py`); never names or exact ages.
 - Money is calculated in code, never by the model: ticket rules in `data/fares.json` + `src/fares.py`, totals in `src/budget.py`. Every fare entry keeps its bahn.de `source_url` and `checked_on` date. Unknown prices stay `null` for the parent to fill in.
 - Transitous (train journeys) is free only for open-source, non-commercial use; keep `TRANSITOUS_USER_AGENT` with the repository as the contact.
 - The system prompt and the evaluation questions are drafts for the owner to review.

@@ -13,6 +13,7 @@ import time
 from datetime import datetime
 
 from src import config
+from src.family import band_for_age
 from src.rag.retriever import AdvancedRetriever
 
 VARIANTS = {
@@ -45,7 +46,7 @@ def evaluate(retriever: AdvancedRetriever, questions: list[dict], variant: dict)
             q["question"],
             q["country"],
             q.get("city"),
-            q.get("age"),
+            (band_for_age(q["age"]),) if q.get("age") is not None else (),
             q.get("indoor_only", False),
             **variant,
         )

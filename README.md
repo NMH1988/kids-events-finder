@@ -14,7 +14,7 @@
 - *Complication:* the information is spread over museum sites, event platforms, maps and weather apps. General chatbots invent places, links and opening times, which is risky when a family travels with small children.
 - *Resolution:* an AI agent that searches a curated knowledge base with advanced RAG, checks live data (events, nearby places, weather) only after the parent approves each outside call, and removes any link that did not come from a real tool result.
 
-**How it works.** The parent picks a country and city from the dropdowns, optionally the child's age, and asks a question in any language. A LangGraph agent chooses tools:
+**How it works.** The parent picks a country and city from the dropdowns, the children's age groups ("Child 1", "Child 2"; no names or exact ages), and asks a question in any language. A LangGraph agent chooses tools:
 
 | Tool | Data | Approval needed |
 |---|---|---|
@@ -28,7 +28,7 @@
 
 ### Budget day trips (Germany)
 
-Switch on **💶 Budget day trip by train** in the sidebar and enter the budget, the number of adults, the children's ages and how many adults hold a Deutschlandticket. The agent picks a destination, finds regional train journeys there and back, compares tickets, checks the weather at the destination and runs a budget check.
+Switch on **💶 Budget day trip by train** in the sidebar and enter the budget, the number of adults and how many travellers aged 15+ hold a Deutschlandticket; the children's age groups come from the sidebar. The agent picks a destination, finds regional train journeys there and back, compares tickets, checks the weather at the destination and runs a budget check.
 
 - **Money is never calculated by the model.** Ticket rules live in `data/fares.json` (copied from bahn.de with a source link and the date checked) and `src/fares.py` applies them: children under 6 ride free, up to 3 children aged 6-14 ride free on most Länder-Tickets, the Deutschlandticket does not include children aged 6-14, and many day tickets start at 9:00 on weekdays. Example: two parents with a Deutschlandticket and children aged 8 and 10 pay 34 EUR for a 1-person Bayern-Ticket that takes the children along, not 44 EUR for a 2-person one.
 - **Prices with no open source (entry fees, food) are not guessed.** The agent leaves them empty and the parent fills them in at the approval step, in an editable table; `src/budget.py` adds everything up.
@@ -53,7 +53,7 @@ flowchart LR
 ### Advanced RAG pipeline
 
 1. **Multi-query rewriting:** a small LLM (`gpt-5-nano`) turns the question into three English search queries. This also handles Vietnamese or German questions.
-2. **Metadata filtering:** only places in the chosen country and city (or day trips from it), suitable for the child's age, and indoors when asked.
+2. **Metadata filtering:** only places in the chosen country and city (or day trips from it), suitable for every child's age group, and indoors when asked.
 3. **Hybrid search:** dense vector search (Chroma, `qwen3-embedding-8b` via OpenRouter) and BM25 keyword search for every query.
 4. **Reciprocal Rank Fusion** merges all rankings.
 5. **Optional LLM reranking** of the top candidates (toggle in the sidebar).
@@ -80,7 +80,7 @@ copy .streamlit\secrets.toml.example .streamlit\secrets.toml   # then add your k
 ## Tests and evaluation
 
 ```powershell
-.venv\Scripts\python.exe -m pytest -q          # 54 offline tests: LLM and network calls are faked
+.venv\Scripts\python.exe -m pytest -q          # 63 offline tests: LLM and network calls are faked
 .venv\Scripts\ruff.exe check .
 .venv\Scripts\python.exe -m scripts.evaluate_retrieval   # retrieval variants: hit@5, MRR
 .venv\Scripts\python.exe -m scripts.evaluate_agent --judge   # grounded rate, relevance, wrong-country rate, latency, tokens, LLM judge
@@ -94,7 +94,7 @@ Results and how to read them: [docs/EVALUATION.md](docs/EVALUATION.md).
 Summary (details in [docs/ETHICS.md](docs/ETHICS.md)):
 - **No invented places:** the prompt allows only places from tool results, and the code removes any link that no tool returned.
 - **Human oversight:** every call to an outside service needs the parent's approval by default.
-- **Child privacy:** only an age is used; the UI asks parents not to type names or other details; outside services receive only city, country, dates and category.
+- **Child privacy:** children are only "Child 1", "Child 2" with an age group, never names or exact ages; no health data; outside services receive only town names or coordinates, country, dates and category. Rules every change must follow: [docs/LEGAL_COMPLIANCE.md](docs/LEGAL_COMPLIANCE.md).
 - **Transparency:** the page says the suggestions are AI-generated and must be checked on the official website. Every answer shows which tools ran and whether all links were verified.
 - **Bias:** ticketed events dominate commercial APIs, so the knowledge base includes free places and the agent can search parks and playgrounds.
 

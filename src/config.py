@@ -44,7 +44,16 @@ TOOLS_REQUIRING_APPROVAL: frozenset[str] = frozenset(
         "check_budget",
     }
 )
+# These pause even with auto-approve on: the parent's own amounts must replace anything the model
+# wrote, so a guessed price can never become a real total (LEGAL_COMPLIANCE 7.3).
+TOOLS_ALWAYS_REVIEWED: frozenset[str] = frozenset({"check_budget"})
 MAX_USER_MESSAGE_CHARS = 1000
+# Conversations are deleted from server memory after this much idle time (LEGAL_COMPLIANCE 2.7).
+CONVERSATION_RETENTION_SECONDS = 2 * 60 * 60
+# A background cleaner enforces both retention limits this often, even when nobody uses the app.
+CLEANUP_INTERVAL_SECONDS = 5 * 60
+# Feedback records are deleted after this many days; question text is kept only with consent.
+FEEDBACK_RETENTION_DAYS = 90
 
 # --- Advanced RAG ---
 RETRIEVAL_TOP_K = 5
@@ -80,9 +89,7 @@ REGIONAL_TRANSIT_MODES = ("REGIONAL_RAIL", "SUBURBAN", "SUBWAY", "TRAM", "BUS", 
 TRAIN_MAX_RESULTS = 3
 TRAIN_MAX_DAYS_AHEAD = 30
 LOCAL_TIMEZONE = "Europe/Berlin"
-TRIP_TRAVELLERS_RANGE = (1, 5)  # adults (15+) per trip; Länder-Tickets cover up to 5 people
-CHILD_TICKET_AGE_RANGE = (0, 14)  # rail fares treat 15-year-olds as adults
-MAX_CHILDREN_PER_TRIP = 6
+TRIP_TRAVELLERS_RANGE = (1, 5)  # adults per trip; Länder-Tickets cover up to 5 people
 BUDGET_RANGE_EUR = (0, 2000)
 MAX_BUDGET_ITEMS = 12
 # German states by ISO 3166-2 suffix, with the English names the geocoder returns.
@@ -121,7 +128,6 @@ CATEGORIES: tuple[str, ...] = (
     "park",
     "playground",
 )
-CHILD_AGE_RANGE = (0, 17)
 
 
 def get_secret(name: str) -> str | None:

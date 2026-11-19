@@ -21,6 +21,7 @@ from pydantic import BaseModel, Field
 
 from src import config, llm, services
 from src.agent.runner import start_turn
+from src.family import band_for_age
 from src.knowledge import load_places
 from src.tools.registry import RagSettings
 
@@ -66,7 +67,7 @@ def main() -> None:
             q["question"],
             country=q["country"],
             city=q.get("city"),
-            child_age=q.get("age"),
+            children=[band_for_age(q["age"])] if q.get("age") is not None else [],
             auto_approve=True,
         )
         answer = result.answer.lower()

@@ -8,7 +8,7 @@ from typing import Literal
 from langchain_core.documents import Document
 from pydantic import BaseModel, Field, HttpUrl, model_validator
 
-from src import config, geo
+from src import config, family, geo
 
 
 class Place(BaseModel):
@@ -44,9 +44,9 @@ class Place(BaseModel):
         """Return True when the place is in the city or is a day trip from it."""
         return city.lower() in {self.city.lower(), *(c.lower() for c in self.day_trip_from)}
 
-    def suits_age(self, age: int | None) -> bool:
-        """Return True when no age is given or the age is inside the place's range."""
-        return age is None or self.age_min <= age <= self.age_max
+    def suits_children(self, bands: tuple[str, ...] | list[str] = ()) -> bool:
+        """Return True when the place's age range overlaps every child's age group."""
+        return all(family.overlaps(b, self.age_min, self.age_max) for b in bands)
 
     def to_text(self) -> str:
         """Return the text that is embedded and searched for this place."""
@@ -100,7 +100,7 @@ def filter_places(
     country: str,
     city: str | None = None,
     category: str | None = None,
-    age: int | None = None,
+    bands: tuple[str, ...] | list[str] = (),
     setting: str | None = None,
 ) -> list[Place]:
     """Return the places matching the dropdown filters, used by the Browse tab."""
@@ -116,7 +116,7 @@ def filter_places(
             continue
         if setting == "outdoor" and place.setting == "indoor":
             continue
-        if not place.suits_age(age):
+        if not place.suits_children(bands):
             continue
         result.append(place)
     return result

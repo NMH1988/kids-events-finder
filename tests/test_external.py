@@ -19,6 +19,14 @@ def at_berlin(monkeypatch):
     monkeypatch.setattr(geo, "geocode_city", lambda city, country: BERLIN)
 
 
+def test_train_result_links_to_transitous_sources(monkeypatch, at_berlin):
+    """The journey result carries the Transitous sources link as its own field."""
+    empty = FakeResponse({"itineraries": []})
+    monkeypatch.setattr(requests, "get", lambda *args, **kwargs: empty)
+    result = external.find_train_connection("Berlin", "Potsdam", TODAY, time(9, 0))
+    assert result["source_url"] == "https://transitous.org/sources/"
+
+
 def test_directions_url_prefers_coordinates():
     """Coordinates give an exact destination."""
     url = geo.directions_url(name="X", lat=52.5, lon=13.4)

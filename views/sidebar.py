@@ -1,11 +1,10 @@
-"""The sidebar: country and city dropdowns, child's age, model and agent settings."""
+"""The sidebar: country and city dropdowns, children's age groups, trip and agent settings."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import streamlit as st
 
-from src import config
-from src.fares import parse_ages
+from src import config, family
 
 FLAGS = {"DE": "🇩🇪", "GB": "🇬🇧", "US": "🇺🇸"}
 ALL_CITIES = "All cities"
@@ -17,15 +16,39 @@ class Settings:
 
     country: str
     city: str | None
-    child_age: int | None
     model: str
     auto_approve: bool
     multi_query: bool
     rerank: bool
+    # Age groups by position: index 0 is "Child 1". No names, no exact ages.
+    children: tuple[str, ...] = field(default_factory=tuple)
     trip: dict | None = None
 
 
-def _render_trip(country: str) -> dict | None:
+def _render_children() -> tuple[str, ...]:
+    """Draw one age-group dropdown per child and return the chosen groups."""
+    st.subheader("👧 Children")
+    count = st.number_input(
+        "Number of children", min_value=0, max_value=family.MAX_CHILDREN, value=1, key="child_count"
+    )
+    bands = tuple(
+        st.selectbox(
+            f"Child {i + 1}",
+            family.AGE_BANDS,
+            index=1,
+            format_func=family.BAND_LABELS.get,
+            key=f"child_band_{i}",
+        )
+        for i in range(int(count))
+    )
+    st.caption(
+        "Only age groups are used, never names or exact ages. Please don't type names, health "
+        "details or other personal information in the chat."
+    )
+    return bands
+
+
+def _render_trip(country: str, children: tuple[str, ...]) -> dict | None:
     """Draw the budget day trip settings (Germany only) and return them, or None when off."""
     if country != "DE":
         return None
@@ -42,28 +65,23 @@ def _render_trip(country: str) -> dict | None:
             key="trip_budget",
         )
         adults = st.number_input(
-            "Adults and teens (15+)", *config.TRIP_TRAVELLERS_RANGE, value=2, key="trip_adults"
+            "Adults", *config.TRIP_TRAVELLERS_RANGE, value=2, key="trip_adults"
         )
-        ages_text = st.text_input(
-            "Children's ages (0-14)", value="4, 8", key="trip_ages", help="Separate with commas."
-        )
+        teens = sum(1 for b in children if b in family.ADULT_FARE_BANDS)
         holders = st.number_input(
-            "How many of the adults have a Deutschlandticket?",
+            "How many travellers aged 15+ have a Deutschlandticket?",
             min_value=0,
-            max_value=int(adults),
+            max_value=int(adults) + teens,
             value=0,
             key="trip_holders",
         )
-        try:
-            ages = parse_ages(ages_text)
-        except ValueError as exc:
-            st.error(str(exc))
-            return None
-        st.caption("Ticket prices come from the app's fare table; you fill in entry fees and food.")
+        st.caption(
+            "The children above travel too. Ticket prices come from the app's fare table; "
+            "you fill in entry fees and food."
+        )
     return {
         "budget_eur": float(budget),
         "adults": int(adults),
-        "children_ages": list(ages),
         "deutschlandticket_holders": int(holders),
     }
 
@@ -79,12 +97,8 @@ def render_sidebar() -> Settings:
             key="country",
         )
         city = st.selectbox("City", [ALL_CITIES, *config.CITIES[country]], key=f"city_{country}")
-        add_age = st.checkbox("Filter by child's age", value=True)
-        age = (
-            st.slider("Child's age (years)", *config.CHILD_AGE_RANGE, value=5) if add_age else None
-        )
-        st.caption("Only the age is used. Please don't type names or other personal details.")
-        trip = _render_trip(country)
+        children = _render_children()
+        trip = _render_trip(country, children)
 
         st.divider()
         st.header("🤖 Agent settings")
@@ -93,8 +107,8 @@ def render_sidebar() -> Settings:
             "Auto-approve external tools",
             value=False,
             help="Off: you approve every call to an outside service (OpenStreetMap, "
-            "Ticketmaster, Open-Meteo, Transitous) and fill in prices for the budget check "
-            "before they run. This is the human-in-the-loop step.",
+            "Ticketmaster, Open-Meteo, Transitous) before it runs. This is the human-in-the-loop "
+            "step. The budget check always waits for your prices, even when this is on.",
         )
         with st.expander("Advanced RAG"):
             multi_query = st.toggle(
@@ -106,6 +120,8 @@ def render_sidebar() -> Settings:
                 "LLM reranking", value=False, help="An LLM re-scores the top results (slower)."
             )
         if st.button("🧹 New conversation", use_container_width=True):
+            # The chat view deletes this thread from server memory on the next run.
+            st.session_state["delete_thread"] = st.session_state.get("thread_id")
             for key in ("thread_id", "history", "pending", "feedback_saved"):
                 st.session_state.pop(key, None)
             st.rerun()
@@ -117,7 +133,7 @@ def render_sidebar() -> Settings:
     return Settings(
         country=country,
         city=None if city == ALL_CITIES else city,
-        child_age=age,
+        children=children,
         model=model,
         auto_approve=auto_approve,
         multi_query=multi_query,

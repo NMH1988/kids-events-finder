@@ -37,7 +37,7 @@ def test_maps_url_targets_place_name_and_city():
 
 def test_filters_by_age_setting_and_day_trip():
     """Age, indoor/outdoor and day-trip cities filter as expected."""
-    toddler = filter_places("DE", "Berlin", age=2)
+    toddler = filter_places("DE", "Berlin", bands=("0-2",))
     assert all(p.age_min <= 2 for p in toddler)
     assert "de-technikmuseum" not in {p.id for p in toddler}
     indoor = filter_places("GB", "London", setting="indoor")

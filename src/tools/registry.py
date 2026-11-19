@@ -10,7 +10,8 @@ import requests
 from langchain_core.tools import BaseTool, StructuredTool
 from pydantic import BaseModel, Field
 
-from src import budget, config, fares
+from src import budget, config, family, fares
+from src.family import AgeBand
 from src.rag.retriever import AdvancedRetriever
 from src.tools import external
 
@@ -36,7 +37,11 @@ class KnowledgeBaseArgs(BaseModel):
     query: str = Field(min_length=2, max_length=300, description="What the family is looking for.")
     country: Country = Field(description="ISO country code: DE, GB or US.")
     city: str | None = Field(default=None, max_length=60, description="City, or null for all.")
-    child_age: int | None = Field(default=None, ge=0, le=17, description="Child's age in years.")
+    age_bands: list[AgeBand] = Field(
+        default_factory=list,
+        max_length=family.MAX_CHILDREN,
+        description="Children's age groups from the context; every place must suit all of them.",
+    )
     indoor_only: bool = Field(default=False, description="True for rainy-day or indoor plans.")
 
 
@@ -82,9 +87,13 @@ class TicketArgs(BaseModel):
     to_state: str = Field(min_length=2, max_length=40, description="State code, e.g. BY.")
     travel_date: date
     departure: time | None = Field(default=None, description="Departure time, HH:MM.")
-    adults: int = Field(ge=1, le=5, description="Travellers aged 15 or older.")
-    children_ages: list[int] = Field(default_factory=list, max_length=6)
-    deutschlandticket_holders: int = Field(default=0, ge=0, le=5)
+    adults: int = Field(ge=1, le=5, description="Adults travelling.")
+    children_age_bands: list[AgeBand] = Field(
+        default_factory=list, max_length=family.MAX_CHILDREN, description="Children's age groups."
+    )
+    deutschlandticket_holders: int = Field(
+        default=0, ge=0, le=10, description="Travellers aged 15+ who hold a Deutschlandticket."
+    )
 
 
 class BudgetArgs(BaseModel):
@@ -119,7 +128,7 @@ def build_tools(
         query: str,
         country: str,
         city: str | None = None,
-        child_age: int | None = None,
+        age_bands: list[str] | None = None,
         indoor_only: bool = False,
     ) -> str:
         """Search the curated knowledge base of family-friendly places (museums, zoos, etc.)."""
@@ -130,7 +139,7 @@ def build_tools(
                 query,
                 country,
                 city,
-                child_age,
+                tuple(age_bands or ()),
                 indoor_only,
                 multi_query=settings.multi_query,
                 rerank=settings.rerank,
@@ -208,7 +217,7 @@ def build_tools(
         to_state: str,
         travel_date: date,
         adults: int,
-        children_ages: list[int] | None = None,
+        children_age_bands: list[str] | None = None,
         deutschlandticket_holders: int = 0,
         departure: time | None = None,
     ) -> str:
@@ -218,7 +227,7 @@ def build_tools(
             """Build the party and compare the tickets."""
             party = fares.Party(
                 adults=adults,
-                children_ages=tuple(children_ages or ()),
+                children_bands=tuple(children_age_bands or ()),
                 deutschlandticket_holders=deutschlandticket_holders,
             )
             return fares.compare_tickets(party, from_state, to_state, travel_date, departure)

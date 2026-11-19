@@ -13,7 +13,7 @@ from pathlib import Path
 
 from pydantic import BaseModel, Field
 
-from src import config
+from src import config, family
 
 
 class DayTicket(BaseModel):
@@ -59,10 +59,11 @@ class FareTable(BaseModel):
 
 @dataclass(frozen=True)
 class Party:
-    """Who travels: adults (15+), the children's ages (0-14) and Deutschlandticket holders."""
+    """Who travels: adults, the children's age groups and how many 15+ travellers hold a
+    Deutschlandticket. Children aged 15-17 pay the adult fare."""
 
     adults: int
-    children_ages: tuple[int, ...] = ()
+    children_bands: tuple[str, ...] = ()
     deutschlandticket_holders: int = 0
 
     def __post_init__(self) -> None:
@@ -70,18 +71,21 @@ class Party:
         low, high = config.TRIP_TRAVELLERS_RANGE
         if not low <= self.adults <= high:
             raise ValueError(f"adults must be between {low} and {high}.")
-        if not 0 <= self.deutschlandticket_holders <= self.adults:
-            raise ValueError("deutschlandticket_holders must be between 0 and adults.")
-        age_low, age_high = config.CHILD_TICKET_AGE_RANGE
-        if any(not age_low <= a <= age_high for a in self.children_ages):
-            raise ValueError(f"Children's ages must be {age_low}-{age_high}; 15+ count as adults.")
-        if len(self.children_ages) > config.MAX_CHILDREN_PER_TRIP:
-            raise ValueError(f"At most {config.MAX_CHILDREN_PER_TRIP} children per trip.")
+        family.check_bands(self.children_bands)
+        if not 0 <= self.deutschlandticket_holders <= self.adult_fare_travellers:
+            raise ValueError(
+                "deutschlandticket_holders must be between 0 and the number of travellers aged 15+."
+            )
+
+    @property
+    def adult_fare_travellers(self) -> int:
+        """Return how many travellers pay the adult fare (adults plus children aged 15-17)."""
+        return self.adults + sum(1 for b in self.children_bands if b in family.ADULT_FARE_BANDS)
 
     @property
     def school_age_children(self) -> int:
         """Return how many children are 6-14, the ages that some tickets charge for."""
-        return sum(1 for a in self.children_ages if a >= 6)
+        return sum(1 for b in self.children_bands if b in family.SCHOOL_AGE_BANDS)
 
 
 @dataclass
@@ -164,7 +168,8 @@ def compare_tickets(
         raise ValueError("Unknown German state; use a code such as BY, BE or NW.")
     kids = party.school_age_children
     holders = party.deutschlandticket_holders
-    others = party.adults - holders
+    paying = party.adult_fare_travellers
+    others = paying - holders
     d_ticket = fares.deutschlandticket
     options: list[TicketOption] = []
     skipped: list[str] = []
@@ -187,7 +192,7 @@ def compare_tickets(
         if not _valid_at(ticket, travel_date, departure):
             skipped.append(f"{ticket.name}: valid from {ticket.weekday_valid_from} on weekdays")
             continue
-        whole = _group_cost(ticket, party.adults, kids)
+        whole = _group_cost(ticket, paying, kids)
         if whole:
             persons, price = whole
             options.append(
@@ -235,18 +240,3 @@ def compare_tickets(
             "Check on bahn.de that the whole route stays inside the ticket's area.",
         ],
     }
-
-
-def parse_ages(text: str) -> tuple[int, ...]:
-    """Parse children's ages typed as '4, 8' into a tuple, or raise ValueError."""
-    parts = [p.strip() for p in text.replace(";", ",").split(",") if p.strip()]
-    try:
-        ages = tuple(int(p) for p in parts)
-    except ValueError:
-        raise ValueError("Type the ages as whole numbers, separated by commas.") from None
-    low, high = config.CHILD_TICKET_AGE_RANGE
-    if any(not low <= a <= high for a in ages):
-        raise ValueError(f"Children's ages must be {low}-{high}; 15+ count as adults.")
-    if len(ages) > config.MAX_CHILDREN_PER_TRIP:
-        raise ValueError(f"At most {config.MAX_CHILDREN_PER_TRIP} children per trip.")
-    return ages

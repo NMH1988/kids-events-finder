@@ -107,16 +107,20 @@ class AdvancedRetriever:
         self.helper_llm = helper_llm
 
     def candidates(
-        self, country: str, city: str | None, age: int | None, indoor_only: bool
+        self,
+        country: str,
+        city: str | None,
+        bands: tuple[str, ...] | list[str] = (),
+        indoor_only: bool = False,
     ) -> list[Place]:
-        """Return the places that pass the metadata filters."""
+        """Return the places that pass the metadata filters (every child's age group must fit)."""
         result = []
         for place in self.places.values():
             if place.country != country:
                 continue
             if city and not place.serves_city(city):
                 continue
-            if not place.suits_age(age):
+            if not place.suits_children(bands):
                 continue
             if indoor_only and place.setting == "outdoor":
                 continue
@@ -169,7 +173,7 @@ class AdvancedRetriever:
         question: str,
         country: str,
         city: str | None = None,
-        age: int | None = None,
+        bands: tuple[str, ...] | list[str] = (),
         indoor_only: bool = False,
         *,
         mode: Mode = "hybrid",
@@ -178,7 +182,7 @@ class AdvancedRetriever:
         k: int = config.RETRIEVAL_TOP_K,
     ) -> list[RetrievedPlace]:
         """Run the pipeline and return the best k places for the question."""
-        candidates = self.candidates(country, city, age, indoor_only)
+        candidates = self.candidates(country, city, bands, indoor_only)
         if not candidates:
             return []
         allowed = {p.id for p in candidates}
