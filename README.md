@@ -7,7 +7,7 @@
 
 ## Goal, problem and how it works
 
-**Goal.** Help parents in Germany, the United Kingdom and the United States find a good outing for their child in under a minute: a short description, the official website and Google Maps directions for each suggestion.
+**Goal.** Help parents in Germany, the United Kingdom and the United States find a good outing for their child in under a minute: a short description, the official website and Google Maps directions for each suggestion. In Germany, the app also plans a **day trip by regional train within a fixed budget**, for families with or without a Deutschlandticket.
 
 **Problem (SCR).**
 - *Situation:* parents plan weekend and holiday activities for their children all the time.
@@ -22,6 +22,17 @@
 | `find_nearby_places` | OpenStreetMap (Overpass API) | Yes |
 | `search_family_events` | Ticketmaster Discovery API, family events | Yes |
 | `get_weather_forecast` | Open-Meteo | Yes |
+| `find_train_connection` | Transitous journey planner, regional trains only (DE) | Yes |
+| `compare_train_tickets` | The app's fare table (Deutschlandticket, Länder-Tickets, Quer-durchs-Land) | No: calculated in code |
+| `check_budget` | Costs added up in code | Yes: the parent fills in prices the app cannot know |
+
+### Budget day trips (Germany)
+
+Switch on **💶 Budget day trip by train** in the sidebar and enter the budget, the number of adults, the children's ages and how many adults hold a Deutschlandticket. The agent picks a destination, finds regional train journeys there and back, compares tickets, checks the weather at the destination and runs a budget check.
+
+- **Money is never calculated by the model.** Ticket rules live in `data/fares.json` (copied from bahn.de with a source link and the date checked) and `src/fares.py` applies them: children under 6 ride free, up to 3 children aged 6-14 ride free on most Länder-Tickets, the Deutschlandticket does not include children aged 6-14, and many day tickets start at 9:00 on weekdays. Example: two parents with a Deutschlandticket and children aged 8 and 10 pay 34 EUR for a 1-person Bayern-Ticket that takes the children along, not 44 EUR for a 2-person one.
+- **Prices with no open source (entry fees, food) are not guessed.** The agent leaves them empty and the parent fills them in at the approval step, in an editable table; `src/budget.py` adds everything up.
+- **Live journeys:** Transitous returns the current timetable and, where operators publish live data, delays and cancellations.
 
 Before an outside call runs, the app pauses (**human in the loop**): the parent sees what will be sent and can **approve**, **edit the arguments** or **reject with feedback**. The final answer passes a **grounding check** that removes any link not found in a tool result. Parents rate answers with 👍/👎, which feeds the evaluation. A **Browse** tab shows the curated places as cards without any model call.
 
@@ -30,7 +41,7 @@ flowchart LR
     U[Parent: country, city, age, question] --> A[Agent LLM<br/>OpenRouter]
     A -->|internal tool| KB[search_knowledge_base]
     A -->|outside tool| H{Human review<br/>approve / edit / reject}
-    H -->|approve or edit| T[OSM / Ticketmaster / Open-Meteo]
+    H -->|approve or edit| T[OSM / Ticketmaster / Open-Meteo / Transitous]
     H -->|reject + feedback| A
     KB --> A
     T --> A
@@ -69,7 +80,7 @@ copy .streamlit\secrets.toml.example .streamlit\secrets.toml   # then add your k
 ## Tests and evaluation
 
 ```powershell
-.venv\Scripts\python.exe -m pytest -q          # 39 offline tests: LLM and network calls are faked
+.venv\Scripts\python.exe -m pytest -q          # 54 offline tests: LLM and network calls are faked
 .venv\Scripts\ruff.exe check .
 .venv\Scripts\python.exe -m scripts.evaluate_retrieval   # retrieval variants: hit@5, MRR
 .venv\Scripts\python.exe -m scripts.evaluate_agent --judge   # grounded rate, relevance, wrong-country rate, latency, tokens, LLM judge
@@ -97,8 +108,10 @@ src/rag/               Chroma index and the advanced retriever
 src/tools/             tool schemas (validated) and external service calls
 src/grounding.py       link verification
 src/knowledge.py       curated knowledge base model and filters
+src/fares.py           regional train ticket comparison (rules from data/fares.json)
+src/budget.py          trip budget check
 src/prompts/           system prompt
-data/                  knowledge_base.json, eval_questions.json
+data/                  knowledge_base.json, fares.json, eval_questions.json
 scripts/               build_index, evaluate_retrieval, evaluate_agent, check_links
 tests/                 offline tests (pytest)
 docs/                  ethics, evaluation, capstone checklist, presentation outline
@@ -109,5 +122,11 @@ docs/                  ethics, evaluation, capstone checklist, presentation outl
 - Curated knowledge base: the project's own short descriptions with links to the official websites of each place.
 - Map data © OpenStreetMap contributors, ODbL (openstreetmap.org/copyright), queried live, not stored.
 - Event data from the Ticketmaster Discovery API, queried live, not stored.
-- Weather data by Open-Meteo.com (CC BY 4.0).
+- Weather data by Open-Meteo.com (CC BY 4.0). The free API is for non-commercial use.
+- Train journeys by [Transitous](https://transitous.org/sources/) (free for open-source, non-commercial projects); German timetables by DELFI e.V. (CC BY 4.0) and others.
+- Ticket prices and rules: copied by hand from bahn.de; each entry in `data/fares.json` has its source and the date it was checked.
 - Directions open in Google Maps through its public URL scheme (no API key).
+
+## Licence
+
+MIT, see [LICENSE](LICENSE).

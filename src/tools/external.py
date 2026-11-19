@@ -5,15 +5,19 @@ Every function returns plain dicts that the agent's tools turn into JSON.
 """
 
 import math
-from datetime import date, timedelta
+from datetime import UTC, date, datetime, time, timedelta
+from zoneinfo import ZoneInfo
 
 import requests
 
-from src import config, geo
+from src import config, fares, geo
 
 ATTRIBUTION_OSM = "Data © OpenStreetMap contributors, ODbL (openstreetmap.org/copyright)"
 ATTRIBUTION_TICKETMASTER = "Event data from Ticketmaster Discovery API"
 ATTRIBUTION_WEATHER = "Weather data by Open-Meteo.com (CC BY 4.0)"
+ATTRIBUTION_TRANSITOUS = (
+    "Journeys by Transitous (transitous.org/sources); timetables by DELFI e.V. and others"
+)
 
 # OpenStreetMap tag filters for each category the agent may ask for.
 _OSM_FILTERS: dict[str, tuple[str, ...]] = {
@@ -267,3 +271,82 @@ def get_weather_forecast(city: str, country: str, start_date: date, end_date: da
             }
         )
     return {"source": ATTRIBUTION_WEATHER, "city": location.name, "days": days}
+
+
+def _local_clock(timestamp: str, zone: ZoneInfo) -> str:
+    """Turn an ISO UTC timestamp from the journey planner into local HH:MM."""
+    moment = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
+    return moment.astimezone(zone).strftime("%H:%M")
+
+
+def _delay_minutes(leg: dict) -> int | None:
+    """Return the live departure delay of a ride in minutes, or None without live data."""
+    if not leg.get("realTime") or not leg.get("scheduledStartTime"):
+        return None
+    actual = datetime.fromisoformat(leg["startTime"].replace("Z", "+00:00"))
+    planned = datetime.fromisoformat(leg["scheduledStartTime"].replace("Z", "+00:00"))
+    return round((actual - planned).total_seconds() / 60)
+
+
+def _describe_leg(leg: dict) -> str:
+    """Return one line for a ride, e.g. 'RE89 München Hbf → Augsburg Hbf'."""
+    line = leg.get("displayName") or leg.get("routeShortName") or leg.get("mode", "")
+    origin = (leg.get("from") or {}).get("name", "?")
+    destination = (leg.get("to") or {}).get("name", "?")
+    return f"{line} {origin} → {destination}".strip()
+
+
+def find_train_connection(
+    from_city: str, to_town: str, travel_date: date, depart_after: time
+) -> dict:
+    """Find regional-train journeys (no ICE/IC) between two places in Germany via Transitous."""
+    _check_dates(travel_date, travel_date, config.TRAIN_MAX_DAYS_AHEAD)
+    origin = _locate(from_city, "DE")
+    destination = _locate(to_town, "DE")
+    zone = ZoneInfo(config.LOCAL_TIMEZONE)
+    start = datetime.combine(travel_date, depart_after, tzinfo=zone).astimezone(UTC)
+    response = requests.get(
+        config.TRANSITOUS_PLAN_URL,
+        params={
+            "fromPlace": f"{origin.latitude:.5f},{origin.longitude:.5f}",
+            "toPlace": f"{destination.latitude:.5f},{destination.longitude:.5f}",
+            "time": start.strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "transitModes": ",".join(config.REGIONAL_TRANSIT_MODES),
+            "numItineraries": config.TRAIN_MAX_RESULTS,
+        },
+        headers={"User-Agent": config.TRANSITOUS_USER_AGENT},
+        timeout=config.HTTP_TIMEOUT_SECONDS + 15,
+        allow_redirects=False,
+    )
+    response.raise_for_status()
+    journeys = []
+    for itinerary in response.json().get("itineraries", [])[: config.TRAIN_MAX_RESULTS]:
+        rides = [leg for leg in itinerary.get("legs", []) if leg.get("mode") != "WALK"]
+        if not rides:
+            continue
+        journeys.append(
+            {
+                "depart": _local_clock(itinerary["startTime"], zone),
+                "arrive": _local_clock(itinerary["endTime"], zone),
+                "duration_min": round(itinerary.get("duration", 0) / 60),
+                "transfers": itinerary.get("transfers", len(rides) - 1),
+                "rides": [_describe_leg(leg) for leg in rides],
+                # Live delay data exists only where operators publish it (GTFS-RT).
+                "live_data": any(leg.get("realTime") for leg in rides),
+                "delay_min": _delay_minutes(rides[0]),
+                "cancelled": any(leg.get("cancelled") for leg in rides),
+            }
+        )
+    return {
+        "source": ATTRIBUTION_TRANSITOUS,
+        "from": origin.name,
+        "from_state": fares.state_code(origin.state),
+        "to": destination.name,
+        "to_state": fares.state_code(destination.state),
+        "date": travel_date.isoformat(),
+        "regional_trains_only": True,
+        "results": journeys,
+        "maps_url": geo.transit_directions_url(
+            f"{origin.name}, Germany", f"{destination.name}, Germany"
+        ),
+    }

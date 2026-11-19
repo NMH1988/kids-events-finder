@@ -15,9 +15,14 @@ The users are parents and the subject is children, so mistakes have real-world c
 | Geographic bias | Big cities are better covered | Known limit; only 15 cities are curated, other cities rely on OpenStreetMap | README "Limits" |
 | Safety and supervision | The app cannot judge if a place is safe for a specific child | The About tab says parents remain responsible; age ranges are labelled as suggestions | `views/about.py` |
 | Copyright and licences | Third-party content must be reusable | Descriptions are the project's own words; OSM (ODbL) and Ticketmaster data are queried live, shown with attribution and not stored; Open-Meteo is CC BY 4.0 with attribution | README "Data sources" |
+| Wrong money figures (budget trips) | A model that adds up prices can be wrong, and an invented entry fee misleads a family on a budget | Ticket prices come from a hand-checked fare table with a source link and date; the totals are calculated in code (`check_budget`), not by the model; unknown costs stay empty until the parent fills them in at the approval step; every plan tells parents to check bahn.de | `data/fares.json`, `src/fares.py`, `src/budget.py`, `views/chat.py` |
+| Family details sent to the journey planner | Budget, ages and family size are personal | Transitous receives only the two town names and the date; the budget and the party stay in the app | `src/tools/external.py` |
+| Transitous terms | Free only for open-source, non-commercial use, with a contact in the User-Agent | The repository is public under the MIT licence; the User-Agent names the repository; any paid version needs another journey planner | `src/config.py`, `LICENSE` |
 | Cost and abuse | A public app could spend the owner's key | Runs locally; message length limit; LangGraph recursion limit bounds the agent's loop; the model allowlist and max tokens are fixed when the client is built | `src/config.py`, `src/llm.py` |
 
 ## Before any public deployment
 - Add a "bring your own key" option or authentication, so visitors cannot spend the owner's key.
 - Review Ticketmaster's terms of use for public display of event data.
 - Re-run `scripts/check_links.py` and re-verify the curated entries.
+- Re-check every price in `data/fares.json` against bahn.de and update `checked_on`.
+- Open-Meteo's free API and Transitous are for non-commercial use only; a version that earns money needs paid or other data sources.

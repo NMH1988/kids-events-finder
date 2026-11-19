@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-Kids Outing Finder: Turing College AI Engineering capstone (deadline 2026-12-16). A Streamlit app with a LangGraph agent (human-in-the-loop approval of outside tool calls), advanced RAG over a curated knowledge base (Chroma + BM25, multi-query, RRF, rerank) and a grounding check on links. Requirements map: `docs/CAPSTONE_CHECKLIST.md`.
+Kids Outing Finder: Turing College AI Engineering capstone (deadline 2026-12-16). A Streamlit app with a LangGraph agent (human-in-the-loop approval of outside tool calls), budget day trips by regional train in Germany (Transitous journeys, ticket comparison, budget check), advanced RAG over a curated knowledge base (Chroma + BM25, multi-query, RRF, rerank) and a grounding check on links. Requirements map: `docs/CAPSTONE_CHECKLIST.md`.
 
 The owner writes in Vietnamese: reply in Vietnamese. Everything in the repo is in English.
 
@@ -10,7 +10,9 @@ The owner writes in Vietnamese: reply in Vietnamese. Everything in the repo is i
 - Settings and limits live in `src/config.py`. Build model clients only with `src/llm.py`; never pass `model`, `max_tokens` or `base_url` at call time.
 - The OpenRouter and Ticketmaster keys are read only through `config.get_secret()`; never log, print or show them.
 - Chroma runs embedded only, with embeddings from OpenRouter (never Chroma's built-in embedding functions).
-- Outside services receive only city, country, dates and category; never the question or the child's age.
+- Outside services receive only city, country, dates and category; never the question, the child's age, the budget or the family size.
+- Money is calculated in code, never by the model: ticket rules in `data/fares.json` + `src/fares.py`, totals in `src/budget.py`. Every fare entry keeps its bahn.de `source_url` and `checked_on` date. Unknown prices stay `null` for the parent to fill in.
+- Transitous (train journeys) is free only for open-source, non-commercial use; keep `TRANSITOUS_USER_AGENT` with the repository as the contact.
 - The system prompt and the evaluation questions are drafts for the owner to review.
 - Tests mock every LLM and network call (`tests/conftest.py` blocks `requests`).
 

@@ -21,12 +21,22 @@ TOOL_EXPLANATIONS = {
     "find_nearby_places": "Sends the city and a place category to OpenStreetMap (Overpass API).",
     "search_family_events": "Sends the city, country and dates to Ticketmaster's event search.",
     "get_weather_forecast": "Sends the city, country and dates to Open-Meteo's weather service.",
+    "find_train_connection": "Sends the two town names and the date to Transitous (journey "
+    "planner, regional trains only).",
+    "compare_train_tickets": "Compares day tickets from the app's own fare table. Nothing leaves "
+    "the app.",
+    "check_budget": "Adds up the costs inside the app. Fill in the amounts you know (entry fees, "
+    "food); leave a cell empty if you don't know it yet.",
 }
 EXAMPLES = (
     "Rainy-day ideas for this weekend?",
     "Free things to do with a toddler",
     "Family events in the next two weeks",
     "Cuối tuần này cho bé đi đâu chơi?",
+)
+TRIP_EXAMPLES = (
+    "Day trip by regional train this Saturday?",
+    "Chuyến đi trong ngày bằng tàu, không quá ngân sách",
 )
 
 
@@ -121,19 +131,67 @@ def _render_feedback(index: int, message: dict, settings: Settings) -> None:
         st.toast("Thanks for the feedback!")
 
 
+def _budget_editor(call: dict) -> dict:
+    """Let the parent fill in or correct the budget items; return the edited arguments."""
+    args = call["args"]
+    budget = st.number_input(
+        "Budget (EUR)",
+        min_value=float(config.BUDGET_RANGE_EUR[0]),
+        max_value=float(config.BUDGET_RANGE_EUR[1]),
+        value=float(args.get("budget_eur") or 0),
+        key=f"budget_{call['id']}",
+    )
+    rows = [
+        {
+            "label": i.get("label", ""),
+            "amount_eur": i.get("amount_eur"),
+            "note": i.get("note", ""),
+        }
+        for i in args.get("items", [])
+    ]
+    table = st.data_editor(
+        rows,
+        num_rows="dynamic",
+        key=f"items_{call['id']}",
+        column_config={
+            "label": st.column_config.TextColumn("Cost", required=True, max_chars=80),
+            "amount_eur": st.column_config.NumberColumn(
+                "Amount (EUR)", min_value=0.0, max_value=float(config.BUDGET_RANGE_EUR[1])
+            ),
+            "note": st.column_config.TextColumn("Note", max_chars=160),
+        },
+        use_container_width=True,
+    )
+    items = [
+        {
+            "label": str(r["label"]).strip(),
+            "amount_eur": None if r.get("amount_eur") in (None, "") else float(r["amount_eur"]),
+            "note": r.get("note") or "",
+        }
+        for r in table
+        if r.get("label") and str(r["label"]).strip()
+    ]
+    return {"budget_eur": float(budget), "items": items}
+
+
 def _render_approval(settings: Settings) -> None:
     """Show the planned tool calls and let the parent approve, edit or reject them."""
     pending = st.session_state.pending
     result: TurnResult = pending["result"]
     with st.chat_message("assistant", avatar="🛑"):
-        st.markdown("**The agent wants to contact outside services. Do you approve?**")
+        st.markdown("**The agent is waiting for you. Do you approve these steps?**")
         edited: list[dict] = []
         bad_json = False
+        has_budget = False
         for call in result.pending_tool_calls:
             with st.container(border=True):
                 needs = call["id"] in result.needs_approval
                 st.markdown(f"{'🌍' if needs else '📚'} **`{call['name']}`**")
                 st.caption(TOOL_EXPLANATIONS.get(call["name"], ""))
+                if call["name"] == "check_budget":
+                    has_budget = True
+                    edited.append({"id": call["id"], "args": _budget_editor(call)})
+                    continue
                 text = st.text_area(
                     "Arguments (you can edit them)",
                     json.dumps(call["args"], indent=2, ensure_ascii=False),
@@ -153,7 +211,12 @@ def _render_approval(settings: Settings) -> None:
         c1, c2, c3 = st.columns(3)
         decision = None
         if c1.button("✅ Approve", type="primary", use_container_width=True):
-            decision = {"action": "approve"}
+            # The budget table is part of approving: the parent's amounts are what runs.
+            decision = (
+                {"action": "edit", "tool_calls": edited}
+                if has_budget and not bad_json
+                else {"action": "approve"}
+            )
         if c2.button("✏️ Run with my edits", disabled=bad_json, use_container_width=True):
             decision = {"action": "edit", "tool_calls": edited}
         if c3.button("❌ Reject", use_container_width=True):
@@ -204,8 +267,9 @@ def render_chat(settings: Settings) -> None:
 
     if not ss.history and not ss.pending:
         st.markdown("Ask about outings for your child. Try one of these:")
-        cols = st.columns(len(EXAMPLES))
-        for col, example in zip(cols, EXAMPLES, strict=True):
+        examples = TRIP_EXAMPLES + EXAMPLES[:2] if settings.trip else EXAMPLES
+        cols = st.columns(len(examples))
+        for col, example in zip(cols, examples, strict=True):
             if col.button(example, use_container_width=True):
                 ss.queued_question = example
                 st.rerun()
@@ -232,6 +296,7 @@ def render_chat(settings: Settings) -> None:
                 country=settings.country,
                 city=settings.city,
                 child_age=settings.child_age,
+                trip=settings.trip,
                 auto_approve=settings.auto_approve,
             ),
             question,

@@ -1,0 +1,142 @@
+{
+  "_comment": "Day tickets for regional trains in Germany (2nd class), copied by hand from the official DB pages. Prices change; the owner re-checks them before each release and updates checked_on. price = price_first + price_extra * (persons - 1). children_6_14_free_max: how many children aged 6-14 ride free with the ticket (0 means they count as persons). Children under 6 always ride free. weekday_valid_from: earliest start Monday to Friday (null = all day). Not included yet: Mecklenburg-Vorpommern-Ticket (prices differ by weekday).",
+  "deutschlandticket": {
+    "name": "Deutschlandticket",
+    "monthly_price": 63.0,
+    "notes": "Personal monthly subscription for all regional transport in Germany. It does not include children aged 6-14, who need their own ticket.",
+    "source_url": "https://www.bahn.de/faq/pk/angebot/regionale-angebote/deutschland-ticket",
+    "checked_on": "2026-11-19"
+  },
+  "day_tickets": [
+    {
+      "id": "quer_durchs_land",
+      "name": "Quer-durchs-Land-Ticket",
+      "area": ["ALL"],
+      "price_first": 51.0,
+      "price_extra": 12.0,
+      "max_persons": 5,
+      "children_6_14_free_max": 3,
+      "weekday_valid_from": "09:00",
+      "notes": "Valid in regional trains in all of Germany.",
+      "source_url": "https://www.bahn.de/faq/pk/angebot/regionale-angebote/qdl",
+      "checked_on": "2026-11-19"
+    },
+    {
+      "id": "bayern",
+      "name": "Bayern-Ticket",
+      "area": ["BY"],
+      "price_first": 34.0,
+      "price_extra": 10.0,
+      "max_persons": 5,
+      "children_6_14_free_max": 3,
+      "weekday_valid_from": "09:00",
+      "notes": "Also covers some routes just outside Bavaria; check the area on bahn.de.",
+      "source_url": "https://www.bahn.de/faq/pk/angebot/regionale-angebote/laender-tickets",
+      "checked_on": "2026-11-19"
+    },
+    {
+      "id": "brandenburg_berlin",
+      "name": "Brandenburg-Berlin-Ticket",
+      "area": ["BE", "BB"],
+      "price_first": 36.5,
+      "price_extra": 0.0,
+      "max_persons": 5,
+      "children_6_14_free_max": 3,
+      "weekday_valid_from": "09:00",
+      "notes": "One price for up to 5 people.",
+      "source_url": "https://www.bahn.de/faq/pk/angebot/regionale-angebote/laender-tickets",
+      "checked_on": "2026-11-19"
+    },
+    {
+      "id": "hessen",
+      "name": "Hessenticket",
+      "area": ["HE"],
+      "price_first": 43.5,
+      "price_extra": 0.0,
+      "max_persons": 5,
+      "children_6_14_free_max": 0,
+      "weekday_valid_from": "09:00",
+      "notes": "One price for up to 5 people. Children aged 6-14 count as people and must be written on the ticket.",
+      "source_url": "https://www.bahn.de/faq/pk/angebot/regionale-angebote/laender-tickets",
+      "checked_on": "2026-11-19"
+    },
+    {
+      "id": "schleswig_holstein",
+      "name": "Schleswig-Holstein-Ticket",
+      "area": ["SH", "HH"],
+      "price_first": 34.0,
+      "price_extra": 6.0,
+      "max_persons": 5,
+      "children_6_14_free_max": 3,
+      "weekday_valid_from": "09:00",
+      "notes": "Includes Hamburg.",
+      "source_url": "https://www.bahn.de/faq/pk/angebot/regionale-angebote/laender-tickets",
+      "checked_on": "2026-11-19"
+    },
+    {
+      "id": "niedersachsen",
+      "name": "Niedersachsen-Ticket",
+      "area": ["NI", "HB", "HH"],
+      "price_first": 29.0,
+      "price_extra": 8.0,
+      "max_persons": 5,
+      "children_6_14_free_max": 3,
+      "weekday_valid_from": null,
+      "notes": "Valid all day, also before 9:00 on weekdays. Includes Bremen and Hamburg.",
+      "source_url": "https://www.bahn.de/faq/pk/angebot/regionale-angebote/laender-tickets",
+      "checked_on": "2026-11-19"
+    },
+    {
+      "id": "nrw_24h_5",
+      "name": "24h Ticket NRW 5 Personen",
+      "area": ["NW"],
+      "price_first": 59.8,
+      "price_extra": 0.0,
+      "max_persons": 5,
+      "children_6_14_free_max": 3,
+      "weekday_valid_from": null,
+      "notes": "Valid for 24 hours. The person named on the ticket may also take their own children or grandchildren up to 14 free; this app counts at most 3 to stay on the safe side.",
+      "source_url": "https://www.bahn.de/faq/pk/angebot/regionale-angebote/laender-tickets",
+      "checked_on": "2026-11-19"
+    },
+    {
+      "id": "baden_wuerttemberg",
+      "name": "Baden-Württemberg-Ticket",
+      "area": ["BW"],
+      "price_first": 27.0,
+      "price_extra": 9.0,
+      "max_persons": 5,
+      "children_6_14_free_max": 3,
+      "weekday_valid_from": null,
+      "notes": "Valid all day.",
+      "source_url": "https://www.bahn.de/faq/pk/angebot/regionale-angebote/laender-tickets",
+      "checked_on": "2026-11-19"
+    },
+    {
+      "id": "rheinland_pfalz_saarland",
+      "name": "Rheinland-Pfalz-Ticket / Saarland-Ticket",
+      "area": ["RP", "SL"],
+      "price_first": 30.0,
+      "price_extra": 10.0,
+      "max_persons": 5,
+      "children_6_14_free_max": 3,
+      "weekday_valid_from": "09:00",
+      "notes": "Check on bahn.de which of the two tickets fits the route.",
+      "source_url": "https://www.bahn.de/faq/pk/angebot/regionale-angebote/laender-tickets",
+      "checked_on": "2026-11-19"
+    },
+    {
+      "id": "sachsen_mitteldeutschland",
+      "name": "Sachsen-Ticket / Sachsen-Anhalt-Ticket / Thüringen-Ticket",
+      "area": ["SN", "ST", "TH"],
+      "price_first": 35.0,
+      "price_extra": 8.0,
+      "max_persons": 5,
+      "children_6_14_free_max": 3,
+      "weekday_valid_from": "09:00",
+      "notes": "The three tickets cost the same and are valid across Saxony, Saxony-Anhalt and Thuringia.",
+      "source_url": "https://www.bahn.de/faq/pk/angebot/regionale-angebote/laender-tickets",
+      "checked_on": "2026-11-19"
+    }
+  ]
+}

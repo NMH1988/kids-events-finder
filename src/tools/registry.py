@@ -3,13 +3,14 @@
 import json
 import logging
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, time
 from typing import Literal
 
 import requests
 from langchain_core.tools import BaseTool, StructuredTool
 from pydantic import BaseModel, Field
 
+from src import budget, config, fares
 from src.rag.retriever import AdvancedRetriever
 from src.tools import external
 
@@ -65,11 +66,39 @@ class WeatherArgs(BaseModel):
     end_date: date
 
 
+class TrainArgs(BaseModel):
+    """Arguments of the regional train journey search (Germany only)."""
+
+    from_city: str = Field(min_length=2, max_length=60, description="Where the family starts.")
+    to_town: str = Field(min_length=2, max_length=60, description="Town of the destination.")
+    travel_date: date = Field(description="Day of the trip, YYYY-MM-DD.")
+    depart_after: time = Field(default=time(9, 0), description="Earliest departure, HH:MM.")
+
+
+class TicketArgs(BaseModel):
+    """Arguments of the ticket comparison; the party comes from the app's trip settings."""
+
+    from_state: str = Field(min_length=2, max_length=40, description="State code, e.g. BY.")
+    to_state: str = Field(min_length=2, max_length=40, description="State code, e.g. BY.")
+    travel_date: date
+    departure: time | None = Field(default=None, description="Departure time, HH:MM.")
+    adults: int = Field(ge=1, le=5, description="Travellers aged 15 or older.")
+    children_ages: list[int] = Field(default_factory=list, max_length=6)
+    deutschlandticket_holders: int = Field(default=0, ge=0, le=5)
+
+
+class BudgetArgs(BaseModel):
+    """Arguments of the budget check; the parent fills in unknown amounts before it runs."""
+
+    budget_eur: float = Field(ge=0, le=config.BUDGET_RANGE_EUR[1])
+    items: list[budget.BudgetItem] = Field(min_length=1, max_length=config.MAX_BUDGET_ITEMS)
+
+
 def _safe(tool_name: str, func, **kwargs) -> str:
     """Run a tool function and return JSON; failures become an error message, not an exception."""
     try:
         return json.dumps(func(**kwargs), ensure_ascii=False, default=str)
-    except external.ToolInputError as exc:
+    except (external.ToolInputError, ValueError) as exc:
         return json.dumps({"error": str(exc), "results": []})
     except requests.RequestException as exc:
         logger.warning("tool_http_error", extra={"tool": tool_name, "type": type(exc).__name__})
@@ -83,7 +112,7 @@ def build_tools(
     rag_settings: RagSettings | None = None,
     ticketmaster_key: str | None = None,
 ) -> list[BaseTool]:
-    """Return the four tools the agent can call."""
+    """Return the tools the agent can call."""
     settings = rag_settings or RagSettings()
 
     def search_knowledge_base(
@@ -161,9 +190,52 @@ def build_tools(
             end_date=end_date,
         )
 
+    def find_train_connection(
+        from_city: str, to_town: str, travel_date: date, depart_after: time = time(9, 0)
+    ) -> str:
+        """Find regional-train journeys (Deutschlandticket area, no ICE/IC) in Germany."""
+        return _safe(
+            "find_train_connection",
+            external.find_train_connection,
+            from_city=from_city,
+            to_town=to_town,
+            travel_date=travel_date,
+            depart_after=depart_after,
+        )
+
+    def compare_train_tickets(
+        from_state: str,
+        to_state: str,
+        travel_date: date,
+        adults: int,
+        children_ages: list[int] | None = None,
+        deutschlandticket_holders: int = 0,
+        departure: time | None = None,
+    ) -> str:
+        """Compare regional day tickets for the family (Länder-Tickets, Deutschlandticket)."""
+
+        def run() -> dict:
+            """Build the party and compare the tickets."""
+            party = fares.Party(
+                adults=adults,
+                children_ages=tuple(children_ages or ()),
+                deutschlandticket_holders=deutschlandticket_holders,
+            )
+            return fares.compare_tickets(party, from_state, to_state, travel_date, departure)
+
+        return _safe("compare_train_tickets", run)
+
+    def check_budget(budget_eur: float, items: list[budget.BudgetItem]) -> str:
+        """Add up the trip's costs against the budget; the parent fills in unknown amounts."""
+        parsed = [budget.BudgetItem.model_validate(i) for i in items]
+        return _safe("check_budget", budget.check_budget, budget_eur=budget_eur, items=parsed)
+
     return [
         StructuredTool.from_function(search_knowledge_base, args_schema=KnowledgeBaseArgs),
         StructuredTool.from_function(find_nearby_places, args_schema=PlacesArgs),
         StructuredTool.from_function(search_family_events, args_schema=EventsArgs),
         StructuredTool.from_function(get_weather_forecast, args_schema=WeatherArgs),
+        StructuredTool.from_function(find_train_connection, args_schema=TrainArgs),
+        StructuredTool.from_function(compare_train_tickets, args_schema=TicketArgs),
+        StructuredTool.from_function(check_budget, args_schema=BudgetArgs),
     ]

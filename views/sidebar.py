@@ -5,6 +5,7 @@ from dataclasses import dataclass
 import streamlit as st
 
 from src import config
+from src.fares import parse_ages
 
 FLAGS = {"DE": "🇩🇪", "GB": "🇬🇧", "US": "🇺🇸"}
 ALL_CITIES = "All cities"
@@ -21,6 +22,50 @@ class Settings:
     auto_approve: bool
     multi_query: bool
     rerank: bool
+    trip: dict | None = None
+
+
+def _render_trip(country: str) -> dict | None:
+    """Draw the budget day trip settings (Germany only) and return them, or None when off."""
+    if country != "DE":
+        return None
+    with st.expander("💶 Budget day trip by train", expanded=False):
+        on = st.toggle("Plan a day trip within a budget", key="trip_on")
+        if not on:
+            return None
+        budget = st.number_input(
+            "Budget for the whole family (EUR)",
+            min_value=float(config.BUDGET_RANGE_EUR[0]),
+            max_value=float(config.BUDGET_RANGE_EUR[1]),
+            value=100.0,
+            step=10.0,
+            key="trip_budget",
+        )
+        adults = st.number_input(
+            "Adults and teens (15+)", *config.TRIP_TRAVELLERS_RANGE, value=2, key="trip_adults"
+        )
+        ages_text = st.text_input(
+            "Children's ages (0-14)", value="4, 8", key="trip_ages", help="Separate with commas."
+        )
+        holders = st.number_input(
+            "How many of the adults have a Deutschlandticket?",
+            min_value=0,
+            max_value=int(adults),
+            value=0,
+            key="trip_holders",
+        )
+        try:
+            ages = parse_ages(ages_text)
+        except ValueError as exc:
+            st.error(str(exc))
+            return None
+        st.caption("Ticket prices come from the app's fare table; you fill in entry fees and food.")
+    return {
+        "budget_eur": float(budget),
+        "adults": int(adults),
+        "children_ages": list(ages),
+        "deutschlandticket_holders": int(holders),
+    }
 
 
 def render_sidebar() -> Settings:
@@ -39,6 +84,7 @@ def render_sidebar() -> Settings:
             st.slider("Child's age (years)", *config.CHILD_AGE_RANGE, value=5) if add_age else None
         )
         st.caption("Only the age is used. Please don't type names or other personal details.")
+        trip = _render_trip(country)
 
         st.divider()
         st.header("🤖 Agent settings")
@@ -47,7 +93,8 @@ def render_sidebar() -> Settings:
             "Auto-approve external tools",
             value=False,
             help="Off: you approve every call to an outside service (OpenStreetMap, "
-            "Ticketmaster, Open-Meteo) before it runs. This is the human-in-the-loop step.",
+            "Ticketmaster, Open-Meteo, Transitous) and fill in prices for the budget check "
+            "before they run. This is the human-in-the-loop step.",
         )
         with st.expander("Advanced RAG"):
             multi_query = st.toggle(
@@ -75,4 +122,5 @@ def render_sidebar() -> Settings:
         auto_approve=auto_approve,
         multi_query=multi_query,
         rerank=rerank,
+        trip=trip,
     )

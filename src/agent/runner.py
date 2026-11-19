@@ -99,6 +99,7 @@ def start_turn(
     country: str,
     city: str | None,
     child_age: int | None,
+    trip: dict | None = None,
     auto_approve: bool = False,
     turn_start_index: int | None = None,
 ) -> TurnResult:
@@ -113,6 +114,7 @@ def start_turn(
             "country": country,
             "city": city,
             "child_age": child_age,
+            "trip": trip,
             "grounding": None,
         },
         run_config,

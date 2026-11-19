@@ -149,3 +149,12 @@ def test_input_check_rejects_empty_and_too_long_text():
     with pytest.raises(InputRejected):
         check_input("x" * 5000)
     assert check_input("  hi ") == "hi"
+
+
+def test_system_prompt_describes_the_trip_settings():
+    """The trip budget and party reach the model; without them trip planning is off."""
+    trip = {"budget_eur": 80, "adults": 2, "children_ages": [4, 8], "deutschlandticket_holders": 1}
+    prompt = system_prompt({"country": "DE", "city": "Munich", "child_age": 4, "trip": trip})
+    assert "budget 80 EUR" in prompt and "children's ages: 4, 8" in prompt
+    assert "holders: 1" in prompt
+    assert "Budget day trip: off" in system_prompt({"country": "DE", "messages": []})

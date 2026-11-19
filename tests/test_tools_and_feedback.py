@@ -20,14 +20,48 @@ def tools():
     return {t.name: t for t in built}
 
 
-def test_four_tools_are_registered(tools):
-    """The agent gets exactly the four documented tools."""
+def test_all_tools_are_registered(tools):
+    """The agent gets exactly the documented tools."""
     assert set(tools) == {
         "search_knowledge_base",
         "find_nearby_places",
         "search_family_events",
         "get_weather_forecast",
+        "find_train_connection",
+        "compare_train_tickets",
+        "check_budget",
     }
+
+
+def test_ticket_and_budget_tools_return_json(tools):
+    """The ticket comparison and budget check run inside the app and return JSON."""
+    tickets = json.loads(
+        tools["compare_train_tickets"].invoke(
+            {
+                "from_state": "Bavaria",
+                "to_state": "BY",
+                "travel_date": "2026-11-21",
+                "adults": 2,
+                "children_ages": [4, 8],
+            }
+        )
+    )
+    assert tickets["options"][0]["total_eur"] == 44.0
+    checked = json.loads(
+        tools["check_budget"].invoke(
+            {
+                "budget_eur": 80,
+                "items": [{"label": "Train", "amount_eur": 44}, {"label": "Zoo"}],
+            }
+        )
+    )
+    assert checked["remaining_eur"] == 36.0 and checked["unknown_items"] == ["Zoo"]
+    bad = json.loads(
+        tools["compare_train_tickets"].invoke(
+            {"from_state": "Mars", "to_state": "BY", "travel_date": "2026-11-21", "adults": 1}
+        )
+    )
+    assert "Unknown German state" in bad["error"]
 
 
 def test_knowledge_base_tool_returns_links_and_directions(tools):

@@ -3,7 +3,12 @@
 import streamlit as st
 
 from src import config
-from src.tools.external import ATTRIBUTION_OSM, ATTRIBUTION_TICKETMASTER, ATTRIBUTION_WEATHER
+from src.tools.external import (
+    ATTRIBUTION_OSM,
+    ATTRIBUTION_TICKETMASTER,
+    ATTRIBUTION_TRANSITOUS,
+    ATTRIBUTION_WEATHER,
+)
 
 
 def render_about() -> None:
@@ -22,6 +27,10 @@ def render_about() -> None:
 5. **Grounding check:** every link in an answer must come from a tool result; any other link
    is removed before you see it.
 6. **Feedback:** your 👍/👎 is stored locally to evaluate and improve the answers.
+7. **Budget day trips (Germany):** regional train journeys from Transitous, a ticket
+   comparison (Deutschlandticket, Länder-Tickets, Quer-durchs-Land-Ticket) calculated by
+   the app from its fare table, the weather, and a budget check where you fill in the
+   prices the app cannot know. The app does the arithmetic, never the AI model.
 
 ### Limits
 - Suggestions can be wrong or out of date. Check opening times, prices, age limits and
@@ -31,7 +40,8 @@ def render_about() -> None:
 
 ### Privacy
 - No account, no tracking. The chat lives only in this browser session.
-- Only the city, country, dates and place category are sent to outside services; your
+- Only the city or town, country, dates and place category are sent to outside services
+  (never the budget, ages or family size, which stay in the app); your
   question goes to the AI model through OpenRouter. Don't type names or other personal details.
 - Feedback (rating, question, answer) is saved locally on the machine running the app.
 
@@ -40,6 +50,9 @@ def render_about() -> None:
 - {ATTRIBUTION_OSM}
 - {ATTRIBUTION_TICKETMASTER}
 - {ATTRIBUTION_WEATHER}
+- {ATTRIBUTION_TRANSITOUS}
+- Ticket prices: copied by hand from bahn.de with the date they were checked. Always check
+  the current price and area before you buy.
 - Directions open in Google Maps.
 """
     )

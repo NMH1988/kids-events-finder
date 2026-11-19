@@ -1,6 +1,6 @@
 """Tests for the external service calls, with every HTTP request mocked."""
 
-from datetime import date, timedelta
+from datetime import date, time, timedelta
 
 import pytest
 import requests
@@ -146,3 +146,47 @@ def test_weather_suggests_indoor_when_rain_is_likely(monkeypatch, at_berlin):
     days = external.get_weather_forecast("Berlin", "DE", TODAY, TODAY + timedelta(days=1))["days"]
     assert days[0]["summary"] == "rain" and days[0]["suggest_indoor"] is True
     assert days[1]["summary"] == "clear sky" and days[1]["suggest_indoor"] is False
+
+
+def test_train_connection_uses_regional_modes_and_local_times(monkeypatch):
+    """Journeys come back in local time with live delays; only regional modes are requested."""
+    places = {
+        "Munich": geo.Location("Munich", "DE", 48.14, 11.56, "Bavaria"),
+        "Augsburg": geo.Location("Augsburg", "DE", 48.37, 10.90, "Bavaria"),
+    }
+    monkeypatch.setattr(geo, "geocode_city", lambda city, country: places[city])
+    seen = {}
+
+    def fake_get(url, params, headers, **kwargs):
+        """Return one journey with a 5-minute delay and record the request."""
+        seen.update(params, ua=headers["User-Agent"])
+        ride = {
+            "mode": "REGIONAL_RAIL",
+            "displayName": "RE89",
+            "from": {"name": "München Hbf"},
+            "to": {"name": "Augsburg Hbf"},
+            "startTime": "2026-11-21T08:40:00Z",
+            "scheduledStartTime": "2026-11-21T08:35:00Z",
+            "realTime": True,
+        }
+        walk = {"mode": "WALK", "from": {"name": "START"}, "to": {"name": "München Hbf"}}
+        itinerary = {
+            "startTime": "2026-11-21T08:33:00Z",
+            "endTime": "2026-11-21T09:20:00Z",
+            "duration": 2820,
+            "transfers": 0,
+            "legs": [walk, ride],
+        }
+        return FakeResponse({"itineraries": [itinerary]})
+
+    monkeypatch.setattr(requests, "get", fake_get)
+    day = TODAY + timedelta(days=2)
+    result = external.find_train_connection("Munich", "Augsburg", day, time(9, 30))
+    journey = result["results"][0]
+    assert journey["depart"] == "09:33" and journey["arrive"] == "10:20"  # CET is UTC+1
+    assert journey["rides"] == ["RE89 München Hbf → Augsburg Hbf"]
+    assert journey["delay_min"] == 5 and journey["live_data"] is True
+    assert result["from_state"] == "BY" and result["to_state"] == "BY"
+    assert "HIGHSPEED_RAIL" not in seen["transitModes"] and "REGIONAL_RAIL" in seen["transitModes"]
+    assert "github.com" in seen["ua"]
+    assert "travelmode=transit" in result["maps_url"]
