@@ -54,14 +54,16 @@ _ENTITY = re.compile(r"&(?:#\d+|#[xX][0-9a-fA-F]+|[a-zA-Z][a-zA-Z0-9]*);")
 _ESCAPED = re.compile(r"\\([!-/:-@\[-`{-~])")
 # An escaped . - _ + between two word characters (www\.host, some\_page) is part of a word or URL;
 # it is always resolved, so the URL passes see the address the renderer will link.
-_WORD_ESCAPE = re.compile(r"(?<=\w)\\([.\-_+])(?=\w)")
+_WORD_ESCAPE = re.compile(r"(?<=[\w@.+\-])\\([.\-_+])(?=[\w@.+\-\\])")
 # Escapes resolved before the URL passes; every other escape (e.g. \| or \#) is kept as written.
 _URL_ESCAPES = frozenset("\\[]<>$`~@&:/")
 _SPECIAL = re.compile(r"([\\\[\]<>$`~@&])")
 _EMAIL = re.compile(r"([\w.+-]+)@([\w-]+(?:\.[\w-]+)+)")
 # A domain-like word (paypal.com, zoo．de) or a scheme; abbreviations like "z.B." or "St. Pauli"
 # are not addresses.
-_ADDRESS = re.compile(r"[\w-]+[.．。｡][a-z]{2,}\b|://", re.IGNORECASE)
+_ADDRESS = re.compile(
+    r"[\w-]+[.．。｡﹒․]+[^\W\d_]{2,}|\d{1,3}(?:[.．。｡﹒․]\d{1,3}){3}|://", re.IGNORECASE
+)
 _PLACEHOLDER = "\x00{}\x00"
 _KEPT_ESCAPE = "\x01{}\x01"
 
@@ -133,7 +135,11 @@ def _decode(text: str, kept_escapes: list[str] | None = None) -> str:
         if decoded == text:
             break
         text = decoded
-    text = _WORD_ESCAPE.sub(r"\1", text)
+    for _ in range(10):
+        resolved = _WORD_ESCAPE.sub(r"\1", text)
+        if resolved == text:
+            break
+        text = resolved
 
     def resolve(match: re.Match) -> str:
         """Resolve an escape the URL passes need; keep any other as a token."""
@@ -152,7 +158,7 @@ def _escape(text: str) -> str:
 
 def _label(text: str, url: str) -> str:
     """Return safe link text; text that looks like an address is replaced by the link's host."""
-    text = _SPECIAL.sub("", text).replace("!", "").strip()
+    text = _SPECIAL.sub("", _ESCAPED.sub(r"\1", text)).replace("!", "").strip()
     if not text or _BARE.search(text) or _ADDRESS.search(text):
         return urlsplit(url).netloc.lower().removeprefix("www.") or "link"
     return text

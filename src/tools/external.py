@@ -5,6 +5,7 @@ Every function returns plain dicts that the agent's tools turn into JSON.
 """
 
 import math
+import re
 from datetime import UTC, date, datetime, time, timedelta
 from urllib.parse import quote, urlsplit, urlunsplit
 from zoneinfo import ZoneInfo
@@ -85,6 +86,12 @@ def _distance_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     return 2 * r * math.asin(math.sqrt(a))
 
 
+# Labels of letters, digits and hyphens, ending in an alphabetic (or punycode) top-level domain.
+_PLAIN_DOMAIN = re.compile(
+    r"(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+(?:[a-z]{2,63}|xn--[a-z0-9-]+)"
+)
+
+
 def clean_website(value: str | None) -> str | None:
     """Return a crowd-sourced website value as a plain, encoded http(s) URL, or None."""
     # OSM tags are free text: add a missing scheme, encode non-ASCII host names (IDNA) and paths,
@@ -96,12 +103,17 @@ def clean_website(value: str | None) -> str | None:
         value = "https://" + value
     try:
         parts = urlsplit(value)
-        host = parts.hostname.encode("idna").decode("ascii") if parts.hostname else ""
+        host = parts.hostname.encode("idna").decode("ascii").lower() if parts.hostname else ""
+        port = parts.port
     except ValueError, UnicodeError:
         return None
-    if not host or parts.username or parts.password:
+    # Only a plain public domain name on the default port: no user-info, IPs, localhost or
+    # encoded dots that a browser would read as another host.
+    if parts.username or parts.password or port not in (None, 80, 443):
         return None
-    netloc = host if parts.port is None else f"{host}:{parts.port}"
+    if not _PLAIN_DOMAIN.fullmatch(host):
+        return None
+    netloc = host
     path = quote(parts.path, safe="/%-._~$&*+,;=:")
     query = quote(parts.query, safe="/%-._~$&*+,;=:?")
     url = urlunsplit((parts.scheme.lower(), netloc, path, query, ""))

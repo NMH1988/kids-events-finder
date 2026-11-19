@@ -1,6 +1,7 @@
 """Tests for the grounding check that removes links and images no tool returned."""
 
 import json
+import re
 
 import pytest
 from langchain_core.messages import HumanMessage, ToolMessage
@@ -266,9 +267,12 @@ def test_intentional_escapes_are_kept_as_written():
 def test_word_internal_escapes_cannot_hide_an_address(attack):
     """An escaped dot or dash inside an address is resolved, so the address is still caught."""
     cleaned, _ = enforce_grounding(f"Ideas: {attack} done", ALLOWED)
-    assert "evil" not in cleaned.replace("\\", "").lower() or "(at)" in cleaned
-    assert "www.evil" not in cleaned.replace("\\", "").lower()
-    assert "@" not in cleaned
+    plain = cleaned.replace("\\", "").lower()
+    assert "www.evil" not in plain and "@" not in plain
+    if "@" in attack:
+        assert "(at) evil" in plain
+    else:
+        assert "evil" not in plain
 
 
 def test_escape_inside_a_verified_url_keeps_the_link():
@@ -289,4 +293,37 @@ def test_abbreviations_in_link_text_are_kept(text):
 def test_paypal_style_escaped_dot_in_link_text_shows_the_real_host():
     """Link text with an escaped dot that looks like a domain is replaced by the real host."""
     cleaned, _ = enforce_grounding("[paypal\\.com/login](https://a.org)", ALLOWED)
+    assert cleaned == "[a.org](https://a.org)"
+
+
+def _resolve_all_escapes(text: str) -> str:
+    """Return the text with every Markdown escape resolved, as a renderer reads it."""
+    return re.sub(r"\\([!-/:-@\[-`{-~])", r"\1", text)
+
+
+@pytest.mark.parametrize(
+    "attack",
+    [
+        "www\\.-x.evil.example/p?ages=3-5&budget=90",
+        "www\\..evil.example/p",
+        "www\\.\\_x.evil.example/p",
+        "kids3-5\\.@evil.example",
+        "kids3-5@\\-x.evil.example",
+        "kids@\\-evil.example",
+    ],
+)
+def test_escapes_next_to_punctuation_cannot_hide_an_address(attack):
+    """With all escapes resolved, no www., http(s):// or e-mail address is left."""
+    cleaned, report = enforce_grounding(f"Ideas: {attack} done", ALLOWED)
+    plain = _resolve_all_escapes(cleaned).lower()
+    assert "www." not in plain and "http" not in plain and "@" not in plain, cleaned
+    assert report.removed or "(at)" in plain
+
+
+@pytest.mark.parametrize(
+    "text", ["paypal\\-.com/login", "bank\\..de", "paypal\ufe52com", "paypal\u2024com", "10.0.0.1"]
+)
+def test_more_address_like_link_text_shows_the_real_host(text):
+    """Escaped or look-alike dots and IP addresses in link text are replaced by the real host."""
+    cleaned, _ = enforce_grounding(f"[{text}](https://a.org)", ALLOWED)
     assert cleaned == "[a.org](https://a.org)"
