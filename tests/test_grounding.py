@@ -137,7 +137,7 @@ def test_images_are_dropped_even_from_a_verified_host():
 def test_verified_link_text_cannot_show_another_address(text):
     """Link text that looks like an address is replaced, so it cannot hide where it goes."""
     cleaned, _ = enforce_grounding(f"[{text}](https://a.org)", ALLOWED)
-    assert cleaned == "[link](https://a.org)"
+    assert cleaned == "[a.org](https://a.org)"
 
 
 def test_verified_url_with_entity_like_query_is_kept_intact():
@@ -181,7 +181,7 @@ def test_answer_card_keeps_its_links_and_plain_text():
     )
     cleaned, report = enforce_grounding(answer, ALLOWED)
     assert _rendered_targets(cleaned) == [("link", "https://a.org"), ("link", MAPS)]
-    assert "Great for weekends & rainy days; open 9//18 per day." in cleaned
+    assert "Great for weekends &amp; rainy days; open 9//18 per day." in _PARSER.render(cleaned)
     assert report.grounded
 
 
@@ -189,3 +189,64 @@ def test_answer_without_links_is_grounded():
     """An answer with no links passes unchanged."""
     cleaned, report = enforce_grounding("No links here.", set())
     assert cleaned == "No links here." and report.grounded
+
+
+# Bare-URL attacks: the test parser does not autolink like Streamlit's renderer, so these are
+# checked on the text itself - the attacker host must be gone.
+BARE_ATTACKS = [
+    "_https://evil.example/p.png?b=1_",
+    "_www.evil.example/p_",
+    'https://a.org"@evil.example/?ages=3-5',
+    "https://a.org'@evil.example/?ages=3-5",
+    "https://a.org\x85@evil.example/?ages=3-5",
+    "&amp;#119;ww.evil.example/p?ages=3-5",
+    "&amp;#104;ttps://evil.example/p",
+    "www.evil.example/page",
+    "Visit HTTP://EVIL.EXAMPLE/x now",
+]
+
+
+@pytest.mark.parametrize("attack", BARE_ATTACKS)
+def test_bare_url_attacks_leave_no_attacker_host(attack):
+    """Autolink-style attacks lose the attacker host entirely."""
+    cleaned, report = enforce_grounding(f"Ideas: {attack} done", ALLOWED)
+    assert "evil.example" not in cleaned.lower(), cleaned
+    assert report.removed
+
+
+@pytest.mark.parametrize(
+    "hostile",
+    [
+        "https://zoo.example/a][![i](https://evil.example/p(1).png?c=Berlin)",
+        "https://zoo.example/a <img src=x>",
+        "https://user@evil.example/",
+        'https://zoo.example/a"b',
+        "https://zoo.example/a\\b",
+        "javascript:alert(1)",
+    ],
+)
+def test_malformed_url_from_a_data_source_is_never_verified(hostile):
+    """A hostile website value (e.g. an OSM tag) is not accepted as a verified URL."""
+    allowed = allowed_urls([_tool({"results": [{"website": hostile}]})])
+    assert allowed == set()
+    cleaned, _ = enforce_grounding(f"[🌐 Website]({hostile})", allowed)
+    assert all(kind == "link" and "evil" not in t for kind, t in _rendered_targets(cleaned))
+    assert "evil.example" not in cleaned.replace("\\", "")
+
+
+def test_email_addresses_are_not_turned_into_mail_links():
+    """An e-mail address is written as name (at) host, so no renderer makes a mail link."""
+    cleaned, _ = enforce_grounding("Write to kids@evil.example for tickets.", ALLOWED)
+    assert "kids (at) evil.example" in cleaned and "@" not in cleaned
+
+
+def test_intentional_escapes_are_kept_as_written():
+    """Escapes the model wrote on purpose (table pipes, #, -, numbers, stars) survive unchanged."""
+    answer = (
+        "| a | x \\| y | z |\n|---|---|---|\n\n"
+        "\\# not a heading\n\\- not a list\n2026\\. ok \\*x\\*"
+    )
+    cleaned, _ = enforce_grounding(answer, ALLOWED)
+    assert cleaned == answer
+    html = _PARSER.render(cleaned)
+    assert "<h1>" not in html and "<li>" not in html and "<em>" not in html

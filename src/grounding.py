@@ -5,18 +5,22 @@ Parents might then travel to a place that does not exist, or their browser would
 URL. Matching every Markdown form with patterns is never complete, so the answer is made safe by
 construction instead (deny by default):
 
-1. The answer is decoded the way a renderer would read it: complete HTML entities are decoded,
-   Markdown backslash escapes are resolved, and NUL characters (used for placeholders) are removed.
-2. Simple inline links `[text](url)` whose URL a tool returned are kept (rebuilt, without a title,
-   with safe link text); images are never kept. Autolinks and bare URLs a tool returned are kept.
+1. The answer is read the way a renderer would read it: control characters (also the placeholder
+   markers) are removed, complete HTML entities are decoded, and the backslash escapes the URL
+   passes need are resolved (other escapes are kept exactly as written).
+2. Simple inline links `[text](url)` whose URL a tool returned are kept (rebuilt, without a title;
+   address-like text becomes the link's host); images are never kept. Autolinks and bare URLs a
+   tool returned are kept.
 3. Every other URL-like run of text (`http(s):`, `//host`, `www.`, up to the next space, as the
-   renderer's autolink rule reads it) is removed.
+   renderer's autolink rule reads it) is removed; e-mail addresses are written as "name (at) host".
 4. In everything that is left, every character that could build a link, image, reference
-   definition, HTML, code block (e.g. a Mermaid diagram), directive, math or e-mail autolink
-   (`\\ [ ] < > $ ` ~ @`) is backslash-escaped, so nothing else can form, whatever syntax was used.
+   definition, HTML, entity, code block (e.g. a Mermaid diagram), directive or math
+   (`\\ [ ] < > $ ` ~ @ &`) is backslash-escaped, so nothing else can form, whatever the syntax.
 
-URLs are taken only from the known URL fields of tool results (`URL_FIELDS`), so text a tool merely
-echoes (a budget note, a city name, an error message) can never make a link count as verified.
+URLs are taken only from the known URL fields of tool results (`URL_FIELDS`) and only when strictly
+formed (`_SAFE_URL`), so text a tool merely echoes (a budget note, a city name, an error message)
+or a hostile value from a data source (a malformed OpenStreetMap `website` tag) can never make a
+link count as verified or carry Markdown into the answer.
 """
 
 import json
@@ -42,11 +46,19 @@ _BARE = re.compile(
 )
 # Trailing characters the renderer's autolink rule leaves out of a link.
 _TRAILING = ".,:;!?*_~'\""
+# A verified URL must be strictly formed: http(s), then only these characters - no brackets,
+# quotes, backslash, "@" (no user-info trick), "!", spaces or control characters.
+_SAFE_URL = re.compile(r"https?://[A-Za-z0-9\-._~:/?#$&*+,;=%]+", re.IGNORECASE)
+_CONTROL = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f]")
 _ENTITY = re.compile(r"&(?:#\d+|#[xX][0-9a-fA-F]+|[a-zA-Z][a-zA-Z0-9]*);")
 _ESCAPED = re.compile(r"\\([!-/:-@\[-`{-~])")
-_SPECIAL = re.compile(r"([\\\[\]<>$`~@])")
-_DOMAIN = re.compile(r"[\w-]+\.[a-z]{2,}", re.IGNORECASE)
+# Escapes resolved before the URL passes; every other escape (e.g. \| or \#) is kept as written.
+_URL_ESCAPES = frozenset("\\[]<>$`~@&:/")
+_SPECIAL = re.compile(r"([\\\[\]<>$`~@&])")
+_EMAIL = re.compile(r"([\w.+-]+)@([\w-]+(?:\.[\w-]+)+)")
+_ADDRESS = re.compile(r"[\w-]+\s*[.．。｡]\s*[\w-]{2,}|://", re.IGNORECASE)
 _PLACEHOLDER = "\x00{}\x00"
+_KEPT_ESCAPE = "\x01{}\x01"
 
 
 @dataclass
@@ -63,8 +75,8 @@ class GroundingReport:
 
 
 def _is_http(value: object) -> bool:
-    """Return True for a string that is an absolute http(s) URL."""
-    return isinstance(value, str) and value.lower().startswith(("http://", "https://"))
+    """Return True for a strictly formed absolute http(s) URL (see `_SAFE_URL`)."""
+    return isinstance(value, str) and _SAFE_URL.fullmatch(value) is not None
 
 
 def _collect_urls(value: object, into: set[str]) -> None:
@@ -105,11 +117,26 @@ def _normalise(url: str) -> str:
     return urlunsplit((parts.scheme.lower(), parts.netloc.lower(), *parts[2:]))
 
 
-def _decode(text: str) -> str:
-    """Read text as a renderer would: no NULs, complete entities decoded, escapes resolved."""
-    text = text.replace("\x00", "")
-    text = _ENTITY.sub(lambda m: unescape(m.group(0)), text)
-    return _ESCAPED.sub(r"\1", text)
+def _decode(text: str, kept_escapes: list[str] | None = None) -> str:
+    """Read text as a renderer would: no control characters, entities decoded, escapes resolved."""
+    # With `kept_escapes`, escapes the URL passes do not need (e.g. \| or \#) become tokens
+    # collected there, so they come back exactly as the model wrote them.
+    text = _CONTROL.sub("", text)
+    # Decode until nothing changes, so double-encoded entities (&amp;#119;) cannot hide a URL.
+    for _ in range(5):
+        decoded = _CONTROL.sub("", _ENTITY.sub(lambda m: unescape(m.group(0)), text))
+        if decoded == text:
+            break
+        text = decoded
+
+    def resolve(match: re.Match) -> str:
+        """Resolve an escape the URL passes need; keep any other as a token."""
+        if kept_escapes is None or match.group(1) in _URL_ESCAPES:
+            return match.group(1)
+        kept_escapes.append(match.group(0))
+        return _KEPT_ESCAPE.format(len(kept_escapes) - 1)
+
+    return _ESCAPED.sub(resolve, text)
 
 
 def _escape(text: str) -> str:
@@ -117,11 +144,11 @@ def _escape(text: str) -> str:
     return _SPECIAL.sub(r"\\\1", text)
 
 
-def _label(text: str) -> str:
-    """Return safe link text: no link syntax, and no address that could hide where it goes."""
+def _label(text: str, url: str) -> str:
+    """Return safe link text; text that looks like an address is replaced by the link's host."""
     text = _SPECIAL.sub("", text).replace("!", "").strip()
-    if not text or _BARE.search(text) or _DOMAIN.search(text):
-        return "link"
+    if not text or _BARE.search(text) or _ADDRESS.search(text):
+        return urlsplit(url).netloc.lower().removeprefix("www.") or "link"
     return text
 
 
@@ -157,7 +184,7 @@ def enforce_grounding(answer: str, allowed: set[str]) -> tuple[str, GroundingRep
         is_image, text, url = match.group(1) == "!", match.group(2), match.group(3)
         if not is_image and is_allowed(url):
             report.verified.append(url)
-            return keep(f"[{_label(text)}]({url})")
+            return keep(f"[{_label(text, url)}]({url})")
         report.removed.append(url)
         return f"{text} {REMOVED}" if text.strip() else REMOVED
 
@@ -179,11 +206,16 @@ def enforce_grounding(answer: str, allowed: set[str]) -> tuple[str, GroundingRep
         report.removed.append(url)
         return REMOVED + tail
 
-    cleaned = _decode(answer)
+    kept_escapes: list[str] = []
+    cleaned = _decode(answer, kept_escapes)
     cleaned = _INLINE.sub(replace_inline, cleaned)
     cleaned = _AUTOLINK.sub(replace_autolink, cleaned)
     cleaned = _BARE.sub(replace_bare, cleaned)
+    # The renderer turns name@host into a mail link even when "@" is escaped, so it is reworded.
+    cleaned = _EMAIL.sub(r"\1 (at) \2", cleaned)
     cleaned = _escape(cleaned)
     for i, markdown in enumerate(kept):
         cleaned = cleaned.replace(_PLACEHOLDER.format(i), markdown)
+    for i, escape in enumerate(kept_escapes):
+        cleaned = cleaned.replace(_KEPT_ESCAPE.format(i), escape)
     return cleaned, report
