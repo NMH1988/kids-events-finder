@@ -5,12 +5,15 @@ Parents might then travel to a place that does not exist, or their browser would
 URL. Matching every Markdown form with patterns is never complete, so the answer is made safe by
 construction instead (deny by default):
 
-1. Simple inline links `[text](url)` whose URL a tool returned are kept (rebuilt, without a title);
-   images are never kept. Autolinks and bare URLs a tool returned are kept too.
-2. Every other URL-like text (`http(s):`, `//host`, `www.`) is removed.
-3. In everything that is left, the characters that build links, images, reference definitions,
-   HTML, directives and math (`[`, `]`, `<`, `>`, `$`) are backslash-escaped, so no other link or
-   image can form, whatever syntax was used.
+1. The answer is decoded the way a renderer would read it: complete HTML entities are decoded,
+   Markdown backslash escapes are resolved, and NUL characters (used for placeholders) are removed.
+2. Simple inline links `[text](url)` whose URL a tool returned are kept (rebuilt, without a title,
+   with safe link text); images are never kept. Autolinks and bare URLs a tool returned are kept.
+3. Every other URL-like run of text (`http(s):`, `//host`, `www.`, up to the next space, as the
+   renderer's autolink rule reads it) is removed.
+4. In everything that is left, every character that could build a link, image, reference
+   definition, HTML, code block (e.g. a Mermaid diagram), directive, math or e-mail autolink
+   (`\\ [ ] < > $ ` ~ @`) is backslash-escaped, so nothing else can form, whatever syntax was used.
 
 URLs are taken only from the known URL fields of tool results (`URL_FIELDS`), so text a tool merely
 echoes (a budget note, a city name, an error message) can never make a link count as verified.
@@ -26,19 +29,23 @@ from langchain_core.messages import BaseMessage, ToolMessage
 
 REMOVED = "(link removed: not verified)"
 # The tool result fields that hold links the app itself built or got from a data source.
-URL_FIELDS = frozenset({"website", "maps_url", "url", "source_url", "source_urls"})
+URL_FIELDS = frozenset({"website", "maps_url", "source_url", "source_urls"})
 # [text](href "title") and ![alt](href); the href may sit in <...>; the title is dropped.
 _INLINE = re.compile(
     r"(!?)\[([^\[\]]*)\]\(\s*<?([^\s<>()]*)>?(?:\s+(?:\"[^\"]*\"|'[^']*'|\([^)]*\)))?\s*\)"
 )
 _AUTOLINK = re.compile(r"<([a-zA-Z][a-zA-Z0-9+.-]*:[^\s<>]*|www\.[^\s<>]*)>")
-# Scheme with or without "//", a protocol-relative host, or "www.".
+# A URL-like run up to the next space or "<": a scheme, a protocol-relative host or "www.".
 _BARE = re.compile(
-    r"\bhttps?:[^\s<>\"'\]\)]+|(?<![\w:])//[\w-]+\.[^\s<>\"'\]\)]*|\bwww\.[^\s<>\"'\]\)]+",
+    r"(?:https?:|(?<![\w:/])//(?=[\w-]+\.)|www\.)[^\s<]*",
     re.IGNORECASE,
 )
+# Trailing characters the renderer's autolink rule leaves out of a link.
+_TRAILING = ".,:;!?*_~'\""
 _ENTITY = re.compile(r"&(?:#\d+|#[xX][0-9a-fA-F]+|[a-zA-Z][a-zA-Z0-9]*);")
-_SPECIAL = re.compile(r"([\[\]<>$])")
+_ESCAPED = re.compile(r"\\([!-/:-@\[-`{-~])")
+_SPECIAL = re.compile(r"([\\\[\]<>$`~@])")
+_DOMAIN = re.compile(r"[\w-]+\.[a-z]{2,}", re.IGNORECASE)
 _PLACEHOLDER = "\x00{}\x00"
 
 
@@ -99,20 +106,34 @@ def _normalise(url: str) -> str:
 
 
 def _decode(text: str) -> str:
-    """Decode complete HTML entities and drop backslashes before ':' or '/', as a renderer would."""
-    decoded = _ENTITY.sub(lambda m: unescape(m.group(0)), text)
-    return re.sub(r"\\([:/])", r"\1", decoded)
+    """Read text as a renderer would: no NULs, complete entities decoded, escapes resolved."""
+    text = text.replace("\x00", "")
+    text = _ENTITY.sub(lambda m: unescape(m.group(0)), text)
+    return _ESCAPED.sub(r"\1", text)
 
 
 def _escape(text: str) -> str:
-    """Backslash-escape the characters that could build a link, image, HTML or math."""
+    """Backslash-escape every character that could build a link, image, code, HTML or math."""
     return _SPECIAL.sub(r"\\\1", text)
 
 
 def _label(text: str) -> str:
-    """Return safe link text: no link syntax, and no URL that could hide where the link goes."""
-    text = re.sub(r"[!\[\]<>$]", "", text).strip()
-    return "link" if not text or _BARE.search(text) else text
+    """Return safe link text: no link syntax, and no address that could hide where it goes."""
+    text = _SPECIAL.sub("", text).replace("!", "").strip()
+    if not text or _BARE.search(text) or _DOMAIN.search(text):
+        return "link"
+    return text
+
+
+def _split_tail(span: str) -> tuple[str, str]:
+    """Split trailing punctuation and unbalanced ')' off a URL-like run, as autolinks do."""
+    end = len(span)
+    while end and (
+        span[end - 1] in _TRAILING
+        or (span[end - 1] == ")" and span[:end].count("(") < span[:end].count(")"))
+    ):
+        end -= 1
+    return span[:end], span[end:]
 
 
 def enforce_grounding(answer: str, allowed: set[str]) -> tuple[str, GroundingReport]:
@@ -150,13 +171,13 @@ def enforce_grounding(answer: str, allowed: set[str]) -> tuple[str, GroundingRep
         return REMOVED
 
     def replace_bare(match: re.Match) -> str:
-        """Keep a verified bare URL; drop any other URL-like text."""
-        url = match.group(0)
+        """Keep a verified URL-like run only when the whole run is that URL; drop any other."""
+        url, tail = _split_tail(match.group(0))
         if is_allowed(url):
             report.verified.append(url)
-            return keep(url)
+            return keep(url) + tail
         report.removed.append(url)
-        return REMOVED
+        return REMOVED + tail
 
     cleaned = _decode(answer)
     cleaned = _INLINE.sub(replace_inline, cleaned)

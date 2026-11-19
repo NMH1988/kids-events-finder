@@ -205,3 +205,11 @@ def test_approved_budget_runs_with_the_parents_amounts():
         turn_start_index=paused.start_index,
     )
     assert received == [(90, [{"label": "Zoo", "amount_eur": 25}])]
+
+
+def test_grounding_always_stores_the_cleaned_answer(tools):
+    """Even with nothing removed, the stored answer is the escaped, cleaned text."""
+    graph, _ = _graph([AIMessage("Tickets $15 [optional]")], tools)
+    result = start_turn(graph, "t11", "price?", **CONTEXT)
+    assert result.answer == r"Tickets \$15 \[optional\]"
+    assert result.grounding == {"verified": [], "removed": []}

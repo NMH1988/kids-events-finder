@@ -99,6 +99,18 @@ ATTACKS = [
     "[![img](https://evil.example/p.png)](https://a.org)",
     "[x](data:image/png;base64,AAAA)",
     "$\\href{https://evil.example}{x}$",
+    r"\[click\](https\\:\\/\\/evil.example/a(b)?ages=3-5)",
+    r"\[click\](https&amp;#58;//evil.example/a)",
+    "\\\\[x\\\\](https://evil.example/a)",
+    "!\x000\x00 [Zoo](https://a.org)",
+    "_https://evil.example/p.png?b=1_",
+    "_www.evil.example/p_",
+    'https://a.org"@evil.example/?ages=3-5',
+    "https://a.org'@evil.example/?ages=3-5",
+    "kids@evil.example",
+    "[mail](mailto:kids@evil.example)",
+    "```mermaid\nflowchart LR\n  A@{ img: '\\\\evil.example/p.png', label: 'Zoo' }\n```",
+    "~~~mermaid\nflowchart LR\n  A@{ img: 'https://evil.example/p.png' }\n~~~",
 ]
 
 
@@ -108,7 +120,10 @@ def test_no_unverified_link_image_or_html_can_render(attack):
     cleaned, _ = enforce_grounding(f"Ideas: {attack} done", ALLOWED)
     for kind, target in _rendered_targets(cleaned):
         assert kind == "link" and target in ALLOWED, (kind, target, cleaned)
-    assert "evil.example" not in cleaned.lower()
+    # No code block (e.g. a Mermaid diagram) and no unescaped e-mail autolink can form.
+    tokens = _PARSER.parse(cleaned)
+    assert not any(t.type in ("fence", "code_block") for t in tokens), cleaned
+    assert "@evil" not in cleaned.replace("\\@", "")
 
 
 def test_images_are_dropped_even_from_a_verified_host():
@@ -118,12 +133,43 @@ def test_images_are_dropped_even_from_a_verified_host():
         assert all(kind != "image" for kind, _ in _rendered_targets(cleaned)), cleaned
 
 
-def test_verified_link_text_cannot_show_another_address():
-    """Link text that looks like a URL is replaced, so it cannot hide where the link goes."""
-    cleaned, _ = enforce_grounding("[https://evil.example/login](https://a.org)", ALLOWED)
-    assert "evil.example" not in cleaned and _rendered_targets(cleaned) == [
-        ("link", "https://a.org")
-    ]
+@pytest.mark.parametrize("text", ["https://evil.example/login", "paypal.com/login", "www.x.de"])
+def test_verified_link_text_cannot_show_another_address(text):
+    """Link text that looks like an address is replaced, so it cannot hide where it goes."""
+    cleaned, _ = enforce_grounding(f"[{text}](https://a.org)", ALLOWED)
+    assert cleaned == "[link](https://a.org)"
+
+
+def test_verified_url_with_entity_like_query_is_kept_intact():
+    """Query parts like &region= or &sect= are not decoded into symbols."""
+    url = "https://example.org/zoo?a=1&region=1&sect=A"
+    cleaned, report = enforce_grounding(f"[Zoo]({url})", {url})
+    assert _rendered_targets(cleaned) == [("link", url)] and report.grounded
+
+
+def test_prices_and_escapes_render_the_same_on_every_turn():
+    """Dollar prices stay plain text, and cleaning an already cleaned answer changes nothing."""
+    answer = "Tickets $15 for adults, $10 for kids; ages <6 free [optional]."
+    once, _ = enforce_grounding(answer, ALLOWED)
+    twice, _ = enforce_grounding(once, ALLOWED)
+    assert once == twice
+    assert _rendered_targets(once) == []
+    html = _PARSER.render(once)
+    assert "$15" in html and "[optional]" in html
+
+
+def test_bare_verified_url_keeps_surrounding_punctuation():
+    """A verified URL in brackets or at the end of a sentence stays a link."""
+    cleaned, report = enforce_grounding("(see https://a.org).", ALLOWED)
+    assert report.grounded and report.verified == ["https://a.org"]
+
+
+def test_trip_plan_fare_rules_link_is_kept():
+    """The budget trip plan's fare rules link from the ticket comparison stays a link."""
+    url = "https://www.bahn.de/faq/pk/angebot/regionale-angebote/laender-tickets"
+    allowed = allowed_urls([_tool({"options": [{"source_urls": [url]}]})])
+    cleaned, _ = enforce_grounding(f"- **Ticket:** 44 EUR · [Fare rules]({url})", allowed)
+    assert _rendered_targets(cleaned) == [("link", url)]
 
 
 def test_answer_card_keeps_its_links_and_plain_text():
