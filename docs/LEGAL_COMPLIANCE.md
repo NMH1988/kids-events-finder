@@ -38,18 +38,22 @@ The users are parents, but the app handles data about children, who are speciall
   - the system prompt forbids asking about, repeating or inferring health information;
   - medical and therapy places (paediatricians, Ergotherapie, Logopädie, Frühförderung) are not in
     the knowledge base or the OpenStreetMap categories.
-- **1.5 No development assessment (GDPR Art. 9, EU MDR).** The "balanced activities" feature only
-  suggests variety based on the themes of outings the parent logged. It never assesses, scores or
-  describes a child's development, abilities or behaviour; software that does could count as a
-  medical device. Nudges use fixed templates, e.g. "The last 4 weeks had a lot of 🎵 Music and
+- **1.5 No development assessment (GDPR Art. 9, EU MDR).** The "activity variety suggestions"
+  feature works like this and nothing more: when the outings the parent marked as visited were
+  mostly of one kind (e.g. brain games, music, crafts), it suggests an outing of another kind
+  (e.g. active, outdoors), and the other way round. It is about variety of outings, not about the
+  child. It never assesses, scores or describes a child's development, abilities or behaviour;
+  software that does could count as a medical device. Nudges use fixed templates, e.g. "The last 4 weeks had a lot of 🎵 Music and
   🎨 Crafts. Would you like to try a 🧗 Active outing this week?" Words such as "lacks", "behind",
   "delayed", "needs", "should", "good for development" are forbidden in nudges; a test enforces this.
 - **1.6 Activity history stays on the phone.** The "visited" log is off by default, switched on by
   the parent, stored only on the device, deletable with one button, and never uploaded. Only the
   chosen theme (e.g. "active") may leave the device when the parent asks for suggestions.
-- **1.7 DPIA first.** The activity history feature ships only with a written data protection impact
-  assessment (`docs/DPIA.md`): children are vulnerable data subjects and the feature is a form of
-  profiling.
+- **1.7 Risk assessment first.** The activity variety feature ships only with a written, voluntary
+  risk assessment (`docs/RISK_ASSESSMENT_ACTIVITY_VARIETY.md`): it records which kinds of outings a
+  child went to. Whether a formal DPIA (Art. 35 GDPR) is legally required is a question for a
+  lawyer: a required DPIA would also oblige the owner to appoint a data protection officer
+  (§ 38(1) BDSG). Until that is answered, the feature stays off in any public deployment.
 - **1.8 No profiling for advertising** and no sale or sharing of any user data with advertisers.
 
 ## 2. General GDPR duties
@@ -131,6 +135,53 @@ Affiliate links are **off** in the Capstone version. Before they are switched on
 - **7.4** Business registration (Gewerbeanmeldung), tax advice (Steuerberater) and a check that the
   owner's residence status allows self-employment, before any income.
 
+## 8. Current limitation: synthetic data only (owner decision 2026-11-19)
+- The app uses the **school's OpenRouter account**. Its privacy settings (zero data retention,
+  no providers that train on prompts) cannot be changed by the owner, and no DPA can be signed.
+- Therefore, until the owner has an AI provider account of their own with a DPA: **only synthetic
+  (made-up) data** in development, demos, evaluations and tests; **no real users and no public
+  deployment**. User tests with real parents use made-up questions and no real family details.
+
+## Before a public deployment (checklist)
+Remind the owner of this whole list whenever deployment comes up. Nothing here blocks the local
+Capstone demo with synthetic data.
+
+**AI provider (the biggest open point)**
+- [ ] Own AI account instead of the school's OpenRouter account: OpenAI directly (online DPA; EU data
+      residency project if eligible), OpenRouter Business/Enterprise, Azure OpenAI in the EU or
+      Mistral. Sign the DPA, enable zero data retention, exclude providers that train on prompts.
+- [ ] Replace the Qwen embedding model (providers possibly outside the EU, e.g. China/Singapore)
+      and rebuild the Chroma index.
+- [ ] Provider, base URL, model names and embedding model switchable from `src/config.py` only.
+
+**Legal texts and contracts**
+- [ ] Impressum (name, address where legal papers can be served, email; § 5 DDG / § 18 MStV) and
+      Datenschutzerklärung, linked from every screen and inside the PWA.
+- [ ] Hosting DPA (e.g. Hetzner AVV) and servers pinned to Germany.
+- [ ] Terms of use: 18+, no guarantee, check official websites.
+- [ ] Lawyer / Datenschutzberater: DPIA needed for activity variety (and § 38 BDSG)? Impressum
+      without the home address? Consent withdrawal for shared feedback? Web Push services as
+      processors? UK GDPR if UK parents are targeted?
+
+**App features**
+- [ ] AI disclosure in the chat plus a machine-readable marker on answers (AI Act Art. 50).
+- [ ] Health / personal-data keyword check on every free-text field.
+- [ ] Invite codes (hashes and counters only) and per-code daily limits.
+- [ ] Web Push: own opt-in screen, minimal payload, subscriptions deleted after the trip date.
+- [ ] Ticketmaster: family events only, drop 18+ events; privacy link in the footer.
+- [ ] Overpass: own or another instance; identifying User-Agent; caching.
+- [ ] Transitous: request counter (coordinate above 720 `/plan` per day).
+- [ ] Coordinates from OpenStreetMap, not Google; `place_id_checked_on` for Place IDs.
+- [ ] Re-check `data/fares.json` prices and every knowledge base entry (closed places).
+
+**Before earning money** (in addition)
+- [ ] Replace Transitous, the free Open-Meteo API and the public Overpass server; turn off
+      Ticketmaster or join its affiliate programme (no revenue from the API otherwise).
+- [ ] Business registration, Steuerberater, residence-status check.
+- [ ] Affiliate labels, commission-blind ranking, each programme's terms read.
+- [ ] Subscriptions: Stripe Checkout, order and cancellation buttons, withdrawal notice, terms by
+      a lawyer.
+
 ---
 
 ## Register: data sources
@@ -163,6 +214,6 @@ Affiliate links are **off** in the Capstone version. Before they are switched on
 
 | Name | Role | Location | DPA / terms checked |
 |---|---|---|---|
-| OpenRouter (+ model providers) | AI model access | US / EU routing on some plans | To do before launch |
+| OpenRouter (+ model providers, incl. the embedding model's providers) | AI model access | US / other countries; EU routing only on Business/Enterprise plans | **Not possible today:** the project uses the school's OpenRouter account, so the owner cannot sign a DPA or set zero data retention / no-training providers. Allowed only with synthetic data (see "Before a public deployment") |
 | Hosting provider (to be chosen, EU) | Server | EU | To do before launch |
 | Affiliate programmes | — | — | None active |

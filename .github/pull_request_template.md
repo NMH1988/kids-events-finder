@@ -4,6 +4,10 @@
 ## Tests
 <!-- What was run (pytest, ruff, browser check) and what was not checked. -->
 
+## Reviews
+- `code-reviewer`: <!-- last round number and verdict, link to its PR comment -->
+- `security-reviewer`: <!-- verdict and link, or "not needed: <reason>" -->
+
 ## Legal check (required, see docs/LEGAL_COMPLIANCE.md)
 - [ ] I read `docs/LEGAL_COMPLIANCE.md` before starting.
 - `legal-reviewer` verdict: <!-- PASS / NEEDS CHANGES / BLOCK, with the date of the run -->
