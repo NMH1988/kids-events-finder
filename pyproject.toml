@@ -1,0 +1,44 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "kids-events-finder"
+version = "0.1.0"
+description = "AI agent with human-in-the-loop and advanced RAG that finds events and places for children (Streamlit, LangGraph, OpenRouter, Chroma)"
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = [
+    "chromadb==1.5.9",
+    "langchain==1.4.6",
+    "langchain-chroma==1.1.0",
+    "langchain-core==1.8.3",
+    "langchain-openai==1.7.2",
+    "langgraph==1.2.17",
+    "langgraph-checkpoint==4.3.0",
+    "langgraph-prebuilt==1.1.1",
+    "openai==3.46.0",
+    "pydantic==2.14.1",
+    "rank-bm25==0.2.2",
+    "requests==2.34.2",
+    "streamlit==1.66.1",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest==9.1.1",
+    "ruff==0.17.4",
+]
+
+[tool.setuptools.packages.find]
+include = ["src*"]
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]

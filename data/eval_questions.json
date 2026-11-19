@@ -1,0 +1,32 @@
+{
+  "_about": "DRAFT evaluation set for the owner to review and extend. 'relevant' lists the knowledge base ids that a good retrieval should return in its top 5 for the given filters.",
+  "questions": [
+    {"id": "q01", "question": "My son loves dinosaurs, where should we go?", "country": "DE", "city": "Berlin", "age": 6, "relevant": ["de-naturkunde-berlin"]},
+    {"id": "q02", "question": "Indoor activity for a rainy afternoon with a hands-on science focus", "country": "DE", "city": "Berlin", "age": 8, "indoor_only": true, "relevant": ["de-technikmuseum", "de-labyrinth-berlin"]},
+    {"id": "q03", "question": "We want to see animals with a toddler", "country": "DE", "city": "Munich", "age": 2, "relevant": ["de-hellabrunn"]},
+    {"id": "q04", "question": "Model trains and miniature worlds", "country": "DE", "city": "Hamburg", "age": 7, "relevant": ["de-miniatur-wunderland"]},
+    {"id": "q05", "question": "Can we see chocolate being made?", "country": "DE", "city": "Cologne", "age": 9, "relevant": ["de-schokoladenmuseum"]},
+    {"id": "q06", "question": "LEGO day out with rides", "country": "DE", "city": "Munich", "age": 6, "relevant": ["de-legoland-deutschland"]},
+    {"id": "q07", "question": "Dinosaur skeletons in Frankfurt", "country": "DE", "city": "Frankfurt", "age": 5, "relevant": ["de-senckenberg"]},
+    {"id": "q08", "question": "Cuối tuần trời mưa, bé 6 tuổi thích thí nghiệm khoa học", "country": "DE", "city": "Cologne", "age": 6, "indoor_only": true, "relevant": ["de-odysseum"]},
+    {"id": "q09", "question": "Wo kann mein Kind Tiere sehen, auch bei schlechtem Wetter?", "country": "DE", "city": "Hamburg", "age": 4, "relevant": ["de-hagenbeck"]},
+
+    {"id": "q10", "question": "Free museums with dinosaurs", "country": "GB", "city": "London", "age": 7, "relevant": ["gb-nhm-london"]},
+    {"id": "q11", "question": "A playground with a pirate ship", "country": "GB", "city": "London", "age": 4, "relevant": ["gb-diana-playground"]},
+    {"id": "q12", "question": "Somewhere free for a baby and a toddler on a wet day", "country": "GB", "city": "London", "age": 1, "indoor_only": true, "relevant": ["gb-young-va"]},
+    {"id": "q13", "question": "Trains and industry history", "country": "GB", "city": "Manchester", "age": 9, "relevant": ["gb-science-industry-manchester"]},
+    {"id": "q14", "question": "Volcanoes and earth science for kids", "country": "GB", "city": "Edinburgh", "age": 8, "relevant": ["gb-dynamic-earth"]},
+    {"id": "q15", "question": "Planetarium and science experiments", "country": "GB", "city": "Bristol", "age": 10, "relevant": ["gb-we-the-curious"]},
+    {"id": "q16", "question": "Chocolate attraction", "country": "GB", "city": "Birmingham", "age": 6, "relevant": ["gb-cadbury-world"]},
+    {"id": "q17", "question": "Penguins and other animals", "country": "GB", "city": "Edinburgh", "age": 5, "relevant": ["gb-edinburgh-zoo"]},
+
+    {"id": "q18", "question": "Space shuttle", "country": "US", "city": "Los Angeles", "age": 9, "relevant": ["us-california-science-center"]},
+    {"id": "q19", "question": "Free zoo for toddlers", "country": "US", "city": "Chicago", "age": 2, "relevant": ["us-lincoln-park-zoo"]},
+    {"id": "q20", "question": "See a real submarine", "country": "US", "city": "Chicago", "age": 10, "relevant": ["us-msi-chicago"]},
+    {"id": "q21", "question": "T. rex skeleton", "country": "US", "city": "Chicago", "age": 7, "relevant": ["us-field-museum"]},
+    {"id": "q22", "question": "Free museums about planes and rockets", "country": "US", "city": "Washington", "age": 8, "relevant": ["us-air-space"]},
+    {"id": "q23", "question": "Indoor play museum for a 3 year old", "country": "US", "city": "New York", "age": 3, "indoor_only": true, "relevant": ["us-cmom"]},
+    {"id": "q24", "question": "Aquarium, rainforest and planetarium in one place", "country": "US", "city": "San Francisco", "age": 6, "relevant": ["us-cal-academy"]},
+    {"id": "q25", "question": "Experiments about light and sound", "country": "US", "city": "San Francisco", "age": 11, "relevant": ["us-exploratorium"]}
+  ]
+}
