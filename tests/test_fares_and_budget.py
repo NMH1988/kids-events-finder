@@ -137,3 +137,12 @@ def test_too_many_paying_travellers_get_a_reason_not_silence():
     result = compare_tickets(party, "BY", "BY", SATURDAY)
     assert result["options"] == []
     assert "No single day ticket" in result["warnings"][0]
+
+
+def test_large_party_warning_also_appears_when_tickets_start_later():
+    """The too-many-travellers note does not depend on the 9:00 weekday rule."""
+    party = Party(adults=2, children_bands=("15-17",) * 4)
+    result = compare_tickets(party, "BY", "BY", MONDAY, time(7, 45))
+    assert result["options"] == [] and result["not_valid_at_this_time"]
+    assert "at most 5 people" in result["warnings"][0]
+    assert state_code("Free State of Bavaria") == "BY"

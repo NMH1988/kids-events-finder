@@ -161,3 +161,26 @@ def test_shared_feedback_can_be_deleted_by_its_session(tmp_path):
     assert delete_shared_feedback("s1", path) == 1
     assert [r["question"] for r in load_feedback(path)] == ["q2"]
     assert delete_shared_feedback("", path) == 0
+
+
+def test_malformed_outside_data_becomes_an_error_message(monkeypatch):
+    """A broken payload from an outside service returns a JSON error instead of ending the turn."""
+    from src.tools import external
+
+    def broken(**kwargs):
+        """Fail like code reading an unexpected payload."""
+        raise AttributeError("'str' object has no attribute 'get'")
+
+    monkeypatch.setattr(external, "search_family_events", broken)
+    built = {t.name: t for t in build_tools(AdvancedRetriever(None), RagSettings(), "key")}
+    out = json.loads(
+        built["search_family_events"].invoke(
+            {
+                "city": "Berlin",
+                "country": "DE",
+                "start_date": "2099-01-01",
+                "end_date": "2099-01-02",
+            }
+        )
+    )
+    assert "unexpected data" in out["error"]

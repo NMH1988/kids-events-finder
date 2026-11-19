@@ -108,6 +108,7 @@ def load_fares(path: Path = config.FARES_FILE) -> FareTable:
 # Official long forms the geocoder uses for some states, e.g. "State of Berlin" or "Free and
 # Hanseatic City of Hamburg"; they are removed before matching.
 _STATE_PREFIXES = (
+    "free state of ",
     "state of ",
     "land ",
     "free and hanseatic city of ",
@@ -259,21 +260,36 @@ def compare_tickets(
         "travel_date": travel_date.isoformat(),
         "options": [vars(o) for o in options],
         "not_valid_at_this_time": skipped,
-        "warnings": _warnings(not options and not skipped),
+        "warnings": _warnings(fares, states, party),
     }
 
 
-def _warnings(no_ticket_fits: bool) -> list[str]:
-    """Return the fixed warnings, plus why no option exists when no day ticket fits the group."""
+def _group_fits(fares: FareTable, states: list[str], party: Party) -> bool:
+    """Return True when the party fits one option at any time of day (group size only)."""
+    holders, kids = party.deutschlandticket_holders, party.school_age_children
+    others = party.adult_fare_travellers - holders
+    if others == 0 and kids == 0:
+        return True
+    return any(
+        _group_cost(t, party.adult_fare_travellers, kids)
+        or (holders and _group_cost(t, others or 1, kids))
+        for t in fares.day_tickets
+        if t.covers(*states)
+    )
+
+
+def _warnings(fares: FareTable, states: list[str], party: Party) -> list[str]:
+    """Return the fixed warnings, plus a note when the group is too large for any day ticket."""
     warnings = [
         "Prices cover regional trains only (RE, RB, S-Bahn): no ICE or IC.",
         "Day tickets cover the return trip on the same day.",
         "Check on bahn.de that the whole route stays inside the ticket's area.",
     ]
-    if no_ticket_fits:
+    if not _group_fits(fares, states, party):
+        most = max(t.max_persons for t in fares.day_tickets)
         warnings.insert(
             0,
-            "No single day ticket covers this many paying travellers (day tickets take at most 5 "
-            "people): split the group over two tickets or check bahn.de.",
+            "No single day ticket covers this many paying travellers (day tickets take at most "
+            f"{most} people): split the group over two tickets or check bahn.de.",
         )
     return warnings

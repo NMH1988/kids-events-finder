@@ -57,6 +57,7 @@ def geocode_city(city: str, country_code: str) -> Location | None:
         params={"name": city, "count": 5, "language": "en", "countryCode": country_code},
         headers={"User-Agent": config.HTTP_USER_AGENT},
         timeout=config.HTTP_TIMEOUT_SECONDS,
+        allow_redirects=False,
     )
     response.raise_for_status()
     results = response.json().get("results") or []

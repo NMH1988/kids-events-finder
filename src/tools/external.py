@@ -283,7 +283,7 @@ def _local_clock(timestamp: str, zone: ZoneInfo) -> str:
 
 def _delay_minutes(leg: dict) -> int | None:
     """Return the live departure delay of a ride in minutes, or None without live data."""
-    if not leg.get("realTime") or not leg.get("scheduledStartTime"):
+    if not leg.get("realTime") or not leg.get("scheduledStartTime") or not leg.get("startTime"):
         return None
     actual = datetime.fromisoformat(leg["startTime"].replace("Z", "+00:00"))
     planned = datetime.fromisoformat(leg["scheduledStartTime"].replace("Z", "+00:00"))

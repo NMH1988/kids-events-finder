@@ -160,12 +160,20 @@ def _render_details(message: dict) -> None:
     if removed:
         st.warning(f"⚠️ {len(removed)} link(s) were not in any tool result and were removed.")
     elif verified:
-        st.caption(f"✅ All {len(verified)} links come from tool results.")
+        st.caption(
+            f"✅ All {len(verified)} links come from tool results (official websites, maps, "
+            "OpenStreetMap, Ticketmaster); outside data, so check them before you go."
+        )
     with st.expander("How this answer was made"):
         tools = message.get("tools") or []
         if tools:
             for tool in tools:
-                st.markdown(f"- `{tool['name']}` `{json.dumps(tool['args'], ensure_ascii=False)}`")
+                # Model-written names and arguments are shown as plain code, never as Markdown,
+                # so a backtick in them cannot open a link or an image.
+                st.code(
+                    f"{tool['name']} {json.dumps(tool['args'], ensure_ascii=False)}",
+                    language=None,
+                )
         else:
             st.markdown("- No tools were called.")
         if any(t["name"] == "find_train_connection" for t in tools):
@@ -268,7 +276,7 @@ def _render_approval(settings: Settings) -> None:
         for call in result.pending_tool_calls:
             with st.container(border=True):
                 needs = call["id"] in result.needs_approval
-                st.markdown(f"{'🌍' if needs else '📚'} **`{call['name']}`**")
+                st.text(f"{'🌍' if needs else '📚'} {call['name']}")
                 st.caption(TOOL_EXPLANATIONS.get(call["name"], ""))
                 if call["name"] == "check_budget":
                     has_budget = True

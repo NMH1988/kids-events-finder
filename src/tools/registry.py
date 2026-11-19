@@ -114,6 +114,12 @@ def _safe(tool_name: str, func, **kwargs) -> str:
         return json.dumps(
             {"error": "The external service did not answer. Try again later.", "results": []}
         )
+    except (KeyError, TypeError, AttributeError) as exc:
+        # A malformed answer from an outside service must not end the whole turn.
+        logger.warning("tool_bad_data", extra={"tool": tool_name, "type": type(exc).__name__})
+        return json.dumps(
+            {"error": "The external service sent unexpected data. Try again later.", "results": []}
+        )
 
 
 def build_tools(
