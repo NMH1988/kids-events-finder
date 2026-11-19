@@ -19,4 +19,5 @@ The owner writes in Vietnamese: reply in Vietnamese. Everything in the repo is i
 - Run: `.venv/Scripts/streamlit.exe run app.py`
 - Build index (needs key): `.venv/Scripts/python.exe -m scripts.build_index`
 - Test / lint: `.venv/Scripts/python.exe -m pytest -q`, `.venv/Scripts/ruff.exe check .`
+- CI (`.github/workflows/ci.yml`) runs `ruff check`, `ruff format --check` and pytest on every push to `main` and every PR.
 - Evaluation (needs key + index): `python -m scripts.evaluate_retrieval`, `python -m scripts.evaluate_agent --judge`; link check: `python -m scripts.check_links`
