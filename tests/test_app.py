@@ -117,3 +117,26 @@ def test_lowering_children_keeps_the_holders_field_valid():
     assert not at.exception
     holders = at.sidebar.number_input(key="trip_holders")
     assert holders.max == 2 and holders.value <= 2
+
+
+def _details_page():
+    """Render only an answer's details with a model-written tool name and arguments."""
+    from views.chat import _render_details
+
+    _render_details(
+        {
+            "tools": [{"name": "x` ![a](https://evil.example/p.png) `", "args": {"q": "`[b](c)`"}}],
+            "grounding": {"verified": [], "removed": []},
+            "tokens": (1, 1),
+            "model": "m",
+            "seconds": 0.1,
+        }
+    )
+
+
+def test_tool_names_and_arguments_are_shown_as_plain_code():
+    """Model-written tool text is shown as code, so no Markdown link or image is rendered."""
+    at = AppTest.from_function(_details_page, default_timeout=30).run()
+    assert not at.exception
+    assert any("evil.example" in c.value for c in at.code)
+    assert not any("evil.example" in m.value for m in at.markdown)

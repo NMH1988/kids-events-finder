@@ -183,4 +183,4 @@ def test_malformed_outside_data_becomes_an_error_message(monkeypatch):
             }
         )
     )
-    assert "unexpected data" in out["error"]
+    assert "could not read" in out["error"]

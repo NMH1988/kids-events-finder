@@ -118,7 +118,7 @@ def _safe(tool_name: str, func, **kwargs) -> str:
         # A malformed answer from an outside service must not end the whole turn.
         logger.warning("tool_bad_data", extra={"tool": tool_name, "type": type(exc).__name__})
         return json.dumps(
-            {"error": "The external service sent unexpected data. Try again later.", "results": []}
+            {"error": "The tool got data it could not read. Try again later.", "results": []}
         )
 
 

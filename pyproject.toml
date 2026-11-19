@@ -29,6 +29,8 @@ dependencies = [
 dev = [
     "pytest==9.1.1",
     "ruff==0.17.4",
+    # Tests only: parses answers the way a Markdown renderer does (MIT).
+    "markdown-it-py==4.3.0",
 ]
 
 [tool.setuptools.packages.find]

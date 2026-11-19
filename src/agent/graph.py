@@ -140,13 +140,12 @@ def build_graph(llm: BaseChatModel, tools: list[BaseTool], checkpointer: BaseChe
         """Remove links that no tool returned from the final answer and record a report."""
         last: AIMessage = state["messages"][-1]
         cleaned, report = enforce_grounding(message_text(last), allowed_urls(state["messages"]))
-        update: dict[str, Any] = {
-            "grounding": {"verified": report.verified, "removed": report.removed}
+        # The cleaned text is always stored: even with nothing removed, link syntax is escaped.
+        # Same id, so the message is replaced; its token usage is kept for the cost report.
+        return {
+            "grounding": {"verified": report.verified, "removed": report.removed},
+            "messages": [last.model_copy(update={"content": cleaned})],
         }
-        if report.removed:
-            # Same id, so the message is replaced; its token usage is kept for the cost report.
-            update["messages"] = [last.model_copy(update={"content": cleaned})]
-        return update
 
     builder = StateGraph(AgentState)
     builder.add_node("agent", agent)
