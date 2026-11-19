@@ -83,3 +83,37 @@ def test_idle_conversations_are_deleted_from_server_memory(monkeypatch):
     now = 2 * 60 * 60 + 5_000.0
     chat._forget_old_threads(now=now)
     assert deleted == ["old"] and set(activity) == {"fresh"}
+
+
+def test_new_conversation_deletes_the_thread_from_server_memory(monkeypatch):
+    """Ending a conversation deletes it from the checkpointer, not only from the page."""
+    from views import chat
+
+    deleted = []
+
+    class FakeSaver:
+        """Records which threads were deleted."""
+
+        def delete_thread(self, thread_id):
+            """Remember the deleted thread."""
+            deleted.append(thread_id)
+
+    activity = {"t1": 1.0}
+    monkeypatch.setattr(chat, "_thread_activity", lambda: activity)
+    monkeypatch.setattr(chat, "_checkpointer", lambda: FakeSaver())
+    chat.end_conversation("t1")
+    chat.end_conversation(None)
+    assert deleted == ["t1"] and activity == {}
+
+
+def test_lowering_children_keeps_the_holders_field_valid():
+    """Fewer 15-17 children lower the Deutschlandticket holders limit without an error."""
+    at = AppTest.from_file(APP, default_timeout=30).run()
+    at.sidebar.number_input(key="child_count").set_value(2).run()
+    at.sidebar.selectbox(key="child_band_1").set_value("15-17").run()
+    at.sidebar.toggle(key="trip_on").set_value(True).run()
+    at.sidebar.number_input(key="trip_holders").set_value(3).run()
+    at.sidebar.number_input(key="child_count").set_value(1).run()
+    assert not at.exception
+    holders = at.sidebar.number_input(key="trip_holders")
+    assert holders.max == 2 and holders.value <= 2

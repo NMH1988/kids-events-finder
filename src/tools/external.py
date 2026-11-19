@@ -324,7 +324,8 @@ def find_train_connection(
     journeys = []
     for itinerary in response.json().get("itineraries", [])[: config.TRAIN_MAX_RESULTS]:
         rides = [leg for leg in itinerary.get("legs", []) if leg.get("mode") != "WALK"]
-        if not rides:
+        # A partial itinerary (no rides or no times) is skipped instead of failing the turn.
+        if not rides or not itinerary.get("startTime") or not itinerary.get("endTime"):
             continue
         journeys.append(
             {

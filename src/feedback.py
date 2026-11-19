@@ -88,10 +88,7 @@ def save_feedback(
     comment: str = "",
     path: Path = config.FEEDBACK_FILE,
 ) -> None:
-    """Append one feedback record (rating 1 = helpful, 0 = not helpful) as a JSON line.
-
-    The question, answer, comment and session id are stored only when `share_text` is True.
-    """
+    """Append a feedback record; question, answer and session id only when `share_text` is True."""
     if rating not in (0, 1):
         raise ValueError("rating must be 0 or 1")
     path.parent.mkdir(parents=True, exist_ok=True)

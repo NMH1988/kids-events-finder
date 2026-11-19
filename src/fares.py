@@ -59,8 +59,7 @@ class FareTable(BaseModel):
 
 @dataclass(frozen=True)
 class Party:
-    """Who travels: adults, the children's age groups and how many 15+ travellers hold a
-    Deutschlandticket. Children aged 15-17 pay the adult fare."""
+    """Who travels: adults, children's age groups and 15+ Deutschlandticket holders."""
 
     adults: int
     children_bands: tuple[str, ...] = ()
@@ -106,6 +105,16 @@ def load_fares(path: Path = config.FARES_FILE) -> FareTable:
     return FareTable.model_validate(json.loads(path.read_text(encoding="utf-8")))
 
 
+# Official long forms the geocoder uses for some states, e.g. "State of Berlin" or "Free and
+# Hanseatic City of Hamburg"; they are removed before matching.
+_STATE_PREFIXES = (
+    "state of ",
+    "land ",
+    "free and hanseatic city of ",
+    "free hanseatic city of ",
+    "freie und hansestadt ",
+    "freie hansestadt ",
+)
 # German names of the states whose English names differ (the geocoder answers in English).
 _GERMAN_NAMES = {
     "bayern": "BY",
@@ -132,14 +141,23 @@ def state_code(name: str | None) -> str | None:
     if name.upper() in config.GERMAN_STATES:
         return name.upper()
     wanted = _plain(name)
+    for prefix in _STATE_PREFIXES:
+        if wanted.startswith(prefix):
+            wanted = wanted.removeprefix(prefix)
+            break
     if wanted in _GERMAN_NAMES:
         return _GERMAN_NAMES[wanted]
     return next((c for c, n in config.GERMAN_STATES.items() if _plain(n) == wanted), None)
 
 
+def _starts_late_on_weekdays(ticket: DayTicket, travel_date: date) -> bool:
+    """Return True when the ticket starts later in the day on this (week)day."""
+    return bool(ticket.weekday_valid_from) and travel_date.weekday() < 5
+
+
 def _valid_at(ticket: DayTicket, travel_date: date, departure: time | None) -> bool:
     """Return False when the ticket does not yet run at a weekday departure time."""
-    if not ticket.weekday_valid_from or departure is None or travel_date.weekday() >= 5:
+    if not _starts_late_on_weekdays(ticket, travel_date) or departure is None:
         return True
     hours, minutes = (int(x) for x in ticket.weekday_valid_from.split(":"))
     return departure >= time(hours, minutes)
@@ -192,6 +210,12 @@ def compare_tickets(
         if not _valid_at(ticket, travel_date, departure):
             skipped.append(f"{ticket.name}: valid from {ticket.weekday_valid_from} on weekdays")
             continue
+        # Without a departure time the 9:00 weekday rule cannot be checked, so it is spelled out.
+        time_note = (
+            [f"Valid only from {ticket.weekday_valid_from} on this weekday: check the departure."]
+            if departure is None and _starts_late_on_weekdays(ticket, travel_date)
+            else []
+        )
         whole = _group_cost(ticket, paying, kids)
         if whole:
             persons, price = whole
@@ -200,7 +224,7 @@ def compare_tickets(
                     label=f"One {ticket.name} for the whole family",
                     total_eur=price,
                     tickets=[f"{ticket.name} for {persons} person(s)"],
-                    notes=[ticket.notes] if ticket.notes else [],
+                    notes=[*time_note, *([ticket.notes] if ticket.notes else [])],
                     source_urls=[ticket.source_url],
                     checked_on=ticket.checked_on.isoformat(),
                 )
@@ -217,6 +241,7 @@ def compare_tickets(
                         total_eur=price,
                         tickets=[d_ticket.name, f"{ticket.name} for {persons} person(s)"],
                         notes=[
+                            *time_note,
                             "Children who ride free must travel with the person named on the "
                             "day ticket.",
                             *([ticket.notes] if ticket.notes else []),
@@ -234,9 +259,21 @@ def compare_tickets(
         "travel_date": travel_date.isoformat(),
         "options": [vars(o) for o in options],
         "not_valid_at_this_time": skipped,
-        "warnings": [
-            "Prices cover regional trains only (RE, RB, S-Bahn): no ICE or IC.",
-            "Day tickets cover the return trip on the same day.",
-            "Check on bahn.de that the whole route stays inside the ticket's area.",
-        ],
+        "warnings": _warnings(not options and not skipped),
     }
+
+
+def _warnings(no_ticket_fits: bool) -> list[str]:
+    """Return the fixed warnings, plus why no option exists when no day ticket fits the group."""
+    warnings = [
+        "Prices cover regional trains only (RE, RB, S-Bahn): no ICE or IC.",
+        "Day tickets cover the return trip on the same day.",
+        "Check on bahn.de that the whole route stays inside the ticket's area.",
+    ]
+    if no_ticket_fits:
+        warnings.insert(
+            0,
+            "No single day ticket covers this many paying travellers (day tickets take at most 5 "
+            "people): split the group over two tickets or check bahn.de.",
+        )
+    return warnings

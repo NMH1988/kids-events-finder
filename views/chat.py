@@ -98,15 +98,18 @@ def start_cleaner() -> threading.Thread:
     return thread
 
 
+def end_conversation(thread_id: str | None) -> None:
+    """Delete a conversation from server memory ("New conversation"), not only from the page."""
+    if thread_id:
+        _checkpointer().delete_thread(thread_id)
+        _thread_activity().pop(thread_id, None)
+
+
 def _state() -> dict:
     """Return the chat's session state, creating it on first use."""
     start_cleaner()
     ss = st.session_state
-    ended = ss.pop("delete_thread", None)
-    if ended:
-        # "New conversation" deletes the old one from server memory, not only from the page.
-        _checkpointer().delete_thread(ended)
-        _thread_activity().pop(ended, None)
+    end_conversation(ss.pop("delete_thread", None))
     if "thread_id" in ss and ss.thread_id not in _thread_activity() and ss.get("history"):
         # The cleaner deleted this idle conversation: drop the page's copy too.
         for key in ("thread_id", "history", "pending", "feedback_saved"):
@@ -258,6 +261,8 @@ def _render_approval(settings: Settings) -> None:
     with st.chat_message("assistant", avatar="🛑"):
         st.markdown("**The agent is waiting for you. Do you approve these steps?**")
         edited: list[dict] = []
+        # What "Approve" runs: the original arguments, except the parent's budget table.
+        approved: list[dict] = []
         bad_json = False
         has_budget = False
         for call in result.pending_tool_calls:
@@ -267,8 +272,11 @@ def _render_approval(settings: Settings) -> None:
                 st.caption(TOOL_EXPLANATIONS.get(call["name"], ""))
                 if call["name"] == "check_budget":
                     has_budget = True
-                    edited.append({"id": call["id"], "args": _budget_editor(call)})
+                    budget_args = {"id": call["id"], "args": _budget_editor(call)}
+                    edited.append(budget_args)
+                    approved.append(budget_args)
                     continue
+                approved.append({"id": call["id"], "args": call["args"]})
                 text = st.text_area(
                     "Arguments (you can edit them)",
                     json.dumps(call["args"], indent=2, ensure_ascii=False),
@@ -279,7 +287,6 @@ def _render_approval(settings: Settings) -> None:
                     edited.append({"id": call["id"], "args": json.loads(text)})
                 except json.JSONDecodeError:
                     bad_json = True
-                    # "Approve" then runs this call unchanged, but still uses the budget table.
                     edited.append({"id": call["id"], "args": call["args"]})
                     st.error("This is not valid JSON. Approve will send the original arguments.")
         feedback = st.text_input(
@@ -290,9 +297,10 @@ def _render_approval(settings: Settings) -> None:
         c1, c2, c3 = st.columns(3)
         decision = None
         if c1.button("✅ Approve", type="primary", use_container_width=True):
-            # The budget table is part of approving: the parent's amounts are always what runs.
+            # Approve runs the original arguments; with a budget call, the parent's table is part
+            # of approving, so their amounts always replace the model's.
             decision = (
-                {"action": "edit", "tool_calls": edited} if has_budget else {"action": "approve"}
+                {"action": "edit", "tool_calls": approved} if has_budget else {"action": "approve"}
             )
         if c2.button("✏️ Run with my edits", disabled=bad_json, use_container_width=True):
             decision = {"action": "edit", "tool_calls": edited}

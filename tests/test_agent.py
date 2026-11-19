@@ -178,3 +178,30 @@ def test_budget_check_waits_for_the_parent_even_with_auto_approve():
     )
     paused = start_turn(graph, "t9", "budget?", auto_approve=True, **CONTEXT)
     assert paused.status == "needs_approval" and paused.needs_approval == ["b1"]
+
+
+def test_approved_budget_runs_with_the_parents_amounts():
+    """Resuming a paused budget check with the parent's table runs the tool with those amounts."""
+    received = []
+
+    def check_budget(budget_eur: float, items: list[dict]) -> str:
+        """Fake budget tool that records what it got."""
+        received.append((budget_eur, items))
+        return json.dumps({"ok": True})
+
+    graph, _ = _graph(
+        [
+            _call("check_budget", {"budget_eur": 80, "items": [{"label": "Zoo"}]}, "b1"),
+            AIMessage("Done."),
+        ],
+        [StructuredTool.from_function(check_budget)],
+    )
+    paused = start_turn(graph, "t10", "budget?", **CONTEXT)
+    parent_table = {"budget_eur": 90, "items": [{"label": "Zoo", "amount_eur": 25}]}
+    resume_turn(
+        graph,
+        "t10",
+        {"action": "edit", "tool_calls": [{"id": "b1", "args": parent_table}]},
+        turn_start_index=paused.start_index,
+    )
+    assert received == [(90, [{"label": "Zoo", "amount_eur": 25}])]

@@ -113,3 +113,27 @@ def test_teenagers_pay_the_adult_fare_and_may_hold_a_deutschlandticket():
     assert _cheapest(compare_tickets(party, "BY", "BY", SATURDAY))["total_eur"] == 44.0
     both = Party(adults=1, children_bands=("15-17",), deutschlandticket_holders=2)
     assert _cheapest(compare_tickets(both, "BY", "BY", SATURDAY))["total_eur"] == 0.0
+
+
+def test_geocoder_long_state_names_are_recognised():
+    """The geocoder's long names for the city-states map to their codes."""
+    assert state_code("State of Berlin") == "BE" and state_code("Land Berlin") == "BE"
+    assert state_code("Free and Hanseatic City of Hamburg") == "HH"
+    assert state_code("Free Hanseatic City of Bremen") == "HB"
+    assert state_code("Baden-Wurttemberg") == "BW"
+
+
+def test_weekday_without_departure_time_spells_out_the_nine_oclock_rule():
+    """With no departure time on a weekday, late-starting tickets carry a clear note."""
+    best = _cheapest(compare_tickets(Party(adults=1), "BY", "BY", MONDAY))
+    assert any("09:00" in note for note in best["notes"])
+    weekend = _cheapest(compare_tickets(Party(adults=1), "BY", "BY", SATURDAY))
+    assert not any("09:00" in note for note in weekend["notes"])
+
+
+def test_too_many_paying_travellers_get_a_reason_not_silence():
+    """Six paying travellers fit no day ticket, and the result says why."""
+    party = Party(adults=2, children_bands=("15-17",) * 4)
+    result = compare_tickets(party, "BY", "BY", SATURDAY)
+    assert result["options"] == []
+    assert "No single day ticket" in result["warnings"][0]

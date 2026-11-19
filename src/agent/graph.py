@@ -56,7 +56,7 @@ def trip_context(trip: dict | None) -> str:
     if not trip:
         return "off (the parent has not switched on budget day trip planning)"
     return (
-        f"on · budget {trip['budget_eur']:.0f} EUR · adults: {trip['adults']} · "
+        f"on · budget {trip['budget_eur']:g} EUR · adults: {trip['adults']} · "
         f"Deutschlandticket holders (aged 15+): {trip['deutschlandticket_holders']}"
     )
 
