@@ -52,11 +52,16 @@ _SAFE_URL = re.compile(r"https?://[A-Za-z0-9\-._~:/?#$&*+,;=%]+", re.IGNORECASE)
 _CONTROL = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f]")
 _ENTITY = re.compile(r"&(?:#\d+|#[xX][0-9a-fA-F]+|[a-zA-Z][a-zA-Z0-9]*);")
 _ESCAPED = re.compile(r"\\([!-/:-@\[-`{-~])")
+# An escaped . - _ + between two word characters (www\.host, some\_page) is part of a word or URL;
+# it is always resolved, so the URL passes see the address the renderer will link.
+_WORD_ESCAPE = re.compile(r"(?<=\w)\\([.\-_+])(?=\w)")
 # Escapes resolved before the URL passes; every other escape (e.g. \| or \#) is kept as written.
 _URL_ESCAPES = frozenset("\\[]<>$`~@&:/")
 _SPECIAL = re.compile(r"([\\\[\]<>$`~@&])")
 _EMAIL = re.compile(r"([\w.+-]+)@([\w-]+(?:\.[\w-]+)+)")
-_ADDRESS = re.compile(r"[\w-]+\s*[.．。｡]\s*[\w-]{2,}|://", re.IGNORECASE)
+# A domain-like word (paypal.com, zoo．de) or a scheme; abbreviations like "z.B." or "St. Pauli"
+# are not addresses.
+_ADDRESS = re.compile(r"[\w-]+[.．。｡][a-z]{2,}\b|://", re.IGNORECASE)
 _PLACEHOLDER = "\x00{}\x00"
 _KEPT_ESCAPE = "\x01{}\x01"
 
@@ -74,7 +79,7 @@ class GroundingReport:
         return not self.removed
 
 
-def _is_http(value: object) -> bool:
+def is_strict_url(value: object) -> bool:
     """Return True for a strictly formed absolute http(s) URL (see `_SAFE_URL`)."""
     return isinstance(value, str) and _SAFE_URL.fullmatch(value) is not None
 
@@ -85,7 +90,7 @@ def _collect_urls(value: object, into: set[str]) -> None:
         for key, item in value.items():
             if key in URL_FIELDS:
                 items = item if isinstance(item, list) else [item]
-                into.update(u for u in items if _is_http(u))
+                into.update(u for u in items if is_strict_url(u))
             else:
                 _collect_urls(item, into)
     elif isinstance(value, list):
@@ -128,6 +133,7 @@ def _decode(text: str, kept_escapes: list[str] | None = None) -> str:
         if decoded == text:
             break
         text = decoded
+    text = _WORD_ESCAPE.sub(r"\1", text)
 
     def resolve(match: re.Match) -> str:
         """Resolve an escape the URL passes need; keep any other as a token."""
@@ -166,13 +172,13 @@ def _split_tail(span: str) -> tuple[str, str]:
 def enforce_grounding(answer: str, allowed: set[str]) -> tuple[str, GroundingReport]:
     """Return the answer with only verified links left as links, and a report."""
     # The answer is decoded before matching, so the allowed URLs are decoded the same way.
-    allowed_norm = {_normalise(_decode(u)) for u in allowed if _is_http(u)}
+    allowed_norm = {_normalise(_decode(u)) for u in allowed if is_strict_url(u)}
     report = GroundingReport()
     kept: list[str] = []
 
     def is_allowed(url: str) -> bool:
         """Return True for an absolute http(s) URL that a tool returned."""
-        return _is_http(url) and _normalise(url) in allowed_norm
+        return is_strict_url(url) and _normalise(url) in allowed_norm
 
     def keep(markdown: str) -> str:
         """Hide a verified link from the later passes and return its placeholder."""

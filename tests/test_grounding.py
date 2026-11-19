@@ -250,3 +250,43 @@ def test_intentional_escapes_are_kept_as_written():
     assert cleaned == answer
     html = _PARSER.render(cleaned)
     assert "<h1>" not in html and "<li>" not in html and "<em>" not in html
+
+
+@pytest.mark.parametrize(
+    "attack",
+    [
+        "www\\.evil.example/p?ages=3-5&budget=90",
+        "WWW\\.evil.example/p",
+        "(www\\.evil.example/p)",
+        "_www\\.evil.example/p_",
+        "kids-3-5@evil\\.example",
+        "write to x@evil\\-x.example",
+    ],
+)
+def test_word_internal_escapes_cannot_hide_an_address(attack):
+    """An escaped dot or dash inside an address is resolved, so the address is still caught."""
+    cleaned, _ = enforce_grounding(f"Ideas: {attack} done", ALLOWED)
+    assert "evil" not in cleaned.replace("\\", "").lower() or "(at)" in cleaned
+    assert "www.evil" not in cleaned.replace("\\", "").lower()
+    assert "@" not in cleaned
+
+
+def test_escape_inside_a_verified_url_keeps_the_link():
+    """A verified URL written with an escaped underscore is still recognised and kept."""
+    url = "https://a.org/some_page"
+    for answer in ("[Website](https://a.org/some\\_page)", "see https://a.org/some\\_page"):
+        cleaned, report = enforce_grounding(answer, {url})
+        assert report.grounded and report.verified == [url], (answer, cleaned)
+
+
+@pytest.mark.parametrize("text", ["Infos z.B. hier", "Tierpark St. Pauli", "Ages 3.5 and up"])
+def test_abbreviations_in_link_text_are_kept(text):
+    """Ordinary link text with abbreviations is not mistaken for an address."""
+    cleaned, _ = enforce_grounding(f"[{text}](https://a.org)", ALLOWED)
+    assert cleaned == f"[{text}](https://a.org)"
+
+
+def test_paypal_style_escaped_dot_in_link_text_shows_the_real_host():
+    """Link text with an escaped dot that looks like a domain is replaced by the real host."""
+    cleaned, _ = enforce_grounding("[paypal\\.com/login](https://a.org)", ALLOWED)
+    assert cleaned == "[a.org](https://a.org)"

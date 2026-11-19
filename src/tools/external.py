@@ -6,11 +6,13 @@ Every function returns plain dicts that the agent's tools turn into JSON.
 
 import math
 from datetime import UTC, date, datetime, time, timedelta
+from urllib.parse import quote, urlsplit, urlunsplit
 from zoneinfo import ZoneInfo
 
 import requests
 
 from src import config, fares, geo
+from src.grounding import is_strict_url
 
 ATTRIBUTION_OSM = "Data © OpenStreetMap contributors, ODbL (openstreetmap.org/copyright)"
 ATTRIBUTION_TICKETMASTER = "Event data from Ticketmaster Discovery API"
@@ -83,6 +85,29 @@ def _distance_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     return 2 * r * math.asin(math.sqrt(a))
 
 
+def clean_website(value: str | None) -> str | None:
+    """Return a crowd-sourced website value as a plain, encoded http(s) URL, or None."""
+    # OSM tags are free text: add a missing scheme, encode non-ASCII host names (IDNA) and paths,
+    # and drop anything that still is not a strictly formed URL (the grounding check needs that).
+    value = (value or "").strip()
+    if not value:
+        return None
+    if not value.lower().startswith(("http://", "https://")):
+        value = "https://" + value
+    try:
+        parts = urlsplit(value)
+        host = parts.hostname.encode("idna").decode("ascii") if parts.hostname else ""
+    except ValueError, UnicodeError:
+        return None
+    if not host or parts.username or parts.password:
+        return None
+    netloc = host if parts.port is None else f"{host}:{parts.port}"
+    path = quote(parts.path, safe="/%-._~$&*+,;=:")
+    query = quote(parts.query, safe="/%-._~$&*+,;=:?")
+    url = urlunsplit((parts.scheme.lower(), netloc, path, query, ""))
+    return url if is_strict_url(url) else None
+
+
 def describe_weather(code: int | None) -> str:
     """Return plain words for a WMO weather code."""
     if code is None:
@@ -124,9 +149,7 @@ def find_nearby_places(city: str, country: str, category: str) -> dict:
         if not name or lat is None or lon is None or name in seen:
             continue
         seen.add(name)
-        website = tags.get("website") or tags.get("contact:website")
-        if website and not website.startswith(("http://", "https://")):
-            website = "https://" + website
+        website = clean_website(tags.get("website") or tags.get("contact:website"))
         details = [category.replace("_", " ")]
         if tags.get("fee") in ("no", "yes"):
             details.append("free entry" if tags["fee"] == "no" else "entry fee")

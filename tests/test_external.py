@@ -198,3 +198,20 @@ def test_train_connection_uses_regional_modes_and_local_times(monkeypatch):
     assert "HIGHSPEED_RAIL" not in seen["transitModes"] and "REGIONAL_RAIL" in seen["transitModes"]
     assert "github.com" in seen["ua"]
     assert "travelmode=transit" in result["maps_url"]
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        ("https://www.tierpark-göttingen.de", "https://www.xn--tierpark-gttingen-8zb.de"),
+        ("zoo.example/Öffnungszeiten ", "https://zoo.example/%C3%96ffnungszeiten"),
+        ("HTTPS://Zoo.Example/a", "https://zoo.example/a"),
+        ("https://zoo.example/a b", "https://zoo.example/a%20b"),
+        ("https://user@evil.example/", None),
+        ("", None),
+        (None, None),
+    ],
+)
+def test_osm_website_values_are_cleaned_into_strict_urls(raw, expected):
+    """Crowd-sourced website tags become encoded http(s) URLs, or None when unusable."""
+    assert external.clean_website(raw) == expected

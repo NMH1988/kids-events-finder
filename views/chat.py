@@ -369,7 +369,11 @@ def render_chat(settings: Settings) -> None:
 
     for i, message in enumerate(ss.history):
         with st.chat_message(message["role"]):
-            st.markdown(message["content"])
+            if message["role"] == "assistant":
+                # Answers passed the grounding check; the parent's own text is shown as plain text.
+                st.markdown(message["content"])
+            else:
+                st.text(message["content"])
             if message["role"] == "assistant":
                 _render_details(message)
                 _render_feedback(i, message, settings)
