@@ -1,5 +1,7 @@
 # 🎈 Kids Outing Finder
 
+[![CI](https://github.com/NMH1988/kids-events-finder/actions/workflows/ci.yml/badge.svg)](https://github.com/NMH1988/kids-events-finder/actions/workflows/ci.yml)
+
 > **Showcase:** _add the link from showcase.turingcollege.com here before booking the review_
 > **Turing College · AI Engineering Capstone** · Case 2 (AI agent for task automation) with an advanced RAG component (Case 1)
 
