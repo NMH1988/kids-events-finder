@@ -36,6 +36,7 @@ LLM_MAX_RETRIES = 2
 # Environment switches that would send runs to LangSmith; `src/llm.py` sets them to "false".
 TRACING_ENV_OFF: tuple[str, ...] = (
     "LANGSMITH_TRACING",
+    "LANGSMITH_TRACING_V2",
     "LANGCHAIN_TRACING_V2",
     "LANGCHAIN_TRACING",
 )

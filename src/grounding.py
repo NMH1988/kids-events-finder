@@ -69,10 +69,14 @@ _ADDRESS = re.compile(
 # Zero-width joiner stays (it builds emoji such as family emoji); every other invisible format
 # character (zero-width space, soft hyphen, word joiner, BOM ...) is removed before matching.
 _KEEP_FORMAT = frozenset("‍")
-# Tag characters build subdivision flags (England, Scotland, Wales) after the black flag U+1F3F4;
-# they are kept only there.
-_BLACK_FLAG = "\U0001f3f4"
+# Tag characters build subdivision flags (England, Scotland, Wales): the black flag U+1F3F4, 2-6
+# tag letters or digits, then the cancel tag U+E007F. They are kept only in that exact form, so no
+# invisible text can hide behind a flag.
 _TAG_CHARS = range(0xE0020, 0xE0080)
+_FLAG = re.compile("\U0001f3f4[\U000e0030-\U000e0039\U000e0061-\U000e007a]{2,6}\U000e007f")
+# Link text keeps only these characters; anything else (letter-like dots from other scripts,
+# odd punctuation) could disguise it, so the link's host is shown instead.
+_LABEL_PUNCTUATION = frozenset(" .,-'&:;()?!/+#")
 # An e-mail-like "@" (a word character on both sides) once escapes are resolved.
 _MAIL_AT = re.compile(r"[\w.+-]@[\w-]")
 _PLACEHOLDER = "\x00{}\x00"
@@ -139,14 +143,29 @@ def _strip_invisible(text: str) -> str:
     """Remove control characters and invisible format characters (except emoji building blocks)."""
     text = _CONTROL.sub("", text)
     out: list[str] = []
-    for ch in text:
-        if ord(ch) in _TAG_CHARS:
-            # Part of a flag only right after the black flag or another tag character.
-            if out and (out[-1] == _BLACK_FLAG or ord(out[-1]) in _TAG_CHARS):
-                out.append(ch)
-        elif ch in _KEEP_FORMAT or unicodedata.category(ch) != "Cf":
-            out.append(ch)
+    last = 0
+    for match in [*_FLAG.finditer(text), None]:
+        segment = text[last : match.start() if match else len(text)]
+        out.extend(
+            ch
+            for ch in segment
+            if ch in _KEEP_FORMAT
+            or (ord(ch) not in _TAG_CHARS and unicodedata.category(ch) != "Cf")
+        )
+        if match:
+            out.append(match.group(0))
+            last = match.end()
     return "".join(out)
+
+
+def _label_char(ch: str) -> bool:
+    """Return True for a character link text may show: Latin letters, digits, emoji, punctuation."""
+    if ch.isascii():
+        return ch.isalnum() or ch in _LABEL_PUNCTUATION
+    code = ord(ch)
+    latin = 0xC0 <= code <= 0x24F or 0x1E00 <= code <= 0x1EFF
+    emoji = code >= 0x1F000 or 0x2600 <= code <= 0x27BF or 0x2B00 <= code <= 0x2BFF
+    return (latin and ch.isalpha()) or emoji
 
 
 def _decode(text: str, kept_escapes: list[str] | None = None) -> str:
@@ -190,7 +209,12 @@ def _label(text: str, url: str) -> str:
         for ch in text
         if ch not in _KEEP_FORMAT and ord(ch) not in _TAG_CHARS and unicodedata.category(ch) != "Mn"
     ).strip()
-    if not text or _BARE.search(text) or _ADDRESS.search(text):
+    if (
+        not text
+        or not all(_label_char(ch) for ch in text)
+        or _BARE.search(text)
+        or _ADDRESS.search(text)
+    ):
         return urlsplit(url).netloc.lower().removeprefix("www.") or "link"
     return text
 

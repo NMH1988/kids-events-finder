@@ -4,6 +4,7 @@ import streamlit as st
 
 from src import config
 from src.tools.external import (
+    ATTRIBUTION_GEOCODING,
     ATTRIBUTION_OSM,
     ATTRIBUTION_TICKETMASTER,
     ATTRIBUTION_WEATHER,
@@ -20,7 +21,7 @@ def render_about() -> None:
    hybrid search (vector + BM25), metadata filters (country, city, age groups, indoor),
    Reciprocal Rank Fusion and optional LLM reranking.
 3. **Live tools:** OpenStreetMap for nearby places, Ticketmaster for family events,
-   Open-Meteo for the weather.
+   Open-Meteo for the weather and for finding towns (geocoding).
 4. **Human in the loop:** before any call to an outside service, you see what will be sent
    and can approve, edit or reject it.
 5. **Grounding check:** every link in an answer must come from a tool result; any other link
@@ -55,12 +56,13 @@ talking to an AI assistant, and every answer is labelled as AI-generated.
 ### Privacy
 - No account, no tracking, no cookies for advertising or analytics.
 - Children are described only as "Child 1", "Child 2" with an age group; the app never asks for
-  names, exact ages or health information. A check stops messages that contain them, or contact
-  details, before anything is sent.
-- **AI model ({config.AI_PROVIDER_NAME}, model providers possibly in the US):** receives your
-  question, the country and city, the children's age groups and, when trip planning is on, the
-  budget, the number of adults, Deutschlandticket holders and the budget items, so it can plan
-  the trip.
+  names, exact ages or health information. A simple check tries to stop messages that contain
+  them, or contact details, before anything is sent; it cannot catch every wording, so please
+  leave them out yourself.
+- **AI model ({config.AI_PROVIDER_NAME}; model and embedding providers possibly outside the EU,
+  e.g. in the US or Asia):** receives your question, the country and city, the children's age
+  groups and, when trip planning is on, the budget, the number of adults, Deutschlandticket
+  holders and the budget items, so it can plan the trip.
 - **Map, event, weather and train services** receive only town or city names (or their
   coordinates), the country, dates, times and place categories; never the age groups, budget or
   family size.
@@ -78,6 +80,7 @@ talking to an AI assistant, and every answer is labelled as AI-generated.
 - {ATTRIBUTION_OSM}
 - {ATTRIBUTION_TICKETMASTER}
 - {ATTRIBUTION_WEATHER}
+- {ATTRIBUTION_GEOCODING}
 - Journeys by [Transitous](https://transitous.org/sources/) (see its data sources); German
   timetables by DELFI e.V. and others; street data © OpenStreetMap contributors.
 - Ticket prices: copied by hand from bahn.de with the date they were checked. Always check

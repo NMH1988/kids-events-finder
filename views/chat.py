@@ -2,6 +2,7 @@
 
 import json
 import logging
+import re
 import threading
 import time
 import uuid
@@ -10,11 +11,18 @@ import streamlit as st
 from langgraph.checkpoint.memory import InMemorySaver
 
 from src import config, services
-from src.agent.runner import InputRejected, TurnResult, check_input, resume_turn, start_turn
+from src.agent.runner import (
+    InputRejected,
+    TurnResult,
+    check_input,
+    decision_problem,
+    resume_turn,
+    start_turn,
+)
 from src.feedback import delete_shared_feedback, purge_old_feedback, save_feedback
 from src.llm import MissingAPIKeyError
-from src.privacy_check import explain, find_sensitive
 from src.tools.external import (
+    ATTRIBUTION_GEOCODING,
     ATTRIBUTION_OSM,
     ATTRIBUTION_TICKETMASTER,
     ATTRIBUTION_WEATHER,
@@ -46,6 +54,10 @@ ATTRIBUTIONS = {
     "find_train_connection": f"Journeys by [Transitous]({TRANSITOUS_SOURCES_URL}) and its data "
     "sources; street data © OpenStreetMap contributors (ODbL)",
 }
+# Tools that look up a town with the Open-Meteo geocoder (GeoNames data).
+GEOCODING_TOOLS = frozenset({"find_nearby_places", "get_weather_forecast", "find_train_connection"})
+# A money amount in an answer's text, e.g. "44 EUR" or "€44".
+_MONEY = re.compile(r"€|\bEUR\b|\beuros?\b", re.IGNORECASE)
 # Shown with every answer (AI Act Art. 50, LEGAL_COMPLIANCE 4.1). The hidden element is the
 # machine-readable marker: fixed text, no user or model content.
 AI_LABEL = "🤖 AI-generated answer: it can be wrong; check the official websites."
@@ -181,6 +193,11 @@ def _render_calculations(message: dict) -> None:
     calc = message.get("calculations") or {}
     tickets, budget = calc.get("compare_train_tickets"), calc.get("check_budget")
     if not tickets and not budget:
+        if _MONEY.search(message.get("content") or ""):
+            st.caption(
+                "⚠️ Amounts in this answer were not calculated by the app in this step. Check "
+                "bahn.de and the official websites."
+            )
         return
     with st.container(border=True):
         st.markdown("**🧮 Calculated by the app** (from its fare table and your amounts)")
@@ -209,9 +226,15 @@ def _render_calculations(message: dict) -> None:
                 use_container_width=True,
             )
             unknown = ", ".join(budget.get("unknown_items") or []) or "none"
+            remaining = budget["remaining_eur"]
+            left = (
+                f"{remaining:.2f} EUR left"
+                if remaining >= 0
+                else f"{-remaining:.2f} EUR over budget"
+            )
             st.text(
                 f"Known total {budget['known_total_eur']:.2f} EUR of {budget['budget_eur']:.2f} "
-                f"EUR · {budget['remaining_eur']:.2f} EUR left · still unknown: {unknown}"
+                f"EUR · {left} · still unknown: {unknown}"
             )
         st.caption(
             "If a figure in the AI's text differs from this box, this box is right. Prices can "
@@ -223,6 +246,8 @@ def _render_attributions(message: dict) -> None:
     """Name the data sources of the live tools this answer used (set by the app, not the model)."""
     used = {t["name"] for t in message.get("tools") or []}
     lines = [text for name, text in ATTRIBUTIONS.items() if name in used]
+    if used & GEOCODING_TOOLS:
+        lines.append(ATTRIBUTION_GEOCODING)
     if lines:
         st.caption(" · ".join(lines))
 
@@ -338,14 +363,6 @@ def _budget_editor(call: dict, settings: Settings) -> dict:
     return {"budget_eur": float(budget), "items": items}
 
 
-def sensitive_text_in(decision: dict) -> str | None:
-    """Return a privacy warning when the parent's reason or edited values hold sensitive data."""
-    texts = [decision.get("feedback") or ""]
-    texts += [json.dumps(c.get("args"), ensure_ascii=False) for c in decision.get("tool_calls", [])]
-    findings = [f for text in texts for f in find_sensitive(text)]
-    return explain(findings) if findings else None
-
-
 def _render_approval(settings: Settings) -> None:
     """Show the planned tool calls and let the parent approve, edit or reject them."""
     pending = st.session_state.pending
@@ -399,7 +416,7 @@ def _render_approval(settings: Settings) -> None:
         if c3.button("❌ Reject", use_container_width=True):
             decision = {"action": "reject", "feedback": feedback}
         # The parent's own text in this panel goes to the model too, so it gets the same check.
-        problem = decision and sensitive_text_in(decision)
+        problem = decision and decision_problem(decision, result.pending_tool_calls)
         if problem:
             st.warning(problem)
             decision = None

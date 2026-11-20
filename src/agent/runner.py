@@ -51,6 +51,22 @@ def check_input(text: str) -> str:
     return text
 
 
+def decision_problem(decision: dict, original_calls: list[dict]) -> str | None:
+    """Return a privacy warning when the parent's own text in a decision holds sensitive data."""
+    # Only what the parent typed or changed is checked: the reject reason and edited values that
+    # were not already in the model's arguments (the model's own text is not the parent's).
+    known = {s for call in original_calls for s in privacy_check.string_values(call.get("args"))}
+    texts = [decision.get("feedback") or ""]
+    texts += [
+        s
+        for call in decision.get("tool_calls", [])
+        for s in privacy_check.string_values(call.get("args"))
+        if s not in known
+    ]
+    findings = [f for text in texts for f in privacy_check.find_sensitive(text)]
+    return privacy_check.explain(findings) if findings else None
+
+
 def _run_config(thread_id: str, auto_approve: bool) -> dict:
     """Return the LangGraph run config for a conversation thread."""
     return {
@@ -151,6 +167,11 @@ def resume_turn(
     if decision.get("action") not in ("approve", "edit", "reject"):
         raise ValueError("Unknown decision.")
     run_config = _run_config(thread_id, auto_approve)
+    messages = graph.get_state(run_config).values.get("messages", [])
+    pending = messages[-1].tool_calls if messages and isinstance(messages[-1], AIMessage) else []
+    problem = decision_problem(decision, [dict(tc) for tc in pending])
+    if problem:
+        raise InputRejected(problem)
     started = time.perf_counter()
     graph.invoke(Command(resume=decision), run_config)
     return _summarise(graph, run_config, turn_start_index, started)

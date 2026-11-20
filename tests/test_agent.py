@@ -213,3 +213,121 @@ def test_grounding_always_stores_the_cleaned_answer(tools):
     result = start_turn(graph, "t11", "price?", **CONTEXT)
     assert result.answer == r"Tickets \$15 \[optional\]"
     assert result.grounding == {"verified": [], "removed": []}
+
+
+FORGED = {
+    "from_state": "BY",
+    "to_state": "BY",
+    "travel_date": "2026-11-21",
+    "trip": {"budget_eur": 1, "adults": 1, "deutschlandticket_holders": 5},
+    "children": [],
+    "adults": 1,
+}
+TRIP = {"budget_eur": 80, "adults": 2, "deutschlandticket_holders": 0}
+
+
+def _ticket_tool():
+    """The real ticket comparison tool from the registry."""
+    from src.rag.retriever import AdvancedRetriever
+    from src.tools.registry import RagSettings, build_tools
+
+    built = build_tools(AdvancedRetriever(None), RagSettings(multi_query=False))
+    return [t for t in built if t.name == "compare_train_tickets"]
+
+
+def test_forged_party_from_the_model_is_ignored():
+    """Security R1-4: a party the model writes is replaced by the sidebar's trip settings."""
+    graph, _ = _graph(
+        [_call("compare_train_tickets", FORGED, "c1"), AIMessage("Done.")], _ticket_tool()
+    )
+    result = start_turn(
+        graph, "t20", "tickets?", country="DE", city="Munich", children=["3-5", "6-9"], trip=TRIP
+    )
+    tickets = result.calculations["compare_train_tickets"]
+    assert tickets["options"][0]["total_eur"] == 44.0
+    assert "for 2 person(s)" in tickets["options"][0]["tickets"][0]
+
+
+def test_forged_party_in_an_approval_edit_is_ignored():
+    """An edit in the approval panel cannot set the party either."""
+    from src import config
+
+    both = AIMessage(
+        content="",
+        tool_calls=[
+            {"name": "get_weather_forecast", "args": {"city": "Munich"}, "id": "w1"},
+            {"name": "compare_train_tickets", "args": {**FORGED, "trip": None}, "id": "c1"},
+        ],
+    )
+    graph, _ = _graph([both, AIMessage("Done.")], [*_ticket_tool(), *_weather_tool()])
+    assert "compare_train_tickets" not in config.TOOLS_REQUIRING_APPROVAL
+    paused = start_turn(
+        graph, "t21", "trip?", country="DE", city="Munich", children=["3-5", "6-9"], trip=TRIP
+    )
+    assert paused.status == "needs_approval"
+    resume_turn(
+        graph,
+        "t21",
+        {
+            "action": "edit",
+            "tool_calls": [
+                {"id": "w1", "args": {"city": "Munich"}},
+                {"id": "c1", "args": FORGED},
+            ],
+        },
+        turn_start_index=paused.start_index,
+    )
+    state = graph.get_state({"configurable": {"thread_id": "t21"}}).values
+    result = [m for m in state["messages"] if isinstance(m, ToolMessage) and m.tool_call_id == "c1"]
+    assert json.loads(result[0].content)["options"][0]["total_eur"] == 44.0
+
+
+def _weather_tool():
+    """A fake external weather tool."""
+
+    def get_weather_forecast(city: str) -> str:
+        """Fake external weather tool."""
+        return json.dumps({"days": []})
+
+    return [StructuredTool.from_function(get_weather_forecast)]
+
+
+def test_calculations_keep_the_latest_successful_result():
+    """Only JSON results without an error count; the latest one of each tool wins."""
+    from src.agent.runner import calculations
+
+    messages = [
+        ToolMessage('{"total": 1}', tool_call_id="1", name="check_budget"),
+        ToolMessage('{"total": 2}', tool_call_id="2", name="check_budget"),
+        ToolMessage('{"error": "x"}', tool_call_id="3", name="check_budget"),
+        ToolMessage("Error: bad", tool_call_id="4", name="compare_train_tickets"),
+        ToolMessage('{"total": 9}', tool_call_id="5", name="search_knowledge_base"),
+    ]
+    assert calculations(messages) == {"check_budget": {"total": 2}}
+
+
+def test_resume_rejects_sensitive_text_the_parent_typed():
+    """The approval check also runs in resume_turn, not only in the page."""
+    graph, _ = _graph(
+        [_call("get_weather_forecast", {"city": "Berlin"}, "w1"), AIMessage("ok")],
+        _weather_tool(),
+    )
+    paused = start_turn(graph, "t22", "weather?", **CONTEXT)
+    with pytest.raises(InputRejected):
+        resume_turn(
+            graph,
+            "t22",
+            {"action": "reject", "feedback": "my son has asthma"},
+            turn_start_index=paused.start_index,
+        )
+
+
+def test_model_written_arguments_do_not_block_an_approval():
+    """Text the model wrote (e.g. "kids aged 6") is not the parent's, so approving works."""
+    from src.agent.runner import decision_problem
+
+    original = [{"id": "b1", "args": {"items": [{"label": "Zoo", "note": "kids aged 6 free"}]}}]
+    same = {"action": "edit", "tool_calls": original}
+    assert decision_problem(same, original) is None
+    changed = {"action": "edit", "tool_calls": [{"id": "b1", "args": {"note": "Kinderarzt"}}]}
+    assert decision_problem(changed, original)

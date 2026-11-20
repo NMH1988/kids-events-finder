@@ -33,10 +33,17 @@ The users are parents, but the app handles data about children, who are speciall
 - **1.4 No health data, ever (Art. 9 GDPR).** The app never asks for, stores, infers or comments on
   health, illness, disability, diagnoses, therapy or development. Concretely:
   - no input field about health;
-  - a keyword check (`src/privacy_check.py`, English, German, Vietnamese) blocks chat messages and
-    the parent's text in the approval panel that mention health topics (e.g. ADHD, Autismus,
-    Diagnose, Krankheit, therapy) and asks the parent to remove that part before anything is sent;
-    blocked text is not stored, not even on the page;
+  - a keyword check (`src/privacy_check.py`, English, German, Vietnamese, on a normalised copy
+    of the text: Unicode variants, look-alike letters, spaced letters, text without accents)
+    blocks chat messages and the parent's own text in the approval panel that mention health
+    topics (e.g. ADHD, Autismus, Diagnose, Krankheit, therapy) and asks the parent to remove that
+    part before anything is sent. Blocked text is not stored; the warning names only the kind of
+    data, never the words. It is a basic safeguard, not proof: a keyword list cannot catch every
+    wording, so the About page asks parents to leave such details out, and the lists are re-checked
+    with the Datenschutzberater before launch;
+  - statements about development ("behind", "delayed") are not blocked by the keyword check (too
+    many ordinary sentences use these words); the system prompt forbids repeating or judging them,
+    and red-team case r08 checks the model declines (owner decision pending, see the PR);
   - the system prompt forbids asking about, repeating or inferring health information;
   - medical and therapy places (paediatricians, Ergotherapie, Logopädie, Frühförderung) are not in
     the knowledge base or the OpenStreetMap categories.
@@ -76,7 +83,9 @@ The users are parents, but the app handles data about children, who are speciall
   rejecting a step leaves the app, obvious personal data (e-mails, phone numbers, street addresses,
   names such as "my son X", exact ages such as "7 years old") is detected by `src/privacy_check.py`
   and the parent is asked to remove it. Town and city fields of tools accept only place names
-  (`check_place_name`), so no free text reaches the geocoder or other outside services.
+  (`check_place_name`: up to 5 capitalised words of Latin letters, small connecting words such as
+  "am" or "upon" allowed), so no sentence or family detail reaches the geocoder or other outside
+  services.
 - **2.7 Retention.** Conversations are deleted from the server when the parent starts a new one and
   automatically after 2 hours without use (`CONVERSATION_RETENTION_SECONDS`, enforced by a
   background cleaner every `CLEANUP_INTERVAL_SECONDS`, also when nobody uses the app); feedback is deleted after 90 days and stores the question text
@@ -145,7 +154,8 @@ Affiliate links are **off** in the Capstone version. Before they are switched on
 - **6.4 Licences of everything we use.** Only permissive licences (MIT, BSD, Apache-2.0, ISC,
   PSF, MPL-2.0 unmodified) for Python packages (runtime and dev), JavaScript libraries, fonts,
   icons and images; AI models and embedding models are used only under terms that allow the use
-  (record them in the processor register); data sets follow 6.3. Any GPL/AGPL/SSPL, "non-commercial"
+  (each model is named in the processor register with the date its terms were checked; a new or
+  changed model updates that row in the same PR); data sets follow 6.3. Any GPL/AGPL/SSPL, "non-commercial"
   or unclear licence needs the owner's decision first. Check the licence when adding or upgrading a
   dependency in `pyproject.toml`.
 - **6.5 Brand.** Before choosing a public app name, check DPMA and EUIPO for existing trademarks.
@@ -193,8 +203,10 @@ Capstone demo with synthetic data.
 
 **App features**
 - [x] AI disclosure in the chat plus a machine-readable marker on answers (AI Act Art. 50).
-- [x] Health / personal-data keyword check on every free-text field (chat, budget table, reject
-      reason, edited arguments); re-check the word lists with the Datenschutzberater.
+- [ ] Health / personal-data keyword check on every free-text field: a basic version is done
+      (chat, budget table, reject reason, edited values); before launch the Datenschutzberater
+      re-checks the word lists and coverage, and the AI provider DPA with zero data retention
+      (above) remains the real safeguard.
 - [ ] Invite codes (hashes and counters only) and per-code daily limits.
 - [ ] Web Push: own opt-in screen, minimal payload, subscriptions deleted after the trip date.
 - [ ] Ticketmaster: family events only, drop 18+ events; privacy link in the footer.
@@ -247,6 +259,6 @@ Capstone demo with synthetic data.
 
 | Name | Role | Location | DPA / terms checked |
 |---|---|---|---|
-| OpenRouter (+ model providers, incl. the embedding model's providers) | AI model access | US / other countries; EU routing only on Business/Enterprise plans | **Not possible today:** the project uses the school's OpenRouter account, so the owner cannot sign a DPA or set zero data retention / no-training providers. Allowed only with synthetic data (see "Before a public deployment") |
+| OpenRouter (+ model providers, incl. the embedding model's providers). Models: `openai/gpt-5-mini`, `openai/gpt-5-nano`, `openai/gpt-5` (OpenAI terms via OpenRouter); embeddings `qwen/qwen3-embedding-8b` (Qwen licence; providers possibly in China / Singapore). Model terms checked: not yet in writing (owner, before launch) | AI model access | US / other countries; EU routing only on Business/Enterprise plans | **Not possible today:** the project uses the school's OpenRouter account, so the owner cannot sign a DPA or set zero data retention / no-training providers. Allowed only with synthetic data (see "Before a public deployment") |
 | Hosting provider (to be chosen, EU) | Server | EU | To do before launch |
 | Affiliate programmes | — | — | None active |

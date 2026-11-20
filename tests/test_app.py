@@ -110,14 +110,66 @@ def test_money_and_sources_are_shown_by_the_app():
 
 def test_privacy_warning_for_the_parents_own_text_in_the_approval_panel():
     """A reject reason or an edited budget note with health data is not sent."""
-    from views.chat import sensitive_text_in
+    from src.agent.runner import decision_problem
 
-    assert sensitive_text_in({"action": "reject", "feedback": "my son has asthma"})
+    assert decision_problem({"action": "reject", "feedback": "my son has asthma"}, [])
     edit = {"action": "edit", "tool_calls": [{"id": "1", "args": {"items": [{"label": "Arzt"}]}}]}
-    assert sensitive_text_in(edit)
-    fine = {"action": "edit", "tool_calls": [{"id": "1", "args": {"city": "Halle (Saale)"}}]}
-    assert sensitive_text_in(fine) is None
-    assert sensitive_text_in({"action": "reject", "feedback": "only indoor places"}) is None
+    assert decision_problem(edit, [])
+    fine = {
+        "action": "edit",
+        "tool_calls": [
+            {"id": "1", "args": {"city": "Halle (Saale)", "travel_date": "2026-11-21"}},
+            {"id": "2", "args": {"depart_after": "08:30", "budget_eur": 80}},
+        ],
+    }
+    assert decision_problem(fine, []) is None
+    assert decision_problem({"action": "reject", "feedback": "only indoor places"}, []) is None
+
+
+def _marker_page():
+    """Render an answer's AI label and machine-readable marker as the chat does."""
+    import streamlit as st
+
+    from views.chat import AI_LABEL, AI_MARKER_HTML
+
+    st.caption(AI_LABEL)
+    st.html(AI_MARKER_HTML)
+
+
+def test_every_answer_gets_the_machine_readable_ai_marker():
+    """AI Act Art. 50: the hidden data-ai-generated element is sent to the page."""
+    at = AppTest.from_function(_marker_page, default_timeout=30).run()
+    assert not at.exception
+    bodies = [h.proto.body for h in at.get("html")]
+    assert any('data-ai-generated="true"' in b for b in bodies)
+
+
+def _over_budget_page():
+    """Render a budget check that is over budget."""
+    from src.budget import BudgetItem, check_budget
+    from views.chat import _render_calculations
+
+    budget = check_budget(30, [BudgetItem(label="Train", amount_eur=40)])
+    _render_calculations({"calculations": {"check_budget": budget}})
+
+
+def test_over_budget_is_shown_as_over_budget():
+    """A negative remainder reads "over budget", not "-10.00 EUR left"."""
+    at = AppTest.from_function(_over_budget_page, default_timeout=30).run()
+    assert any("10.00 EUR over budget" in t.value for t in at.text)
+
+
+def _later_turn_page():
+    """Render an answer that names a price without any calculation in that turn."""
+    from views.chat import _render_calculations
+
+    _render_calculations({"content": "The ticket is about 9 EUR.", "calculations": {}})
+
+
+def test_amounts_without_a_calculation_get_a_warning():
+    """Security finding 6: a model-written amount alone is marked as not calculated."""
+    at = AppTest.from_function(_later_turn_page, default_timeout=30).run()
+    assert any("not calculated by the app" in c.value for c in at.caption)
 
 
 def test_idle_conversations_are_deleted_from_server_memory(monkeypatch):

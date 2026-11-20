@@ -3,14 +3,24 @@
 import logging
 import os
 
+import langsmith.run_trees
+import langsmith.utils
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 
 from src import config
 
-# No third-party tracing: LangSmith would receive every message, the children's age groups and
-# the trip settings (LEGAL_COMPLIANCE 2.10). These are forced off whatever the environment says.
-for _name in config.TRACING_ENV_OFF:
-    os.environ[_name] = "false"
+
+def disable_tracing() -> None:
+    """Force LangSmith tracing off, whatever the environment or an earlier cached read says."""
+    # LangSmith would receive every message, the children's age groups and the trip settings
+    # (LEGAL_COMPLIANCE 2.10).
+    for name in config.TRACING_ENV_OFF:
+        os.environ[name] = "false"
+    langsmith.utils.get_env_var.cache_clear()
+    langsmith.run_trees.configure(enabled=False)
+
+
+disable_tracing()
 # At DEBUG these libraries log request bodies (the parent's message); cap them at LOG_LEVEL.
 for _name in config.QUIET_LOGGERS:
     logging.getLogger(_name).setLevel(config.LOG_LEVEL)
