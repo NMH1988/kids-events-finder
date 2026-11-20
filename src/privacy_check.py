@@ -102,26 +102,21 @@ HEALTH_TERMS: tuple[str, ...] = (
     "~entwicklungsverzög*",
     "~schwanger*",
     "~angststörung*",
-    "arzt*",
-    "~kinderarzt*",
-    "~zahnarzt*",
-    "~augenarzt*",
-    "~hausarzt*",
-    "~hautarzt*",
-    "~facharzt*",
-    "~notarzt*",
     "~depressiv*",
+    "~psycholog*",
+    "~orthopäd*",
+    "~notaufnahme",
+    "~schmerzen",
+    "unwell",
+    "been ill",
+    "throws up",
+    "throwing up",
+    "threw up",
     "insulin",
     "inhaler*",
     "~inhalator*",
     "ritalin",
     "epipen*",
-    "ärzt*",
-    "~kinderärzt*",
-    "~zahnärzt*",
-    "~augenärzt*",
-    "~hausärzt*",
-    "~fachärzt*",
     "~klinik*",
     "~syndrom*",
     "~hörgerät*",
@@ -167,9 +162,11 @@ HEALTH_TERMS: tuple[str, ...] = (
 _ACCENT_ONLY = frozenset({"ốm"})
 # Phrases a regex states better than a word list ("is sick", but not "sick of the rain").
 _HEALTH_EXTRA = (
-    r"(?:(?<!\w)(?:is|are|got|feels?|was|has\s+been|gets?|getting|being)|'s)\s+sick(?!\w)"
-    r"(?!\s+of\b)",
+    r"(?:(?<!\w)(?:is|are|got|feels?|feeling|was|has\s+been|gets?|getting|being)|'s)\s+sick"
+    r"(?!\w)(?!\s+of\b)",
     r"(?<!\w)(?:carsick|car\s+sick|travel\s+sick|seasick)(?!\w)",
+    # Any doctor, also in compounds (Ohrenarzt, Frauenärztin), but not "Schwarztee".
+    r"(?<!schw)(?:arzt|ärzt|aerzt)",
 )
 
 # Cyrillic, Greek and other letters that look like Latin ones, and small capitals.
@@ -181,14 +178,12 @@ _LOOKALIKES = str.maketrans(
 _INVISIBLE = frozenset("ㅤᅟᅠﾠ")
 # Letters written one by one: "a d h d", "A. D. H. D.", "a-d-h-d", "a_d_h_d", "a/d/h/s".
 _SPACED_LETTERS = re.compile(r"(?<!\w)(?:[^\W\d_](?:[ .\-_/·]+\s*|\t)){2,}[^\W\d_](?!\w)")
-# Letters only Vietnamese uses; text with them is matched with its accents, not without.
-_VIETNAMESE = re.compile(r"[ăâđêôơưĂÂĐÊÔƠƯẠ-ỹ]")
 _UMLAUTS = str.maketrans({"ä": "ae", "ö": "oe", "ü": "ue", "ß": "ss"})
 
 
 def _soft(text: str) -> str:
     """Return the text with compatibility forms folded, invisibles removed, look-alikes mapped."""
-    text = unicodedata.normalize("NFKC", text or "")
+    text = unicodedata.normalize("NFKC", text or "").replace("’", "'").replace("‘", "'")
     text = "".join(
         ch
         for ch in text
@@ -226,9 +221,28 @@ def _variants(term: str) -> set[str]:
 _HEALTH = re.compile(
     "|".join([*(_term_pattern(v) for t in HEALTH_TERMS for v in _variants(t)), *_HEALTH_EXTRA])
 )
+
+
+def _plain_pattern(term: str) -> str:
+    """Return a regex where each word of a term may be typed with or without its accents."""
+    inside = term.startswith("~")
+    stem = term.removeprefix("~").removesuffix("*")
+    words = [
+        f"(?:{re.escape(w)}|{re.escape(_strip_accents(w))})"
+        if _strip_accents(w) != w
+        else re.escape(w)
+        for w in stem.split()
+    ]
+    start = "" if inside else r"(?<!\w)"
+    end = "" if term.endswith("*") else r"(?!\w)"
+    return start + r"\s*".join(words) + end
+
+
+# For text typed without (some) accents: each word of a term as typed or without accents, so
+# "con tôi bị tăng dong" matches "tăng động" while "kể từ kỳ" never becomes "tự kỷ".
 _HEALTH_PLAIN = re.compile(
     "|".join(
-        _term_pattern(_strip_accents(t))
+        _plain_pattern(t)
         for t in HEALTH_TERMS
         if t.removeprefix("~").removesuffix("*") not in _ACCENT_ONLY
     )
@@ -251,13 +265,23 @@ _NOT_NAMES = (
     r"(?:mon|diens|donners|frei|sams|sonn)tag\w*|mittwoch\w*|wochenende\w*|heute|morgen\w*|"
     r"januar|februar|märz|mai|juni|juli|oktober|dezember|"
     r"easter|christmas|halloween|xmas|ostern|weihnacht\w*|pfingst\w*|silvester|karneval|fasching|"
-    r"next|last|this|year|nächste\w*|letzte\w*|"
+    r"next|last|this|year|nächste\w*|letzte\w*|münchen|köln|nürnberg|düsseldorf|"
     + "|".join(re.escape(c.casefold()) for cities in config.CITIES.values() for c in cities)
 )
-# Words with a count in brackets that are no person: "Adults (2)", "Tickets (2)".
+# Words with a count in brackets that are no person: "Adults (2)", "Tickets (2)", "Pizza (3)".
 _GROUP_WORDS = (
-    r"adults?|children|kids?|kinder|erwachsene|tickets?|snacks?|eintritt|persons?|personen|"
-    r"people|babies|teens?|rides?|items?|seats?|plätze|drinks?|getränke|meals?|essen"
+    r"adults?|children|kids?|kinder|kindern|erwachsene|erwachsenen|tickets?|snacks?|eintritt|"
+    r"persons?|personen|people|babies|teens?|rides?|items?|seats?|plätze|drinks?|getränke|"
+    r"meals?|essen|pizzas?|kaffee|coffee|tea|tee|eis|ice|zug|train|bus|parken|parking|"
+    r"familienkarte|souvenirs?|bratwurst|würstchen|pommes|wasser|water|brezeln?|kuchen|cake"
+)
+# German prepositions and conjunctions: after them "meinen Sohn Kurse" or "wenn mein Kind Tiere
+# mag" is a noun, not a name (fixed-width lookbehinds, both cases).
+_NOT_AFTER = "".join(
+    rf"(?<!\b{w} )(?<!\b{w.capitalize()} )"
+    for w in (
+        "für mit von bei zu wenn weil ob da dass wo falls obwohl damit als ohne über gegen um"
+    ).split()
 )
 # A capitalised word that could be a name: not a day or holiday, not written in capitals.
 _CAPITAL_WORD = rf"(?!(?i:{_NOT_NAMES})(?!\w))[A-ZÀ-ÖØ-ÞĐ][a-zß-öø-ÿđā-ɏạ-ỹ]+"
@@ -268,9 +292,10 @@ _CHILD_WORDS = r"son|daughter|child|kid|boy|girl|baby|sohn|tochter|kind|junge|m�
 # German: "unser Sohn Max besucht die Schule" or "unser Sohn Max, der ..." is a name; in "wenn
 # mein Kind Tiere mag?" the verb ends the clause, so "Tiere" is a noun. A name needs a verb that
 # more words follow (or a relative clause); prepositions and adverbs ending in -t are no verbs.
-_NOT_VERBS = r"mit|nicht|jetzt|seit|oft|gut|sonst|erst|fast|meist|bist|samt|recht"
+_NOT_VERBS = r"mit|nicht|jetzt|seit|oft|gut|sonst|erst|fast|meist|bist|samt|recht|direkt"
 _PERSON_VERB = (
-    rf"(?=[ \t]+(?!(?:{_NOT_VERBS})\b)(?:mag|will|kann|möchte|darf|\w+t)[ \t]+\w"
+    rf"(?=[ \t]+(?!(?:{_NOT_VERBS})\b)(?:mag|will|kann|möchte|darf|\w+t)"
+    r"[ \t]+(?!(?:und|oder|aber|sondern|denn)\b)\w"
     r"|[ \t]*,[ \t]*(?:der|die|das|who)\b)"
 )
 _NAME = re.compile(
@@ -278,7 +303,7 @@ _NAME = re.compile(
     r"(?i:named|called|heißt|heisst|namens|tên là|tên)[ \t]+[^\W\d_]+"
     rf"|(?i:{_CHILD_WORDS})'s[ \t]+(?i:name)[ \t]+(?i:is)[ \t]+[^\W\d_]+"
     rf"|(?i:my|our)[ \t]+(?i:son|daughter|child|kid|boy|girl|baby)[ \t]+{_CAPITAL_WORD}"
-    r"|(?i:mein|meine|meinen|meinem|unser|unsere|unseren|unserem)[ \t]+"
+    rf"|{_NOT_AFTER}(?i:mein|meine|meinen|meinem|unser|unsere|unseren|unserem)[ \t]+"
     rf"(?i:sohn|tochter|kind|junge|kleine[rnm]?)[ \t]+{_CAPITAL_WORD}{_PERSON_VERB}"
     r"|(?i:my name is|ich heiße|ich heisse|tôi tên là|tôi tên)[ \t]+[^\W\d_]+"
     rf"|(?i:bé|cháu|con tôi)[ \t]+{_CAPITAL_WORD}"
@@ -292,11 +317,13 @@ _NUMBER_WORDS = (
 _NOT_A_RANGE = (
     r"(?<!\d[-–])(?<!\d [-–] )(?<!\d[-–] )(?<!\d [-–])(?<!to )(?<!and )(?<!bis )(?<!đến )"
     r"(?<!under )(?<!over )(?<!unter )(?<!über )(?<!ab )(?<!dưới )(?<!trên )(?<!from )(?<!von )"
-    r"(?<!từ )(?<!up to )(?<!below )(?<!above )(?<!und )(?<!than )(?<!least )(?<!mindestens )"
+    r"(?<!từ )(?<!up to )(?<!below )(?<!above )(?<!than )(?<!least )(?<!mindestens )"
     r"(?<!höchstens )(?<!minimum )(?<!maximum )"
+    # "zwischen 6 und 9" is a range; "Kinder 5 und 8 Jahre alt" are two ages.
+    r"(?<!zwischen \d und )(?<!zwischen \d\d und )(?<!between \d and )(?<!between \d\d and )"
 )
 _NO_RANGE_AFTER = (
-    r"(?!\s*(?:[-–]|to|and|bis|đến|or|oder|und)\s*\d)(?!\s*\+)"
+    r"(?!\s*(?:[-–]|to|and|bis|đến|or|oder)\s*\d)(?!\s*\+)"
     r"(?!\s*(?:and|or|und|oder)\s+(?:up|over|older|above|under|younger|älter|jünger|mehr))"
 )
 _UNITS = (
@@ -311,11 +338,17 @@ _NOT_A_CHILD = (
     r"weather|temperature|parking|eintritt|preis|wetter|es|das|der|die|zug|bus|start|lunch|"
     r"limit"
 )
-# "Lena is 7": the number ends the phrase, and no article or possessive comes before the word.
-_PHRASE_END = r"(?=\s*(?:$|[.,;!?)]|and\b|und\b|và\b))"
-_NO_ARTICLE = (
-    r"(?<!der )(?<!die )(?<!das )(?<!den )(?<!dem )(?<!the )(?<!a )(?<!an )(?<!unser )"
-    r"(?<!unsere )(?<!our )(?<!my )(?<!mein )(?<!meine )(?<!für )(?<!for )(?<!ein )(?<!eine )"
+# "Lena is 7 (now, in May, but ...)": a child's age (0-17) that ends the phrase or is followed by
+# a word that fits an age; "Die Fahrt ist 12" (an article before the word) is no age.
+_CHILD_AGE = (
+    r"(?:1[0-7]|[0-9]|" + r"|".join(r"(?:" + w + r")" for w in _NUMBER_WORDS.split("|")) + ")"
+)
+_PHRASE_END = (
+    r"(?=\s*(?:$|[.,;!?)(\-–]|(?:and|und|và|now|jetzt|schon|already|years?|jahre|geworden|im|in|"
+    r"next|nächste\w*|but|aber|so|soon|bald)\b))"
+)
+_NO_ARTICLE = "".join(
+    rf"(?<!\b{w} )" for w in "der die das den dem the a an für for ein eine".split()
 )
 # An exact age: "7 years old", "aged 7", "7-jährig", "7 Jahre alt", "7 tuổi", "18 months old",
 # "seven years old", "7yo", "turns 7", "Lena is 7", "he is 8", "Leon, 6, likes". Age groups
@@ -333,7 +366,7 @@ _AGE = re.compile(
     rf"|(?<!\w)(?:{_CHILD_WORDS}|he|she|er|sie)"
     rf"\s+(?:is|ist|wird|turns|lên)\s+(?:\d{{1,2}}|{_NUMBER_WORDS}){_NO_RANGE_AFTER}{_UNITS}(?!\w)"
     rf"|{_NO_ARTICLE}(?<!\w)(?!(?:{_NOT_A_CHILD})\b)(?-i:{_CAPITAL_WORD})"
-    rf"\s+(?:is|ist|wird|turns)\s+(?:\d{{1,2}}|{_NUMBER_WORDS}){_UNITS}{_PHRASE_END}"
+    rf"\s+(?:is|ist|wird|turns)\s+{_CHILD_AGE}(?!\d){_NO_RANGE_AFTER}{_UNITS}{_PHRASE_END}"
     rf"|(?-i:{_CAPITAL_WORD}),\s*\d{{1,2}}\s*,\s*(?-i:[a-z])",
     re.IGNORECASE,
 )
@@ -384,15 +417,9 @@ def find_sensitive(text: str) -> list[Finding]:
     folded = soft.casefold()
     findings = [Finding("health", m.group(0)) for m in _HEALTH.finditer(folded)]
     if not findings:
-        # Accents typed away (often only on some words): words without Vietnamese letters are
-        # matched without accents; words with them stay as typed, so ordinary words ("kể từ kỳ")
-        # do not turn into health terms.
-        plain = re.sub(
-            r"\w+",
-            lambda m: m.group(0) if _VIETNAMESE.search(m.group(0)) else _strip_accents(m.group(0)),
-            folded,
-        )
-        findings = [Finding("health", m.group(0)) for m in _HEALTH_PLAIN.finditer(plain)]
+        # Accents typed away, often only on some words: each word of a term may match with or
+        # without its accents, but a word with other accents ("từ" is not "tự") never matches.
+        findings = [Finding("health", m.group(0)) for m in _HEALTH_PLAIN.finditer(folded)]
     findings += [Finding("email", m.group(0)) for m in _EMAIL.finditer(soft)]
     findings += [Finding("phone", p) for p in _phones(soft)]
     findings += [Finding("name", m.group(0)) for m in _NAME.finditer(soft)]
@@ -404,10 +431,16 @@ def find_sensitive(text: str) -> list[Finding]:
 def explain(findings: list[Finding]) -> str:
     """Return a message naming what kind of data to remove (the text itself is not repeated)."""
     kinds = ", ".join(dict.fromkeys(f.description for f in findings))
+    hint = (
+        ' A word with a number in brackets, e.g. "(3)", can look like a child\'s name and age; '
+        'write "3x" before the word instead.'
+        if any(f.kind == "name" and "(" in f.text for f in findings)
+        else ""
+    )
     return (
         f"For your family's privacy this was not sent. It seems to contain {kinds}, which the app "
         "does not handle. Please remove that part and try again. Children are described only by "
-        "their age group in the sidebar."
+        f"their age group in the sidebar.{hint}"
     )
 
 
@@ -457,14 +490,22 @@ _PLACE_MAX_WORDS = 5
 _NOT_PLACE_WORDS = frozenset(
     (
         "familie family kind kinder kinders kids children child sohn tochter son daughter baby "
-        "babies toddler teen teens twins zwillinge eltern parents mama papa mum dad oma opa "
-        "grandma grandpa adults adult erwachsene kita kindergarten schule school grundschule "
-        "budget euro eur jahre jahr years year ignore disregard rules regeln instructions "
-        "previous earlier orders system prompt "
-        "eins zwei drei vier fünf fuenf sechs sieben acht neun zehn elf zwölf zwoelf zwanzig "
-        "dreißig dreissig vierzig fünfzig fuenfzig hundert one two three four five six seven "
-        "eight nine ten eleven twelve twenty thirty forty fifty hundred"
+        "babies toddler teen teens teenager twins zwillinge eltern parents mama papa mum dad oma "
+        "opa grandma grandpa granny grandad adults adult erwachsene kita krippe hort nursery "
+        "kindergarten schule school grundschule schulkind boy girl junge mädchen maedchen "
+        "budget euro eur jahre jahr years year ignore disregard forget override reveal key rules "
+        "regeln instructions policy previous earlier above orders system prompt"
     ).split()
+)
+# Number words: allowed only before another capitalised word ("Drei Gleichen", "Seven Sisters",
+# "Three Rivers"), never alone or before another number ("Berlin Sechs Neun").
+_NUMBER_WORD = re.compile(
+    r"(?:eins|zwei|drei|vier|fünf|fuenf|sechs|sieben|acht|neun|zehn|elf|zwölf|zwoelf|hundert|"
+    r"one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|hundred|"
+    r"(?:thir|four|fif|six|seven|eigh|nine)teen|(?:twen|thir|for|fif|six|seven|eigh|nine)ty|"
+    r"(?:drei|vier|fünf|fuenf|sech|sieb|acht|neun)zehn|"
+    r"(?:zwan|vier|fünf|fuenf|sech|sieb|acht|neun)zig|drei(?:ß|ss)ig)",
+    re.IGNORECASE,
 )
 _APOSTROPHE_WORD = re.compile(r"[^\W\d_]+['’]s|[dDlLoO]['’][A-ZÀ-Þ][^\W\d_]*")
 _PLACE_MAX_CHARS = 40
@@ -492,8 +533,12 @@ def check_place_name(value: str) -> str:
     words = re.split(r"[ \-/]", value)
     if len(words) > _PLACE_MAX_WORDS or not _latin_letter(value[0]):
         raise error
-    for word in words:
-        bare = word.strip("().")
+    bares = [w.strip("().") for w in words]
+    for i, bare in enumerate(bares):
+        if _NUMBER_WORD.fullmatch(bare):
+            following = bares[i + 1] if i + 1 < len(bares) else ""
+            if not following[:1].isupper() or _NUMBER_WORD.fullmatch(following):
+                raise error
         # An apostrophe only in "King's" or before a capital ("d'Alene", "L'Isle").
         apostrophe = "'" in bare or "’" in bare
         if apostrophe and not _APOSTROPHE_WORD.fullmatch(bare):

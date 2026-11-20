@@ -4,7 +4,7 @@ Three levels, from cheapest to most realistic. Record each run's numbers in the 
 
 ## 1. Offline tests (no key)
 
-`python -m pytest -q` runs 548 tests with fake models and mocked HTTP. They cover the privacy check (health words, names, exact ages, contact details, place-name fields; every red-team case marked "blocked" is blocked and no normal question is), the knowledge base schema, metadata filters, BM25, hybrid search, RRF, multi-query and reranking, the seven tools (validation, parsing, error handling), the ticket comparison rules (children's free rides, Deutschlandticket holders, the 9:00 weekday start, cross-state trips) and the budget check, the human-in-the-loop flows (approve, edit, reject, auto-approve), the grounding check, the index, feedback storage and an AppTest smoke test of the page.
+`python -m pytest -q` runs 642 tests with fake models and mocked HTTP. They cover the privacy check (health words, names, exact ages, contact details, place-name fields; every red-team case marked "blocked" is blocked and no normal question is), the knowledge base schema, metadata filters, BM25, hybrid search, RRF, multi-query and reranking, the seven tools (validation, parsing, error handling), the ticket comparison rules (children's free rides, Deutschlandticket holders, the 9:00 weekday start, cross-state trips) and the budget check, the human-in-the-loop flows (approve, edit, reject, auto-approve), the grounding check, the index, feedback storage and an AppTest smoke test of the page.
 
 ## 2. Retrieval comparison (key + index)
 

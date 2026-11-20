@@ -514,3 +514,44 @@ def test_flags_trademarks_and_lists_in_link_text_are_kept(text):
     """Country flags, ® and ordinary lists stay as link text."""
     cleaned, _ = enforce_grounding(f"[{text}](https://a.org)", ALLOWED)
     assert cleaned == f"[{text}](https://a.org)"
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "paypal .fr",
+        "paypal .nl",
+        "paypal .info",
+        "evil .xyz",
+        "PayPal® .com",
+        "PayPal™ .de",
+        "paypal (dot) com",
+        "paypal punkt de",
+        "paypal / com",
+        "paypal ; com",
+        "paypal .c0m",
+    ],
+)
+def test_more_spelled_domains_in_link_text_show_the_host(text):
+    """Security round 4: other endings, symbols and words between name and ending show the host."""
+    cleaned, _ = enforce_grounding(f"[{text}](https://a.org)", ALLOWED)
+    assert cleaned == "[a.org](https://a.org)"
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "Legoland Windsor, UK",
+        "Zoo Berlin, DE",
+        "Tickets, at the door",
+        "Kids – US edition",
+        "Zoo, co-op shop",
+        "Zoo Berlin · info",
+        "Infos z.B. hier",
+        "St. Pauli",
+    ],
+)
+def test_country_names_and_lists_in_link_text_are_kept(text):
+    """Code review round 4: a country or a list after a comma is no domain."""
+    cleaned, _ = enforce_grounding(f"[{text}](https://a.org)", ALLOWED)
+    assert cleaned == f"[{text}](https://a.org)"

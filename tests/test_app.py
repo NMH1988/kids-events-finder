@@ -315,3 +315,33 @@ def test_blocked_chat_message_is_never_stored():
     assert at.session_state["history"] == []
     assert any("not sent" in w.value for w in at.warning)
     assert not any("asthma" in w.value for w in at.warning)
+
+
+@pytest.mark.parametrize("text", ["44,–", "50 Cent pro Kind", "50p", "20 Franken", "¥12"])
+def test_more_money_spellings_get_the_warning(text):
+    """Security round 4: more ways to write an amount get the caption."""
+    at = AppTest.from_function(_money_page, args=(text,), default_timeout=30).run()
+    assert any("not calculated by the app" in c.value for c in at.caption)
+
+
+def test_class_ranges_are_no_money():
+    """'1.-4. Klasse' is a school year range, not a price."""
+    from views.chat import _MONEY
+
+    assert not _MONEY.search("Für die 1.-4. Klasse")
+
+
+@pytest.mark.parametrize("text", ["[1, 2]", '"Munich"', "null", "{broken", "42"])
+def test_edit_box_applies_only_json_objects(text):
+    """Code review round 4: anything but a JSON object is not applied as the edited arguments."""
+    from views.chat import parse_edited_args
+
+    assert parse_edited_args(text) is None
+    assert parse_edited_args('{"city": "Munich"}') == {"city": "Munich"}
+
+
+def test_bracket_hint_in_the_privacy_message():
+    """A blocked 'Word (N)' gets a hint to write '3x' instead."""
+    from src.privacy_check import explain, find_sensitive
+
+    assert '"3x"' in explain(find_sensitive("Lena (5)"))

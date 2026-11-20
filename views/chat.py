@@ -61,8 +61,9 @@ GEOCODING_TOOLS = frozenset(
 )
 # A money amount in an answer's text: "44 EUR", "EUR44", "€44", "£12", "$15", "12 GBP", "44,-".
 _MONEY = re.compile(
-    r"[€£$￡＄]|(?<![A-Za-z])(?:EUR|GBP|USD|CHF)(?![A-Za-z])|\b(?:euros?|pounds?|dollars?|pfund)\b"
-    r"|\d[,.]-",
+    r"[€£$￡＄﹩₤¥]|(?<![A-Za-z])(?:EUR|GBP|USD|CHF)(?![A-Za-z])"
+    r"|\b(?:euros?|pounds?|dollars?|pfund|pfd|cents?|ct|franken)\b|\b\d+p\b"
+    r"|\d[,.][-–—](?!\s*\d)",
     re.IGNORECASE,
 )
 # Shown with every answer (AI Act Art. 50, LEGAL_COMPLIANCE 4.1). The hidden element is the
@@ -370,6 +371,15 @@ def _budget_editor(call: dict, settings: Settings) -> dict:
     return {"budget_eur": float(budget), "items": items}
 
 
+def parse_edited_args(text: str) -> dict | None:
+    """Return the edited arguments when the text is a JSON object; anything else is not applied."""
+    try:
+        parsed = json.loads(text)
+    except json.JSONDecodeError:
+        return None
+    return parsed if isinstance(parsed, dict) else None
+
+
 def _render_approval(settings: Settings) -> None:
     """Show the planned tool calls and let the parent approve, edit or reject them."""
     pending = st.session_state.pending
@@ -399,12 +409,8 @@ def _render_approval(settings: Settings) -> None:
                     key=f"args_{call['id']}",
                     height=130,
                 )
-                try:
-                    parsed = json.loads(text)
-                except json.JSONDecodeError:
-                    parsed = None
-                # Only a JSON object can replace the arguments; anything else is not applied.
-                if isinstance(parsed, dict):
+                parsed = parse_edited_args(text)
+                if parsed is not None:
                     edited.append({"id": call["id"], "args": parsed})
                 else:
                     bad_json = True
