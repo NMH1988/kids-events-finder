@@ -174,6 +174,13 @@ HEALTH_TERMS: tuple[str, ...] = (
     "rollis",
     "rollifahrer*",
     "~rollifreundlich*",
+    "~rollator*",
+    "~gehhilfe*",
+    "walking frame",
+    "~rehabuggy*",
+    "reha-buggy",
+    "~rehakinderwagen*",
+    "adaptive stroller",
     "can't climb stairs",
     "can't walk far",
     "in plaster",
@@ -350,8 +357,9 @@ _ACCESS = re.compile(
     # there, so "accessible for kids with a walker" stays blocked.
     r"(?!\s+(?:by|via|from|with\s+public)\s)(?!\s+on\s+foot)"
     r"(?!\s+in\s+(?:winter|summer|spring|autumn|fall)\b)"
+    # (owner decision 2026-11-20: "accessible for toddlers?" passes only if the message ends there)
     r"(?!\s+(?:for|to)\s+(?:(?:my|our|the|young|small|little|older|younger)\s+)?(?:kids|children|"
-    r"toddlers|families|little\s+ones|babies|young\s+kids|small\s+children)\s*(?:[?.!,;]|$))"
+    r"toddlers|families|little\s+ones|babies|young\s+kids|small\s+children)\s*[?.!]?\s*$)"
 )
 # Equipment, not the child: a step-free or barrier-free question about a pram, a bike, a
 # scooter or luggage is no health data ("Ist das Museum mit Kinderwagen barrierefrei?").
@@ -385,10 +393,16 @@ _HEALTH_EXTRA = (
     # An injury of someone ("his injury", "a knee injury", "my son's injury", "got an injury"),
     # not "injuries at trampoline parks", "in case of an injury", "a minor injury unit" or "an
     # injury risk".
-    r"(?:(?<!\w)(?<!case of )(?<!event of )(?<!if there is )(?<!if there's )"
-    r"(?:his|her|their|my|an?)|'s)\s+(?!(?:typical|minor|common|possible|serious)\s)(?:\w+\s+)?injur(?:y|ies)"
+    r"(?:(?<!\w)(?:his|her|their|my)|'s)\s+(?!an?\s)(?:\w+\s+){0,2}?injur(?:y|ies)(?!\w)",
+    # "a/an … injury" is generic in a safety question ("in case of a minor injury", "a typical
+    # injury", "a minor injury unit"), so only without such a qualifier or context.
+    r"(?<!\w)(?<!case of )(?<!event of )(?<!if there is )(?<!if there's )(?<!if )an?\s+"
+    r"(?!(?:typical|minor|common|possible)\s)(?:\w+\s+)?injur(?:y|ies)"
     r"(?!\s+(?:risk|clinic|unit|centre|center|prevention))(?!\w)",
-    r"(?<!\w)(?:has|have)\s+injuries",
+    # Statements with a verb keep any qualifier ("has a minor injury", "suffered a serious head
+    # injury", "got injuries").
+    r"(?<!\w)(?:has|have|had|got|gets|suffered|sustained|picked\s+up)\s+(?:an?\s+)?"
+    r"(?:\w+\s+){0,2}?injur(?:y|ies)(?!\s+(?:risk|clinic|unit|centre|center)\b)",
     r"'s\s+hurt(?!\w)",
     # "hurt/broke his …" is checked in `_hurt_findings`, which skips questions with a modal or a
     # negation earlier in the clause ("Will my son hurt his hands on the climbing wall?").
@@ -396,14 +410,16 @@ _HEALTH_EXTRA = (
     r"(?:con\s+đang\s+sốt|bé\s+đang\s+sốt|hơi\s+sốt|sốt\s+cao|sốt\s+nhẹ)(?!\s*(?:ruột|sắng|vé))",
     r"(?:(?<!\w)(?:is|are|feels?|feeling|was|were|been|still|seems?|looks?|got|became)|'s)\s+"
     # "running poorly", "written poorly" describe things, not a child.
-    r"(?:\w+\s+){0,2}?(?<!ing )(?<!ten )poorly"
+    r"(?:\w+\s+){0,2}?(?<!running )(?<!working )(?<!doing )(?<!performing )(?<!written )"
+    r"(?<!organised )(?<!organized )poorly"
     r"(?!\s+(?:\w+ed|lit|kept|run|made|designed|paid|built|written)\b)",
     r"(?<!\w)(?:my|our|his|her)\s+poorly(?!\s+(?:\w+ed|lit|kept|run|made|designed)\b)",
     r"(?<!\w)poorly\s+since",
-    # Giftedness of a child; not the verb with an object ("we were gifted tickets", "gifted us a
-    # voucher") or "gift shop".
-    r"(?<!\w)gifted(?!\s+(?:with\s+(?!numbers|music|maths|math)|tickets|a|an|the|us|them|me|him|her|"
-    r"our|my|some)\b)(?!\w)",
+    # Giftedness of a child; not the verb: passive with an object ("we were gifted tickets", "we
+    # got gifted a zoo membership") or active with a person ("my mum gifted us a voucher").
+    r"(?<!\w)(?<!were )(?<!was )(?<!been )(?<!got )(?<!get )gifted(?!\s+(?:us|them|me)\b)(?!\w)",
+    r"(?<!\w)(?:were|was|been|got|get)\s+gifted(?!\s+(?:tickets?|vouchers?|a|an|the|two|three|"
+    r"some|our|my|\d+)\b)(?!\w)",
     r"spricht\s+noch\s+nicht(?!\s+(?:so\s+)?(?:gut\s+|viel\s+)?(?:englisch|deutsch|französisch|"
     r"spanisch|italienisch|niederländisch))",
     # Statements about a child's development (owner decision 2026-11-20).
@@ -417,9 +433,11 @@ _HEALTH_EXTRA = (
     r"(?<!\w)(?:has|have|had)\s+(?:got\s+)?(?:a\s+(?:bad\s+|heavy\s+|nasty\s+)?cold(?!\s+(?:plunge|"
     r"drink|drinks|shower|showers|pool|water|temperature|room|buffet|food|snacks?|weather|dessert|"
     r"desserts|sandwich|sandwiches|milk)\b)|(?:bad\s+|heavy\s+)?colds)(?!\w)",
-    # Booster vaccine ("had his booster"), not a booster seat ("a booster in the taxi").
-    r"(?<!\w)(?:had|got|gets|needs?|getting)\s+(?:his|her|their|the|a)\s+booster(?!\s+(?:seats?|"
-    r"rides?|cushions?|in|for)\b)(?!\w)",
+    # Booster vaccine ("after his booster", "had the booster"), not a booster seat ("a booster in
+    # the taxi").
+    r"(?<!\w)(?:his|her|their)\s+booster(?!\s+(?:seats?|cushions?)\b)(?!\w)",
+    r"(?<!\w)(?:had|got|gets|getting)\s+(?:the|a)\s+booster(?!\s+(?:seats?|rides?|cushions?|in|"
+    r"for)\b)(?!\w)",
     r"(?<!\w)(?:the\s+)?flu(?!\s+(?:season|outbreak|wave|shot\s+clinic)\b)"
     r"(?<!because of the flu)(?!\w)",
     r"(?<!\w)corona(?!\s+park)(?!\w)(?!\s+(?:rules|regeln|restrictions))",
@@ -567,27 +585,28 @@ _RELATIVE_CLAUSE = r"(?=[ \t]*,[ \t]*(?:der|die|das|who)\b)"
 _POSSESSIVE = r"(?i:mein|meine|meinen|meinem|meiner|unser|unsere|unseren|unserem|unserer)"
 # Endings of activity and other common nouns that are no names (Fußball, Ski, Kanu, Kajak, Kunst,
 # Musik, Sport, Golf, Yoga, Judo, Tanz, Theater, Vögel, Bilder).
-_ACTIVITY_ENDINGS = "".join(
-    f"(?<!{e})"
-    for e in (
-        "ball",
+# Whole words (with a word start), so first names like Franz, Wolf or Rudolf still count as names.
+_ACTIVITY_ENDINGS = "(?<!ball)" + "".join(
+    rf"(?<!\b{w})"
+    for w in (
         "Ski",
-        "anu",
-        "ajak",
-        "unst",
-        "usik",
-        "port",
-        "olf",
-        "oga",
-        "udo",
-        "anz",
-        "ater",
-        "ögel",
-        "ilder",
-        "ett",
-        "ate",
-        "oard",
-        "piel",
+        "Kanu",
+        "Kajak",
+        "Kunst",
+        "Musik",
+        "Sport",
+        "Golf",
+        "Minigolf",
+        "Yoga",
+        "Judo",
+        "Tanz",
+        "Theater",
+        "Vögel",
+        "Bilder",
+        "Ballett",
+        "Karate",
+        "Snowboard",
+        "Spiel",
     )
 )
 _CHILD_NOUN = r"(?i:sohn|tochter|kind|junge|kleine[rnm]?)"

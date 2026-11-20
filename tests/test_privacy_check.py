@@ -412,6 +412,24 @@ from src.privacy_check import check_place_name, explain, find_sensitive
         ("he got poorly overnight", "health"),
         ("poorly since Monday", "health"),
         ("she has a nasty cold", "health"),
+        # round 12: legal C25-C30, code Must 1-2, security 1-4
+        ("She is feeling poorly", "health"),
+        ("He has a serious injury", "health"),
+        ("He has a minor injury", "health"),
+        ("her minor injury is better now", "health"),
+        ("he had injuries", "health"),
+        ("he suffered a serious head injury", "health"),
+        ("Meine Kinder Max und Franz tanzen.", "name"),
+        ("Wo können meine Kinder Lena und Wolf spielen?", "name"),
+        ("Meine Kinder Lea und Rolf spielen.", "name"),
+        ("He is gifted with languages", "health"),
+        ("My son is so gifted my wife thinks", "health"),
+        ("is gifted the teacher says", "health"),
+        ("Is it accessible for children, including those who can't walk?", "health"),
+        ("Is it accessible for my kids? One uses a walker", "health"),
+        ("accessible for kids; she uses a Rollator", "health"),
+        ("after his booster yesterday", "health"),
+        ("He got his booster in the morning", "health"),
     ],
 )
 def test_sensitive_text_is_found(text, kind):
@@ -693,6 +711,10 @@ def test_sensitive_text_is_found(text, kind):
         "Ist das Museum kinderwagenfreundlich und barrierefrei?",
         "We got gifted a zoo membership",
         "The trains are running poorly today",
+        # round 12: false alarms
+        "We were gifted two tickets",
+        "We've been gifted vouchers",
+        "My mum gifted us a voucher",
     ],
 )
 def test_ordinary_questions_pass(text):

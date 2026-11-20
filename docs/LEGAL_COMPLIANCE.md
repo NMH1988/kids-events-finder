@@ -52,8 +52,8 @@ The users are parents, but the app handles data about children, who are speciall
     aid (Rollator, Reha-Buggy, walker, crutches); the check does not test that the question is
     about the equipment, so such a word anywhere in the message turns off the accessibility
     check for that message (a residual, 2.6). "Is it accessible by train / on foot / in winter?"
-    (getting there) and "Is the playground accessible for toddlers?" (suitability by age, only
-    when nothing follows the age word) pass; "accessible for kids with a walker" is blocked. Generic
+    (getting there) and, by owner decision of 2026-11-20, "Is the playground accessible for
+    toddlers?" (suitability by age, only when the message ends after the age word) pass; "accessible for kids with a walker" is blocked. Generic
     accessibility questions ("Is the museum accessible?", "What accessibility does the zoo
     offer?") are blocked too. Giftedness ("gifted", "hochbegabt", "advanced for his age") counts
     as a development statement and is blocked; only the verb with an object ("we were gifted
@@ -129,7 +129,8 @@ The users are parents, but the app handles data about children, who are speciall
   a pram, bike, scooter or luggage word anywhere in a message turns off the step-free and
   generic accessibility check for that message ("Is the museum accessible? We come with a
   stroller."); German children's names before a clause-final verb when the last name ends in
-  -e, -n or -s ("Meine Kinder Max und Jonas tanzen."). The link target itself is always a
+  -e, -n or -s ("Meine Kinder Max und Jonas tanzen."); "has cold" without the article ("my son
+  has cold", owner decision 2026-11-20, so that "have cold drinks" passes). The link target itself is always a
   verified tool URL.
   Accepted false alarms (the parent rephrases once): slang ("That's sick!"), rare uses of health
   words ("rash decision", "Der Stau ist übel", "Corona beer garden", "his shots at goal",
