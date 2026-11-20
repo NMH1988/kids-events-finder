@@ -161,7 +161,7 @@ def test_input_check_rejects_empty_and_too_long_text():
 
 def test_text_that_grows_when_folded_is_rejected():
     """A short message of ligatures that fold into many letters is rejected as too long."""
-    with pytest.raises(InputRejected):
+    with pytest.raises(InputRejected, match="special characters"):
         check_input("ﷺ" * 200)
     assert decision_problem({"feedback": "ﷺ" * 600}, []) is not None
 

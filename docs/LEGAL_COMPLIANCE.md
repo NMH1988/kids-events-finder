@@ -74,6 +74,12 @@ The users are parents, but the app handles data about children, who are speciall
     character to its plain form (such as "´" to "'") is not a loosening (owner decision
     2026-11-20, review round 17): the variant then gets
     exactly the result of the plain wording, even where it was blocked by accident before;
+  - **baseline for regressions (owner decision 2026-11-20, review round 19):** a regression is
+    a sentence that a commit from the block-only rule on (c560f86 and later) blocked and that now
+    passes. A sentence that only the earlier commits blocked (they blocked bare keywords such as
+    "injury" or "booster" and were narrowed to stop false alarms) is an accepted residual in 2.6,
+    unless it is added as a new block. Before each review round the whole reviewer corpus is run
+    at every commit of the branch and any regression is fixed first;
   - the system prompt forbids asking about, repeating or inferring health information;
   - medical and therapy places (paediatricians, Ergotherapie, Logopädie, Frühförderung) are not in
     the knowledge base or the OpenStreetMap categories.
@@ -170,10 +176,22 @@ The users are parents, but the app handles data about children, who are speciall
   "We were very kindly gifted two tickets". Review round 18: "Does the zoo have a minor injury
   unit?", "We were happy, grandma gifted us tickets", "The zoo is nice. Grandma gifted us
   tickets", "He got injuryfree last season".
-  Before review round 19 every change was also run against all sentences the reviewers used in
-  rounds 1-18 at every commit of the branch; a sentence an earlier commit blocked that now
-  passes is either one of the safety questions or pram/booster-seat questions the reviewers
-  asked to pass before the block-only rule, a look-alike case under 1.4, or a residual above.
+  Review round 19 (162aff7 and the round-19 additions for names, ages, injury, booster, poorly,
+  sick, hospitalisation and development statements): "There's no injury risk at this park,
+  right?", "What's your injury policy?", "Where's your nearest injury unit?", "What's this
+  injury about", "Is the zoo open? Grandma gifted us tickets", "My mum seemed happy and gifted
+  us a voucher", "What to do after a minor injury?", "Is there help with a minor injury on
+  site?", "Exhibition on healing from injury in the war", "It's the injury capital of Europe",
+  "That's the injury time in football", "Here's the knee injury update", "Injuries, how common
+  are they at trampoline parks?", "Sports injury, what does the clinic do?", "Is the trampoline
+  park injury prone?", "The app does poorly on mobile", "The website reads poorly", "They're
+  gifted with a great view", "You're gifted a free drink at the cafe", "Does the ride have a
+  booster section?", "booster" alone, "Museum for kids aged 3 and 4", "Activities for kids aged
+  6 and 9", "Kinder 6 und 9 Jahre gemischt?", "Die Entwicklung von Berlin ist spannend".
+  Regressions are measured from c560f86 (baseline rule in 1.4): every sentence the reviewers
+  used in rounds 1-19 was run at every commit of the branch, and none that a commit from c560f86
+  on blocked passes now, apart from look-alike cases under 1.4. Sentences only the earlier
+  commits blocked are accepted residuals unless re-added as blocks.
 - **2.7 Retention.** Conversations are deleted from the server when the parent starts a new one and
   automatically after 2 hours without use (`CONVERSATION_RETENTION_SECONDS`, enforced by a
   background cleaner every `CLEANUP_INTERVAL_SECONDS`, also when nobody uses the app); feedback

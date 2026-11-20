@@ -399,9 +399,11 @@ _HEALTH_EXTRA = (
     # knee injury season for him" does not).
     r"(?:(?<!\w)(?:his|her|their|my)|(?:(?<!\bwhat)(?<!\bthat)(?<!\bit)(?<!\bthere)(?<!\bwhere)"
     r"(?<!\bhere)(?<!\bwho)(?<!\bhow)|(?!'s\s+the\s))'s|(?<=\ws)')\s+"
-    r"(?!an?\s)(?:\w+\s+){0,3}?injur(?:y|ies)",
-    # "the injury he has".
-    r"injur(?:y|ies)\s+(?:he|she|they)\s+(?:has|had|got|suffered)(?!\w)",
+    r"(?!an?\s)(?:\w+\s+){0,6}?injur(?:y|ies)",
+    # "the injury he has", "the injury my son's got".
+    r"injur(?:y|ies)\s+(?:he|she|they|(?:my|our|his|her)\s+(?:son|daughter|kid|child|boy|girl|"
+    r"baby|toddler|twins|kids|children|boys|girls|youngest|eldest|oldest))(?:'s|'ve)?\s+"
+    r"(?:has|have|had|got|suffered)(?!\w)",
     # "a/an … injury" is generic in a safety question ("in case of a minor injury", "a typical
     # injury", "a minor injury unit"), so only without such a qualifier or context.
     r"(?<!\w)(?<!case of )(?<!event of )(?<!if there is )(?<!if there's )(?<!if )an?\s+"
@@ -462,6 +464,61 @@ _HEALTH_EXTRA = (
     r"(?<!\w)covid(?:-19)?(?!\s+(?:rules|regeln|restrictions|test\s+centre))(?!\w)",
     # Vaccination of the child, not the rules ("Impfpass", "vaccine passport", "Impfpflicht").
     r"(?<!\w)(?:impf(?!pass|pflicht|nachweis)\w*|vaccin(?!e\s+passport)\w*)",
+    # R19-A: injury after with/from/after/... whatever the qualifier ("nursing a minor injury").
+    r"(?<!\w)(?:with|from|after|following|since|nursing|due\s+to|because\s+of)\s+"
+    r"(?:a|an|the|his|her|their|my|our|this|that)\s+(?:\w+\s+){0,3}?injur(?:y|ies)"
+    r"(?!\s+(?:risks?|rates?|clinics?|units?|centres?|centers?|prevention|insurance|cover|"
+    r"polic(?:y|ies)|statistics|records?|reports?)\b)",
+    r"(?<!\w)(?:recover\w*|healing|nursing|suffering)\s+(?:from\s+)?(?:\w+\s+){0,3}?injur(?:y|ies)",
+    r"(?<!\w)injur(?:y|ies)\s*:",
+    # R19-K: "Knee injury, so nothing active", "an old knee injury".
+    r"(?:^|[.!?]\s*)(?:\w+\s+)?injur(?:y|ies)\s*[,;\-–]",
+    r"(?<!\w)(?<!case of )(?<!event of )(?<!if there is )(?<!if there's )(?<!if )an?\s+"
+    r"(?!(?:typical|minor|common|possible|serious)\s)\w+\s+(?!(?:of|for|to)\s)\w+\s+injur(?:y|ies)"
+    r"(?!\s+(?:risks?|rates?|clinics?|units?|centres?|centers?|prevention|insurance|cover)\b)(?!\w)",
+    r"(?<!\w)injur(?:y|ies)\W*prone|prone\s+to\s+(?:\w+\s+)?injur|(?:keeps?|kept)\s+(?:on\s+)?getting\s+"
+    r"injur\w*|(?<!if )(?<!when )(?<!\w)(?:he|she|they)\s+(?:\w+\s+)?gets\s+injured",
+    # R19-B: "'s the injury" unless a general question ("What's the injury risk").
+    r"'s\s+the\s+(?:\w+\s+){0,2}?injur(?:y|ies)(?!\s+(?:risks?|rates?|polic(?:y|ies)|insurance|"
+    r"cover|statistics|stats|records?|reports?|prevention|clinics?|units?|centres?|centers?|"
+    r"nurses?|lists?|at|in|on|for)\b)",
+    r"'s\s+the\s+one\s+with\s+(?:\w+\s+){0,3}?injur(?:y|ies)",
+    # R19-C: "the injury my son has / he's got / that she had".
+    r"injur(?:y|ies)\s+(?:that\s+|which\s+)?(?:he|she|they|(?:my|our|his|her)\s+\w+)"
+    r"(?:'s|\s+(?:has|had|have|got|gets|suffered|sustained|picked))(?!\w)",
+    # R19-D: "They're gifted".
+    r"'re\W+(?:\w+\W+){0,5}?gifted(?!\w)",
+    # R19-E: "poorly" about a child.
+    r"(?<!\w)(?:seemed|looked|appeared|appears?)\s+(?:\w+\s+){0,2}?poorly"
+    r"(?!\s+(?:\w+ed|lit|kept|run|made|designed|paid|built|written)\b)",
+    r"(?<!\w)poorly\s+(?:developed|coordinated|co-ordinated|sighted|behaved|nourished)",
+    r"(?<!\w)(?:sleeps?|slept|sleeping|eats?|ate|eating|walks?|walked|walking|speaks?|spoke|"
+    r"speaking|talks?|talked|talking|hears?|heard|hearing|sees?|saw|seeing|reads?|reading|"
+    r"does|did|writes?|wrote|learns?|learnt|learned|breathes?|breathing|grows?|grew|growing|"
+    r"copes?|coped|coping|concentrates?|behaves?|behaved)\s+(?:\w+\s+)?poorly",
+    # R19-M: development of a child.
+    r"development\s+of\s+(?:my|our|his|her|their|the\s+(?:child|kid|son|daughter|baby|toddler))\b|"
+    r"development\W*wise|entwicklung\s+von\s+\w+\s+(?:ist|war|verläuft|macht|geht)\b",
+    # R19-N: Vietnamese fever and development after a child word.
+    r"(?:con|bé|cháu|trẻ|nó)(?:\s+(?:tôi|nhà\s+tôi|mình|nhà|em))?\s+(?:bị\s+|đang\s+|hơi\s+)?sốt"
+    r"(?!\s*(?:ruột|sắng|vé|cà|vang|bò|dẻo))",
+    r"(?:con|bé|cháu|trẻ)(?:\s+(?:tôi|nhà\s+tôi|mình|nhà))?\s+phát\s+triển",
+    # R19-O: hospitalisation, flu as the reason, sick since, Impfpass gaps, badly hurt.
+    r"(?<!\w)hospitali[sz]\w*",
+    r"(?<!\w)(?:he|she|son|daughter|kid|child|baby|toddler)\b[^.?!]{0,40}?because\s+of\s+the\s+flu"
+    r"(?!\s+(?:season|outbreak|wave))",
+    r"(?<!\w)sick\s+(?:since|for\s+(?:\d+|a|two|three|several)|all\s+(?:night|day|week))",
+    r"impfpass\w*\s+(?:\w+\s+){0,2}?(?:unvollständig|fehlt|lücken)|(?:sein|ihr|seinen|ihren)\s+impfpass",
+    r"(?<!\w)(?:got|is|was|been|were)\s+(?:badly|really|very|seriously|quite|so)\s+hurt(?!\w)",
+    # R19-F: "off sick", "home sick".
+    r"(?<!\w)(?:off|home)\s+(?:school\s+|nursery\s+|kita\s+)?sick(?!\w)(?!\s+of\b)",
+)
+# R19-G: a booster vaccine; a message with a vehicle or seat word is about a booster seat.
+_BOOSTER = re.compile(r"(?<!\w)booster(?!\W*(?:seats?|sitz\w*|rides?|cushions?)\b)(?!\w)")
+_VEHICLE = re.compile(
+    r"(?<!\w)(?:cars?|taxis?|cabs?|uber|planes?|flights?|airplanes?|bus|buses|trains?|zug|auto|"
+    r"rental|hire|mietwagen|kindersitz\w*|seats?|sitz\w*|isofix|restaurants?|cafe|bring|pack|"
+    r"take|carry)(?!\w)"
 )
 
 # Cyrillic, Greek and other letters that look like Latin ones, and small capitals.
@@ -612,7 +669,10 @@ _CHILD_WORDS = r"son|daughter|child|kid|boy|girl|baby|sohn|tochter|kind|junge|m�
 # more words follow (or a relative clause); prepositions and adverbs ending in -t are no verbs.
 _NOT_VERBS = r"mit|nicht|jetzt|seit|oft|gut|sonst|erst|fast|meist|bist|samt|recht|direkt"
 # Main clause: the verb after the name is followed by more words ("Max spielt und malt gern").
-_PERSON_VERB = rf"(?=[ \t]+(?!(?:{_NOT_VERBS})\b)(?:mag|will|kann|möchte|darf|\w+t)[ \t]+\w)"
+_PERSON_VERB = (
+    rf"(?=[ \t]+(?!(?:{_NOT_VERBS})\b)(?:mag|will|kann|möchte|darf|\w+t)"
+    r"(?:[ \t]+\w|[ \t]*[.!]?[ \t]*$))"
+)
 # A relative clause after the name: in a main clause any name ("Mein Sohn Ben, der gern malt").
 _RELATIVE_CLAUSE = r"(?=[ \t]*,[ \t]*(?:der|die|das|who)\b)"
 _POSSESSIVE = r"(?i:mein|meine|meinen|meinem|meiner|unser|unsere|unseren|unserem|unserer)"
@@ -661,6 +721,10 @@ _NOUN_ENDINGS_F = (
 )
 # Boys' names often end in -s (Lukas, Jonas, Elias), and plurals take "die", so -s stays allowed.
 _NOUN_ENDINGS_M = "(?<!richt)(?<!sport)(?<!kurs)"
+_NOT_AFTER2 = "".join(
+    rf"(?<!\b{w} )(?<!\b{w.capitalize()} )"
+    for w in "sobald während bevor nachdem solange seit seitdem bis sodass".split()
+)
 _PREPOSITION_RELATIVE = (
     rf"{_POSSESSIVE}[ \t]+(?:(?i:sohn|junge|jungen|kleiner|kleinen|kleinem)[ \t]+{_CAPITAL_WORD}"
     rf"{_NOUN_ENDINGS_M}(?=[ \t]*,[ \t]*der\b)"
@@ -705,8 +769,12 @@ _NAME = re.compile(
     rf"(?:(?<![ens]){_ACTIVITY_ENDINGS}|(?![ \t]+\w+(?:[ \t]+(?:können|kann|wollen|will|möchten|"
     r"dürfen|müssen))?[ \t]*(?:[.?!,;]|$)))"
     rf"|{_NOT_AFTER}{_POSSESSIVE}[ \t]+{_CHILD_NOUN}[ \t]+{_CAPITAL_WORD}"
-    rf"(?:{_PERSON_VERB}|{_RELATIVE_CLAUSE})"
+    rf"(?:{_PERSON_VERB}|{_RELATIVE_CLAUSE}|(?=[ \t]*[.!]?[ \t]*$))"
     rf"|{_PREPOSITION_RELATIVE}"
+    # R19-H: "Mein Sohn Leon." / "Mein Sohn Max spielt." (name at the end of the sentence).
+    rf"|{_NOT_AFTER}{_NOT_AFTER2}{_POSSESSIVE}[ \t]+{_CHILD_NOUN}[ \t]+{_CAPITAL_WORD}"
+    rf"(?=[ \t]*(?:[.!?]|$)|[ \t]+(?!(?:{_NOT_VERBS})\b)(?:mag|will|kann|möchte|darf|\w+t)"
+    r"[ \t]*(?:[.!?]|$))"
     r"|(?i:my name is|ich heiße|ich heisse|tôi tên là|tôi tên)[ \t]+[^\W\d_]+"
     rf"|(?i:bé|cháu|con tôi)[ \t]+{_CAPITAL_WORD}"
     rf"|(?!(?i:{_GROUP_WORDS})\b){_CAPITAL_WORD}[ \t]*\([ \t]*\d{{1,2}}[ \t]*\))"
@@ -790,12 +858,26 @@ _AGE = re.compile(
     rf"{_AGE_VERB}{_AGE_ADVERB}(?:\d{{1,2}}|{_NUMBER_WORDS})"
     rf"{_NO_RANGE_AFTER}{_UNITS}(?!\w)"
     rf"|{_NO_ARTICLE}(?<!\w)(?!(?:{_NOT_A_CHILD})\b)(?-i:{_CAPITAL_WORD})"
-    rf"{_AGE_VERB}{_AGE_ADVERB}{_CHILD_AGE}(?!\d){_NO_RANGE_AFTER}{_UNITS}"
+    rf"{_AGE_VERB}{_AGE_ADVERB}{_CHILD_AGE}(?:\d⁄\d{{1,2}})?(?!\d){_NO_RANGE_AFTER}{_UNITS}"
     rf"{_PHRASE_END}"
     # "my kids are 7 and 4", "meine Kinder sind 5 und 8"
     rf"|(?<!\w)(?:kids|children|kinder|boys|girls)\s+(?:are|sind)\s+{_CHILD_AGE}\s+(?:and|und|&)\s+"
     rf"{_CHILD_AGE}(?!\d){_UNITS}"
-    rf"|(?-i:{_CAPITAL_WORD}),\s*\d{{1,2}}\s*,\s*(?-i:[a-z])",
+    rf"|(?-i:{_CAPITAL_WORD}),\s*\d{{1,2}}\s*,\s*(?-i:[a-z])"
+    # R19-I: "Lena is 7½" (NFKC turns ½ into 1⁄2).
+    rf"|{_NO_ARTICLE}(?<!\w)(?!(?:{_NOT_A_CHILD})\b)(?-i:{_CAPITAL_WORD})"
+    rf"{_AGE_VERB}{_AGE_ADVERB}{_CHILD_AGE}[ \t]*(?:[13]⁄[24]|[½¼¾]){_UNITS}"
+    # R19-J: "Kind 7 Jahre", "zwei Kinder, 5 und 8 Jahre".
+    r"|(?<!\w)(?:kind|sohn|tochter|junge|mädchen)[ \t]*[,:]?[ \t]+\d{1,2}[ \t]*jahre?(?!\w)"
+    r"(?![ \t]+(?:und|oder|&)[ \t]+(?:älter|jünger|mehr|darüber|darunter|drunter|weniger))"
+    r"|(?<!\w)kinder[ \t]*[,:]?[ \t]+\d{1,2}[ \t]+(?:und|&)[ \t]+\d{1,2}[ \t]+jahre(?!\w)"
+    # R19-L: "kids aged 7 and 4".
+    r"|(?<!from )(?<!under )(?<!over )(?<!\w)aged?\s+\d{1,2}\s*(?:and|&|und)\s*\d{1,2}(?!\d)"
+    r"(?!\s*\+)(?!\s+(?:years?\s+)?(?:and|or)\s+(?:up|over|older|above))"
+    # "zwei Kinder, 5, 7 und 8 Jahre" (not "Kinder 3 Jahre und älter").
+    rf"|(?<!\w)(?<!für )(?<!fuer )(?:kind|kinder)\s*[,:]?\s*{_CHILD_AGE}"
+    rf"(?:\s*(?:und|&|,)\s*{_CHILD_AGE})*"
+    r"\s+jahren?(?!\w)(?!\s+(?:und|oder)\s+(?:älter|jünger|aelter|juenger))(?!\s+lang\b)",
     re.IGNORECASE,
 )
 # A street address: "Musterstraße 12", "Lindenweg 3a"; "Rückweg 2 Stunden" is a time and
@@ -875,6 +957,8 @@ def find_sensitive(text: str) -> list[Finding]:
         # without its accents, but a word with other accents ("từ" is not "tự") never matches.
         findings = [Finding("health", m.group(0)) for m in _HEALTH_PLAIN.finditer(folded)]
     findings += _hurt_findings(soft)
+    if not _VEHICLE.search(folded):
+        findings += [Finding("health", m.group(0)) for m in _BOOSTER.finditer(folded)]
     # Step-free access is a child's need unless the message is only about a pram or buggy.
     disability = _DISABILITY.search(folded)
     if not (_PRAM.search(folded) and not disability):
