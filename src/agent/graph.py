@@ -22,7 +22,7 @@ from langgraph.graph import END, START, MessagesState, StateGraph
 from langgraph.prebuilt import ToolNode
 from langgraph.types import Command, interrupt
 
-from src import config
+from src import config, family
 from src.grounding import allowed_urls, enforce_grounding
 
 _SYSTEM_TEMPLATE = (config.PROMPTS_DIR / "agent_system.md").read_text(encoding="utf-8")
@@ -33,7 +33,11 @@ class AgentState(MessagesState):
 
     country: str
     city: str | None
-    child_age: int | None
+    # Children's age groups only ("Child 1", "Child 2" by position); never names or exact ages.
+    children: list[str]
+    # Budget day trip settings (Germany): budget_eur, adults, deutschlandticket_holders.
+    # None when the parent has not switched trip planning on.
+    trip: dict | None
     grounding: dict | None
 
 
@@ -47,22 +51,38 @@ def message_text(message: AIMessage) -> str:
     )
 
 
+def trip_context(trip: dict | None) -> str:
+    """Describe the budget day trip settings for the system prompt."""
+    if not trip:
+        return "off (the parent has not switched on budget day trip planning)"
+    return (
+        f"on · budget {trip['budget_eur']:g} EUR · adults: {trip['adults']} · "
+        f"Deutschlandticket holders (aged 15+): {trip['deutschlandticket_holders']}"
+    )
+
+
 def system_prompt(state: AgentState, today: date | None = None) -> str:
-    """Fill the system prompt with today's date and the chosen country, city and age."""
+    """Fill the system prompt with today's date, the chosen place, children and trip settings."""
     country = state.get("country") or "DE"
-    age = state.get("child_age")
+    today = today or date.today()
     return _SYSTEM_TEMPLATE.format(
-        today=(today or date.today()).isoformat(),
+        today=f"{today.isoformat()} ({today.strftime('%A')})",
         country=country,
         country_name=config.COUNTRIES.get(country, country),
         city=state.get("city") or "All cities",
-        child_age=f"{age} years" if age is not None else "not given",
+        children=family.describe_children(state.get("children") or []),
+        trip=trip_context(state.get("trip")),
     )
 
 
 def needs_approval(message: AIMessage) -> list[dict]:
     """Return the tool calls in a message that need the parent's approval."""
     return [tc for tc in message.tool_calls if tc["name"] in config.TOOLS_REQUIRING_APPROVAL]
+
+
+def always_reviewed(message: AIMessage) -> bool:
+    """Return True when a message calls a tool that pauses even with auto-approve on."""
+    return any(tc["name"] in config.TOOLS_ALWAYS_REVIEWED for tc in message.tool_calls)
 
 
 def build_graph(llm: BaseChatModel, tools: list[BaseTool], checkpointer: BaseCheckpointSaver):
@@ -82,6 +102,8 @@ def build_graph(llm: BaseChatModel, tools: list[BaseTool], checkpointer: BaseChe
         if not isinstance(last, AIMessage) or not last.tool_calls:
             return "grounding"
         auto = config.get("configurable", {}).get("auto_approve", False)
+        if always_reviewed(last):
+            return "human_review"
         return "tools" if auto or not needs_approval(last) else "human_review"
 
     def human_review(state: AgentState) -> Command:
@@ -118,13 +140,12 @@ def build_graph(llm: BaseChatModel, tools: list[BaseTool], checkpointer: BaseChe
         """Remove links that no tool returned from the final answer and record a report."""
         last: AIMessage = state["messages"][-1]
         cleaned, report = enforce_grounding(message_text(last), allowed_urls(state["messages"]))
-        update: dict[str, Any] = {
-            "grounding": {"verified": report.verified, "removed": report.removed}
+        # The cleaned text is always stored: even with nothing removed, link syntax is escaped.
+        # Same id, so the message is replaced; its token usage is kept for the cost report.
+        return {
+            "grounding": {"verified": report.verified, "removed": report.removed},
+            "messages": [last.model_copy(update={"content": cleaned})],
         }
-        if report.removed:
-            # Same id, so the message is replaced; its token usage is kept for the cost report.
-            update["messages"] = [last.model_copy(update={"content": cleaned})]
-        return update
 
     builder = StateGraph(AgentState)
     builder.add_node("agent", agent)

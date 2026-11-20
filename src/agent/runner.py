@@ -7,7 +7,7 @@ from typing import Any, Literal
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from langgraph.types import Command
 
-from src import config
+from src import config, family
 from src.agent.graph import message_text
 
 
@@ -98,7 +98,8 @@ def start_turn(
     *,
     country: str,
     city: str | None,
-    child_age: int | None,
+    children: list[str] | tuple[str, ...] = (),
+    trip: dict | None = None,
     auto_approve: bool = False,
     turn_start_index: int | None = None,
 ) -> TurnResult:
@@ -112,7 +113,8 @@ def start_turn(
             "messages": [HumanMessage(text)],
             "country": country,
             "city": city,
-            "child_age": child_age,
+            "children": list(family.check_bands(children)),
+            "trip": trip,
             "grounding": None,
         },
         run_config,

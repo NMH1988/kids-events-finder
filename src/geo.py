@@ -12,12 +12,13 @@ _MAPS_DIR = "https://www.google.com/maps/dir/"
 
 @dataclass(frozen=True)
 class Location:
-    """A geocoded city: its name, country code and coordinates."""
+    """A geocoded city: its name, country code, coordinates and state (admin1)."""
 
     name: str
     country_code: str
     latitude: float
     longitude: float
+    state: str | None = None
 
 
 def directions_url(
@@ -43,6 +44,12 @@ def directions_url(
     return _MAPS_DIR + "?" + urlencode({"api": "1", "destination": destination})
 
 
+def transit_directions_url(origin: str, destination: str) -> str:
+    """Return a Google Maps public-transport directions link between two named places."""
+    query = {"api": "1", "origin": origin, "destination": destination, "travelmode": "transit"}
+    return _MAPS_DIR + "?" + urlencode(query)
+
+
 def geocode_city(city: str, country_code: str) -> Location | None:
     """Return the coordinates of a city in a country, or None when it cannot be found."""
     response = requests.get(
@@ -50,6 +57,7 @@ def geocode_city(city: str, country_code: str) -> Location | None:
         params={"name": city, "count": 5, "language": "en", "countryCode": country_code},
         headers={"User-Agent": config.HTTP_USER_AGENT},
         timeout=config.HTTP_TIMEOUT_SECONDS,
+        allow_redirects=False,
     )
     response.raise_for_status()
     results = response.json().get("results") or []
@@ -63,4 +71,5 @@ def geocode_city(city: str, country_code: str) -> Location | None:
         country_code=country_code.upper(),
         latitude=float(best["latitude"]),
         longitude=float(best["longitude"]),
+        state=best.get("admin1"),
     )

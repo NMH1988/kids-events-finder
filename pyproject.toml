@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "kids-events-finder"
-version = "0.1.0"
+version = "0.2.0"
 description = "AI agent with human-in-the-loop and advanced RAG that finds events and places for children (Streamlit, LangGraph, OpenRouter, Chroma)"
 readme = "README.md"
 requires-python = ">=3.14"
@@ -22,12 +22,15 @@ dependencies = [
     "rank-bm25==0.2.2",
     "requests==2.34.2",
     "streamlit==1.66.1",
+    "tzdata==2026.6",
 ]
 
 [project.optional-dependencies]
 dev = [
     "pytest==9.1.1",
     "ruff==0.17.4",
+    # Tests only: parses answers the way a Markdown renderer does (MIT).
+    "markdown-it-py==4.3.0",
 ]
 
 [tool.setuptools.packages.find]

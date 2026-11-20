@@ -11,7 +11,7 @@ from src.agent.graph import build_graph, system_prompt
 from src.agent.runner import InputRejected, check_input, resume_turn, start_turn
 from tests.fakes import ScriptedChatModel
 
-CONTEXT = {"country": "DE", "city": "Berlin", "child_age": 5}
+CONTEXT = {"country": "DE", "city": "Berlin", "children": ["3-5"]}
 
 
 def _call(name: str, args: dict, call_id: str) -> AIMessage:
@@ -138,8 +138,10 @@ def test_invented_link_is_removed_from_the_final_answer(tools):
 
 def test_system_prompt_holds_the_sidebar_context():
     """The chosen country, city and age reach the model in the system prompt."""
-    prompt = system_prompt({"country": "GB", "city": None, "child_age": 4, "messages": []})
-    assert "United Kingdom (GB)" in prompt and "All cities" in prompt and "4 years" in prompt
+    state = {"country": "GB", "city": None, "children": ["3-5", "10-14"], "messages": []}
+    prompt = system_prompt(state)
+    assert "United Kingdom (GB)" in prompt and "All cities" in prompt
+    assert "Child 1: 3-5 years; Child 2: 10-14 years" in prompt
 
 
 def test_input_check_rejects_empty_and_too_long_text():
@@ -149,3 +151,65 @@ def test_input_check_rejects_empty_and_too_long_text():
     with pytest.raises(InputRejected):
         check_input("x" * 5000)
     assert check_input("  hi ") == "hi"
+
+
+def test_system_prompt_describes_the_trip_settings():
+    """The trip budget and party reach the model; without them trip planning is off."""
+    trip = {"budget_eur": 80, "adults": 2, "deutschlandticket_holders": 1}
+    prompt = system_prompt({"country": "DE", "city": "Munich", "children": ["3-5"], "trip": trip})
+    assert "budget 80 EUR" in prompt and "adults: 2" in prompt
+    assert "Deutschlandticket holders (aged 15+): 1" in prompt
+    assert "Budget day trip: off" in system_prompt({"country": "DE", "messages": []})
+
+
+def test_budget_check_waits_for_the_parent_even_with_auto_approve():
+    """check_budget always pauses, so the parent's amounts replace any the model guessed."""
+
+    def check_budget(budget_eur: float, items: list[dict]) -> str:
+        """Fake budget tool."""
+        return json.dumps({"items": items})
+
+    graph, _ = _graph(
+        [
+            _call("check_budget", {"budget_eur": 80, "items": [{"label": "Zoo"}]}, "b1"),
+            AIMessage("Done."),
+        ],
+        [StructuredTool.from_function(check_budget)],
+    )
+    paused = start_turn(graph, "t9", "budget?", auto_approve=True, **CONTEXT)
+    assert paused.status == "needs_approval" and paused.needs_approval == ["b1"]
+
+
+def test_approved_budget_runs_with_the_parents_amounts():
+    """Resuming a paused budget check with the parent's table runs the tool with those amounts."""
+    received = []
+
+    def check_budget(budget_eur: float, items: list[dict]) -> str:
+        """Fake budget tool that records what it got."""
+        received.append((budget_eur, items))
+        return json.dumps({"ok": True})
+
+    graph, _ = _graph(
+        [
+            _call("check_budget", {"budget_eur": 80, "items": [{"label": "Zoo"}]}, "b1"),
+            AIMessage("Done."),
+        ],
+        [StructuredTool.from_function(check_budget)],
+    )
+    paused = start_turn(graph, "t10", "budget?", **CONTEXT)
+    parent_table = {"budget_eur": 90, "items": [{"label": "Zoo", "amount_eur": 25}]}
+    resume_turn(
+        graph,
+        "t10",
+        {"action": "edit", "tool_calls": [{"id": "b1", "args": parent_table}]},
+        turn_start_index=paused.start_index,
+    )
+    assert received == [(90, [{"label": "Zoo", "amount_eur": 25}])]
+
+
+def test_grounding_always_stores_the_cleaned_answer(tools):
+    """Even with nothing removed, the stored answer is the escaped, cleaned text."""
+    graph, _ = _graph([AIMessage("Tickets $15 [optional]")], tools)
+    result = start_turn(graph, "t11", "price?", **CONTEXT)
+    assert result.answer == r"Tickets \$15 \[optional\]"
+    assert result.grounding == {"verified": [], "removed": []}
