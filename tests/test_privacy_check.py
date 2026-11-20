@@ -484,6 +484,16 @@ from src.privacy_check import check_place_name, explain, find_sensitive
         ("My son cannotwalk far, is the zoo accessible for kids?", "health"),
         ("Benʻs knee injury is healing", "health"),
         ("Benꞌs knee injury is healing", "health"),
+        # round 17: legal C41, C42; code Must 1; security Low 3
+        ("My son is really really gifted us teachers say", "health"),
+        ("My son is, like, gifted us", "health"),
+        ("He seems really gifted us", "health"),
+        ("My daughter was always gifted us", "health"),
+        ("She had an injury clinic appointment", "health"),
+        ("He got an injury unit referral", "health"),
+        ("Max has an injury risk from his fall", "health"),
+        ("Ben῾s knee injury is healing", "health"),
+        ("Benʽs knee injury is healing", "health"),
     ],
 )
 def test_sensitive_text_is_found(text, kind):
@@ -804,6 +814,11 @@ def test_ordinary_questions_pass(text):
         "Is his booster in the car?",
         "He has an injury prevention class",
         "We are gifted tickets by grandma",
+        "Is there a children's injury clinic?",
+        "Grandma's gifted us tickets",
+        "What are the kids' injury risks?",
+        "the zoo's injury prevention tips",
+        "Which toys are best gifted to toddlers?",
     ],
 )
 def test_accepted_false_alarms_stay_blocked(text):

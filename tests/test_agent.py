@@ -8,7 +8,13 @@ from langchain_core.tools import StructuredTool
 from langgraph.checkpoint.memory import InMemorySaver
 
 from src.agent.graph import build_graph, system_prompt
-from src.agent.runner import InputRejected, check_input, resume_turn, start_turn
+from src.agent.runner import (
+    InputRejected,
+    check_input,
+    decision_problem,
+    resume_turn,
+    start_turn,
+)
 from tests.fakes import ScriptedChatModel
 
 CONTEXT = {"country": "DE", "city": "Berlin", "children": ["3-5"]}
@@ -151,6 +157,13 @@ def test_input_check_rejects_empty_and_too_long_text():
     with pytest.raises(InputRejected):
         check_input("x" * 5000)
     assert check_input("  hi ") == "hi"
+
+
+def test_text_that_grows_when_folded_is_rejected():
+    """A short message of ligatures that fold into many letters is rejected as too long."""
+    with pytest.raises(InputRejected):
+        check_input("ﷺ" * 200)
+    assert decision_problem({"feedback": "ﷺ" * 600}, []) is not None
 
 
 def test_system_prompt_describes_the_trip_settings():

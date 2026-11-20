@@ -161,7 +161,10 @@ The users are parents, but the app handles data about children, who are speciall
   "Which trampoline parks have the fewest injuries?", "Do they have injury insurance?", "the
   park's injury risk", "the kids' injuries at trampoline parks", "the parks' injury statistics",
   "He has an injury prevention class", "Is his booster in the car?", "We are gifted tickets by
-  grandma".
+  grandma". Review round 17: "Is there a children's injury clinic?", "Does the park have injury
+  insurance?", "What are the kids' injury risks?", "the zoo's injury prevention tips", "the
+  boys' injury rate", "Grandma's gifted us tickets", "Which toys are best gifted to toddlers?",
+  "We were very kindly gifted two tickets".
 - **2.7 Retention.** Conversations are deleted from the server when the parent starts a new one and
   automatically after 2 hours without use (`CONVERSATION_RETENTION_SECONDS`, enforced by a
   background cleaner every `CLEANUP_INTERVAL_SECONDS`, also when nobody uses the app); feedback

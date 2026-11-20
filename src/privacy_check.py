@@ -408,7 +408,7 @@ _HEALTH_EXTRA = (
     # injury", "has knee injury", "sustained injuries"); not "Have there been injuries at this
     # park?".
     r"(?<!\w)(?:has|have|had|got|gets|suffered|sustained|picked\s+up)\s+(?!there\b)"
-    r"(?:\w+\s+){0,4}?injur(?:y|ies)(?!\s+(?:risk|clinic|unit|centre|center)\b)",
+    r"(?:\w+\s+){0,4}?injur(?:y|ies)(?!\w)",
     r"(?<!\w)(?:he|she|they|son|daughter|kid|kids|child|children|twins|boys|girls|baby|toddler|"
     r"both)\s+(?:has|have|had|got|suffered)\s+(?:\w+\s+){0,2}?injuries",
     r"'s\s+hurt(?!\w)",
@@ -426,8 +426,10 @@ _HEALTH_EXTRA = (
     # Giftedness of a child; not the verb: passive with an object ("we were gifted tickets", "we
     # got gifted a zoo membership") or active with a person ("my mum gifted us a voucher").
     r"(?<!\w)(?<!were )(?<!was )(?<!been )(?<!got )(?<!get )gifted(?!\s+(?:us|them|me)\b)(?!\w)",
-    # "is gifted" is the child, whatever follows ("My son is gifted us teachers say").
-    r"(?:(?<!\w)(?:is|are)|'s)\s+(?:\w+\s+)?gifted(?!\w)",
+    # "is gifted" is the child, whatever follows ("My son is gifted us teachers say", "He seems
+    # really gifted", "is, like, gifted"); "was always gifted" needs a word between.
+    r"(?:(?<!\w)(?:is|are|seems?|looks?)|'s)\W+(?:\w+\W+){0,3}?gifted(?!\w)",
+    r"(?<!\w)(?:was|were)\W+(?:\w+\W+){1,3}?gifted(?!\w)",
     # Passive with a thing as object; not "was gifted the teacher thinks".
     r"(?<!\w)(?:were|was|been|got|get)\s+gifted(?!\s+(?:tickets?|vouchers?|a|an|two|three|"
     r"some|our|my|\d+)\b)(?!\w)",
@@ -473,10 +475,15 @@ _UMLAUTS = str.maketrans({"ä": "ae", "ö": "oe", "ü": "ue", "ß": "ss"})
 # Greek tonos and oxia, Armenian and Hebrew apostrophes, Latin saltillo.
 _APOSTROPHES = str.maketrans(
     dict.fromkeys(
-        "’‘´`ʼ′ʹʻ‛ꞌˈ΄´‵՚׳ˊ",
+        "’‘´`ʼ′ʹʻ‛ꞌˈ΄´‵՚׳ˊʽʾʿˮՙ᾽᾿`῾",
         "'",
     )
 )
+
+
+def folded_length(text: str) -> int:
+    """Return the length of the text after Unicode compatibility folding (NFKC)."""
+    return len(unicodedata.normalize("NFKC", text or ""))
 
 
 def _soft(text: str) -> str:

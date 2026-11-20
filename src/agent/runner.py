@@ -41,7 +41,12 @@ def check_input(text: str) -> str:
     text = (text or "").strip()
     if not text:
         raise InputRejected("Please type a question.")
-    if len(text) > config.MAX_USER_MESSAGE_CHARS:
+    # Unicode folding can make text much longer (one ligature becomes 18 letters), so the folded
+    # length is capped too.
+    if (
+        len(text) > config.MAX_USER_MESSAGE_CHARS
+        or privacy_check.folded_length(text) > 2 * config.MAX_USER_MESSAGE_CHARS
+    ):
         raise InputRejected(
             f"Please keep questions under {config.MAX_USER_MESSAGE_CHARS} characters."
         )
@@ -61,7 +66,10 @@ def decision_problem(decision: dict, original_calls: list[dict]) -> str | None:
     too_long = "This is too long. Please keep the reason and your edits short."
     if privacy_check.json_depth(decision) > config.MAX_EDIT_DEPTH + 3:
         return too_long
-    if len(json.dumps(decision, ensure_ascii=False, default=str)) > config.MAX_DECISION_CHARS:
+    dumped = json.dumps(decision, ensure_ascii=False, default=str)
+    if len(dumped) > config.MAX_DECISION_CHARS:
+        return too_long
+    if privacy_check.folded_length(dumped) > 2 * config.MAX_DECISION_CHARS:
         return too_long
     texts = [decision.get("feedback") or ""]
     # Only values the parent typed or changed; the model's own unchanged values are not capped.
