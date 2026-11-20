@@ -371,7 +371,7 @@ _PRAM = re.compile(
 # A wheelchair, a disability or a mobility aid in the same message keeps the block.
 _DISABILITY = re.compile(
     r"wheelchair|rollstuhl|rolli(?!ng)|behindert|disab|xe lăn|handicap|reha|adaptive|rollator|"
-    r"walker|gehhilfe|nicht\s+laufen|can(?:'?t|\s*not)\s+walk|weak\s+legs|crutch|krücke"
+    r"walker|gehhilfe|nicht\s+laufen|can(?:'?t|\s*not)\s*walk|weak\s+legs|crutch|krücke"
 )
 # Phrases a regex states better than a word list ("is sick", but not "sick of the rain").
 _HEALTH_EXTRA = (
@@ -394,23 +394,21 @@ _HEALTH_EXTRA = (
     # An injury of someone ("his injury", "a knee injury", "my son's injury", "got an injury"),
     # not "injuries at trampoline parks", "in case of an injury", "a minor injury unit" or "an
     # injury risk".
-    # Possessive: "his injury", "my son's bad left knee injury", "Max's injury" (not "What's the
-    # injury risk").
+    # Possessive: "his injury", "my son's bad left knee injury", "Max's injury clinic" (not
+    # "What's the injury risk").
     r"(?:(?<!\w)(?:his|her|their|my)|(?<!\bwhat)(?<!\bthat)(?<!\bit)(?<!\bthere)(?<!\bwhere)"
     r"(?<!\bhere)(?<!\bwho)(?<!\bhow)'s|(?<=\ws)')\s+"
-    r"(?!an?\s)(?:\w+\s+){0,3}?injur(?:y|ies)"
-    r"(?!\s+(?:risk|clinic|unit|centre|center|prevention|insurance))(?!\w)",
+    r"(?!an?\s)(?:\w+\s+){0,3}?injur(?:y|ies)(?!\w)",
     # "a/an … injury" is generic in a safety question ("in case of a minor injury", "a typical
     # injury", "a minor injury unit"), so only without such a qualifier or context.
     r"(?<!\w)(?<!case of )(?<!event of )(?<!if there is )(?<!if there's )(?<!if )an?\s+"
     r"(?!(?:typical|minor|common|possible)\s)(?:\w+\s+)?injur(?:y|ies)"
-    r"(?!\s+(?:risk|clinic|unit|centre|center|prevention|insurance))(?!\w)",
+    r"(?!\s+(?:risk|clinic|unit|centre|center|prevention))(?!\w)",
     # Statements with a verb keep any qualifier ("has a minor injury", "suffered a serious head
     # injury", "has knee injury", "sustained injuries"); not "Have there been injuries at this
-    # park?", "Which parks have the fewest injuries?" or "injury insurance".
+    # park?".
     r"(?<!\w)(?:has|have|had|got|gets|suffered|sustained|picked\s+up)\s+(?!there\b)"
-    r"(?!(?<=have\s)the\s+(?:fewest|least)\b)(?:\w+\s+){0,4}?"
-    r"injur(?:y|ies)(?!\s+(?:risk|clinic|unit|centre|center|insurance)\b)",
+    r"(?:\w+\s+){0,4}?injur(?:y|ies)(?!\s+(?:risk|clinic|unit|centre|center)\b)",
     r"(?<!\w)(?:he|she|they|son|daughter|kid|kids|child|children|twins|boys|girls|baby|toddler|"
     r"both)\s+(?:has|have|had|got|suffered)\s+(?:\w+\s+){0,2}?injuries",
     r"'s\s+hurt(?!\w)",
@@ -429,7 +427,7 @@ _HEALTH_EXTRA = (
     # got gifted a zoo membership") or active with a person ("my mum gifted us a voucher").
     r"(?<!\w)(?<!were )(?<!was )(?<!been )(?<!got )(?<!get )gifted(?!\s+(?:us|them|me)\b)(?!\w)",
     # "is gifted" is the child, whatever follows ("My son is gifted us teachers say").
-    r"(?<!\w)(?:is|are|'s)\s+(?:so\s+|very\s+|really\s+|highly\s+)?gifted(?!\w)",
+    r"(?:(?<!\w)(?:is|are)|'s)\s+(?:\w+\s+)?gifted(?!\w)",
     # Passive with a thing as object; not "was gifted the teacher thinks".
     r"(?<!\w)(?:were|was|been|got|get)\s+gifted(?!\s+(?:tickets?|vouchers?|a|an|two|three|"
     r"some|our|my|\d+)\b)(?!\w)",
@@ -471,9 +469,14 @@ _INVISIBLE = frozenset("ㅤᅟᅠﾠ")
 # Possessive quantifiers (*+, ++) keep matching linear on long input.
 _SPACED_LETTERS = re.compile(r"(?<!\w)(?:[^\W\d_](?:[ .\-_/·]++\s*+|\t)){2,}[^\W\d_](?!\w)")
 _UMLAUTS = str.maketrans({"ä": "ae", "ö": "oe", "ü": "ue", "ß": "ss"})
-# Characters typed as an apostrophe: right and left quote, acute accent, backtick, modifier
-# letter apostrophe, prime.
-_APOSTROPHES = str.maketrans(dict.fromkeys("’‘´`ʼ′", "'"))
+# Characters typed as an apostrophe: quotes, acute accent, backtick, modifier letters, primes,
+# Greek tonos and oxia, Armenian and Hebrew apostrophes, Latin saltillo.
+_APOSTROPHES = str.maketrans(
+    dict.fromkeys(
+        "’‘´`ʼ′ʹʻ‛ꞌˈ΄´‵՚׳ˊ",
+        "'",
+    )
+)
 
 
 def _soft(text: str) -> str:

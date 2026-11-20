@@ -70,7 +70,9 @@ The users are parents, but the app handles data about children, who are speciall
   - **block-only rule (owner decision 2026-11-20, after 13 review rounds):** changes to the
     keyword check only add blocks. A newly found false alarm (a harmless question that is
     blocked) is recorded in 2.6 as an accepted false alarm instead of loosening a pattern, because
-    every loosening so far let real data through; the parent rephrases once;
+    every loosening so far let real data through; the parent rephrases once. Mapping a look-alike
+    character to its plain form (such as "´" to "'") is not a loosening: the variant then gets
+    exactly the result of the plain wording, even where it was blocked by accident before;
   - the system prompt forbids asking about, repeating or inferring health information;
   - medical and therapy places (paediatricians, Ergotherapie, Logopädie, Frühförderung) are not in
     the knowledge base or the OpenStreetMap categories.
@@ -155,7 +157,11 @@ The users are parents, but the app handles data about children, who are speciall
   has the fewest injuries?", "Which parks have more injuries?", "the park's injury record",
   "Today's injury report", "Do they have injury cover?", "What happens with a serious injury?",
   "Let's avoid any injury"); "his booster for the plane"; "cannot walk" about the way, not the
-  child ("You cannot walk there from the station, is it accessible by train?").
+  child ("You cannot walk there from the station, is it accessible by train?"). Review round 16:
+  "Which trampoline parks have the fewest injuries?", "Do they have injury insurance?", "the
+  park's injury risk", "the kids' injuries at trampoline parks", "the parks' injury statistics",
+  "He has an injury prevention class", "Is his booster in the car?", "We are gifted tickets by
+  grandma".
 - **2.7 Retention.** Conversations are deleted from the server when the parent starts a new one and
   automatically after 2 hours without use (`CONVERSATION_RETENTION_SECONDS`, enforced by a
   background cleaner every `CLEANUP_INTERVAL_SECONDS`, also when nobody uses the app); feedback
