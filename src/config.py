@@ -76,6 +76,9 @@ CALCULATION_TOOLS: frozenset[str] = frozenset({"compare_train_tickets", "check_b
 MAX_USER_MESSAGE_CHARS = 1000
 # Limit for the parent's reason and edits in the approval panel (keeps every check fast).
 MAX_DECISION_CHARS = 5000
+# Longest single value in edited arguments (the longest tool field, the knowledge base query, is
+# 300 characters).
+MAX_EDIT_VALUE_CHARS = 400
 # Conversations are deleted from server memory after this much idle time (LEGAL_COMPLIANCE 2.7).
 CONVERSATION_RETENTION_SECONDS = 2 * 60 * 60
 # A background cleaner enforces both retention limits this often, even when nobody uses the app.

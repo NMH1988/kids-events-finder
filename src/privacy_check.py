@@ -131,8 +131,10 @@ HEALTH_TERMS: tuple[str, ...] = (
     "earache*",
     "toothache*",
     "sore throat",
-    "covid*",
-    "corona",
+    "has covid",
+    "had covid",
+    "hat corona",
+    "hatte corona",
     "~schnupfen",
     "~halsweh",
     "~ohrenweh",
@@ -146,8 +148,33 @@ HEALTH_TERMS: tuple[str, ...] = (
     "übelkeit",
     "ist übel",
     "verletzung",
-    "injury",
     "bein gebrochen",
+    "has a temperature",
+    "running a temperature",
+    "sprain*",
+    "broken wrist",
+    "broken ankle",
+    "~verstaucht",
+    "sich übergeben",
+    "schlecht im auto",
+    "his jabs",
+    "her jabs",
+    "his shots",
+    "her shots",
+    "poorly",
+    "under the weather",
+    "got hurt",
+    "is hurt",
+    "was hurt",
+    "đau bụng",
+    "sổ mũi",
+    "bị nôn",
+    "con đang sốt",
+    "bé đang sốt",
+    "sốt cao",
+    "sốt nhẹ",
+    "hơi sốt",
+    "lên cơn sốt",
     "arm gebrochen",
     "erbroch*",
     "nosebleed*",
@@ -156,39 +183,65 @@ HEALTH_TERMS: tuple[str, ...] = (
     "ear infection",
     "strep throat",
     "stomach bug",
-    # Accessibility needs (owner decision 2026-11-20: handled like health data)
-    "~barrierefrei*",
+    # Accessibility needs (owner decision 2026-11-20: handled like health data); words that also
+    # fit a pram ("barrierefrei", "step-free") are in `_ACCESS` below.
     "~behindertengerecht*",
     "~rollstuhlgerecht*",
-    "accessibility",
-    "wheelchair accessible",
+    "accessibility needs",
     "disabled access",
-    "step-free",
-    "stufenlos*",
+    "blue badge",
     # Development statements (owner decision 2026-11-20: blocked, not only left to the prompt)
-    "development*",
     "developmental*",
+    "his development",
+    "her development",
+    "their development",
+    "my child's development",
+    "child's development",
+    "child development",
+    "for development",
+    "helps development",
     "developing slowly",
     "late talker",
+    "late walker",
     "slow learner",
+    "slow to talk",
+    "learning difficult*",
+    "delayed in speech",
     "behind her peers",
     "behind his peers",
     "behind their peers",
+    "behind other kids",
+    "behind for his age",
+    "behind for her age",
     "behind in development",
     "behind in school",
     "behind in speech",
-    "~entwicklung*",
+    "behind his class",
+    "behind her class",
+    "entwicklung meines*",
+    "entwicklung meiner*",
+    "entwicklung unseres*",
+    "entwicklung unserer*",
+    "entwicklung des kindes",
+    "für die entwicklung",
+    "~entwicklungsstand*",
+    "~entwicklungsverzög*",
+    "~entwicklungsstörung*",
+    "~sprachentwickl*",
+    "~kindesentwickl*",
+    "spricht noch nicht",
+    "con phát triển",
+    "bé phát triển",
+    "trẻ phát triển",
     "zurückgeblieben",
     "~lernschwäch*",
     "~sprachstörung*",
     "~förderschul*",
-    "phát triển",
     "measles",
     "diarrh*",
     "vomit*",
     "migraine*",
     "lice",
-    "sốt",
     "bị sốt",
     "bị ho",
     "bị cảm",
@@ -248,7 +301,19 @@ HEALTH_TERMS: tuple[str, ...] = (
     "khiếm thị",
 )
 # Without accents these are other common words ("ôm" hug), so they match only with accents.
-_ACCENT_ONLY = frozenset({"ốm", "sốt", "bị sốt", "bị ho", "bị cảm", "phát triển"})
+_ACCENT_ONLY = frozenset(
+    {"ốm", "bị sốt", "bị ho", "bị cảm", "con đang sốt", "bé đang sốt", "sốt cao", "sốt nhẹ"}
+    | {"hơi sốt", "bị nôn"}
+    | {"con phát triển", "bé phát triển", "trẻ phát triển"}
+)
+# Step-free access: a child's accessibility need, unless the message is about a pram or buggy
+# and names no wheelchair or disability ("Ist das Museum mit Kinderwagen barrierefrei?").
+_ACCESS = re.compile(
+    r"barrierefrei\w*|barrier[\s-]*free|step[\s-]*free|stufenlos(?!\s+verstellbar)|ohne\s+stufen|"
+    r"accessible\s+toilets?|(?<!\w)a\s+ramp(?!\w)"
+)
+_PRAM = re.compile(r"kinderwagen|buggy|buggies|pram|pushchair|stroller|xe đẩy")
+_DISABILITY = re.compile(r"wheelchair|rollstuhl|behindert|disab|xe lăn|handicap")
 # Phrases a regex states better than a word list ("is sick", but not "sick of the rain").
 _HEALTH_EXTRA = (
     r"(?:(?<!\w)(?:is|are|got|feels?|feeling|was|has\s+been|gets?|getting|being)|'s)\s+sick"
@@ -260,16 +325,21 @@ _HEALTH_EXTRA = (
     r"(?<!\w)(?:doctor(?!\s+who\s+(?:exhibition|experience|ausstellung|museum|show|tour|shop|"
     r"event|themed)\b)(?!\s+dolittle)|(?:zahn|augen|kinder|haus|frauen|ohren)?doktor(?!fisch)|"
     r"hno|pa?ediatrician|dentist|zahnklinik)\w*",
-    # Injuries and a cold with a person as subject; "damit sich keiner verletzt", "nobody gets
-    # injured" or "a cold plunge" are no health data.
-    r"(?<!\w)(?:er|sie|ich|sohn|tochter|kind|max|lena)\s+(?:hat|ist)\s+(?:sich\s+)?"
-    r"(?:\w+\s+){0,3}verletzt\w*",
-    r"(?<!\w)(?:he|she|son|daughter|child|kid|i)\s+(?:is|was|got|has\s+been|'s|were)\s+"
-    r"(?:badly\s+|slightly\s+)?(?:injured|hurt)(?!\w)",
-    r"(?<!\w)(?:hurt|injured|broke)\s+(?:his|her|their|my)\s+\w+",
-    r"(?<!\w)(?:he|she|son|daughter|child|kid|i)\s+(?:has|'s|got|have)\s+(?:got\s+)?"
-    r"(?:a\s+)?(?:bad\s+|heavy\s+)?(?:cold|flu)(?!\w)",
-    r"(?<!\w)(?:the\s+)?flu(?!\s+(?:season|outbreak|wave|shot\s+clinic)\b)(?!\w)",
+    # Injuries and a cold are blocked by default; the exceptions are questions about safety or
+    # animals ("damit sich keiner verletzt", "can kids get injured?", "risk of injury",
+    # "verletzte Tiere", "so they don't hurt their feet", "a cold plunge").
+    r"(?<!keiner )(?<!niemand )(?<!jemand )(?<!\w)verletzt(?!e[nr]?\s+(?:tiere|igel|vögel|"
+    r"wildtiere|tieren))\w*",
+    r"(?<!get )(?<!gets )(?<!getting )(?<!\w)injured(?!\s+(?:birds?|animals?|wildlife))(?!\w)",
+    r"(?<!risk of )(?<!chance of )(?<!prevent )(?<!\w)injur(?:y|ies)(?!\w)",
+    r"(?<!don't )(?<!won't )(?<!not )(?<!can )(?<!could )(?<!might )(?<!will )(?<!would )"
+    r"(?<!to )(?<!so they )(?<!\w)(?:hurt|broke)\s+(?:his|her|my)\s+\w+",
+    r"(?<!\w)has\s+(?:got\s+)?a\s+(?:bad\s+|heavy\s+)?cold(?!\s+(?:plunge|drink|shower|pool|"
+    r"water|temperature|room)\b)(?!\w)",
+    r"(?<!\w)(?:the\s+)?flu(?!\s+(?:season|outbreak|wave|shot\s+clinic)\b)"
+    r"(?<!because of the flu)(?!\w)",
+    r"(?<!\w)corona(?!\s+park)(?!\w)(?!\s+(?:rules|regeln|restrictions))",
+    r"(?<!\w)covid(?:-19)?(?!\s+(?:rules|regeln|restrictions|test\s+centre))(?!\w)",
     # Vaccination of the child, not the rules ("Impfpass", "vaccine passport", "Impfpflicht").
     r"(?<!\w)(?:impf(?!pass|pflicht|nachweis)\w*|vaccin(?!e\s+passport)\w*)",
 )
@@ -282,7 +352,8 @@ _LOOKALIKES = str.maketrans(
 # Hangul fillers look like nothing at all.
 _INVISIBLE = frozenset("ㅤᅟᅠﾠ")
 # Letters written one by one: "a d h d", "A. D. H. D.", "a-d-h-d", "a_d_h_d", "a/d/h/s".
-_SPACED_LETTERS = re.compile(r"(?<!\w)(?:[^\W\d_](?:[ .\-_/·]+\s*|\t)){2,}[^\W\d_](?!\w)")
+# Possessive quantifiers (*+, ++) keep matching linear on long input.
+_SPACED_LETTERS = re.compile(r"(?<!\w)(?:[^\W\d_](?:[ .\-_/·]++\s*+|\t)){2,}[^\W\d_](?!\w)")
 _UMLAUTS = str.maketrans({"ä": "ae", "ö": "oe", "ü": "ue", "ß": "ss"})
 
 
@@ -374,7 +445,9 @@ _NOT_NAMES = (
     r"next|last|this|year|nächste\w*|letzte\w*|münchen|köln|nürnberg|düsseldorf|"
     r"thanksgiving|memorial|labou?r|bank|boxing|spring|summer|winter|autumn|fall|half|"
     r"mother'?s|mothers|father'?s|fathers|independence|presidents?|valentine\w*|new|trick|"
-    r"veterans|easter\w*|"
+    r"veterans|easter\w*|fourth|good|columbus|martin|st|saint|patrick'?s|bonfire|guy|juneteenth|"
+    r"hanukk?ah|chanukah|diwali|eid|ramadan|day|mlk|lego|legoland|playmobil|disneyland|ideas?|"
+    r"what|which|where|how|any|help|"
     + "|".join(re.escape(c.casefold()) for cities in config.CITIES.values() for c in cities)
 )
 # Words with a count in brackets that are no person: "Adults (2)", "Tickets (2)", "Pizza (3)".
@@ -419,7 +492,8 @@ _NOUN_ENDINGS_F = (
     )
     + "(?<!ik)(?<!ur)"
 )
-_NOUN_ENDINGS_M = "(?<!richt)(?<!sport)(?<!kurs)(?<!s)"
+# Boys' names often end in -s (Lukas, Jonas, Elias), and plurals take "die", so -s stays allowed.
+_NOUN_ENDINGS_M = "(?<!richt)(?<!sport)(?<!kurs)"
 _PREPOSITION_RELATIVE = (
     rf"{_POSSESSIVE}[ \t]+(?:(?i:sohn|junge|jungen|kleiner|kleinen|kleinem)[ \t]+{_CAPITAL_WORD}"
     rf"{_NOUN_ENDINGS_M}(?=[ \t]*,[ \t]*der\b)"
@@ -434,10 +508,17 @@ _NAME = re.compile(
     r"(?i:named|called|heißt|heisst|namens|tên là|tên)[ \t]+[^\W\d_]+"
     rf"|(?i:{_CHILD_WORDS})'s[ \t]+(?i:name)[ \t]+(?i:is)[ \t]+[^\W\d_]+"
     rf"|(?i:my|our)[ \t]+(?i:son|daughter|child|kid|boy|girl|baby)[ \t]+{_CAPITAL_WORD}"
-    rf"|(?i:my|our)[ \t]+(?:(?i:two|three|four|2|3|4)[ \t]+)?"
-    rf"(?i:kids|children|sons|daughters|twins|son|daughter|boy|girl)[ \t]*,?[ \t]+{_CAPITAL_WORD}"
-    rf"|{_POSSESSIVE}[ \t]+(?:(?i:zwei|drei|beiden)[ \t]+)?(?i:kinder|zwillinge|söhne|töchter)"
-    rf"[ \t]+{_CAPITAL_WORD}[ \t]+(?:und|&|and)[ \t]+{_CAPITAL_WORD}"
+    # "my kids Max and Lena", "my two kids Max …"; with a comma the name needs a second comma or
+    # "and" after it ("my son, Max, loves"), so "For my son, Lego or Playmobil?" passes.
+    # Possessive quantifiers (*+, ++) keep this linear on long input.
+    rf"|(?i:my|our)[ \t]++(?:(?i:two|three|four|2|3|4)[ \t]++)?"
+    r"(?i:kids|children|sons|daughters|twins)[ \t]++(?:(?i:are|are\s+called)[ \t]++)?"
+    rf"{_CAPITAL_WORD}"
+    r"|(?i:my|our)[ \t]++(?i:son|daughter|boy|girl|kids|children)[ \t]*+,[ \t]*+"
+    rf"{_CAPITAL_WORD}(?=[ \t]*+(?:,|and\b|und\b))"
+    rf"|{_POSSESSIVE}[ \t]++(?:(?i:zwei|drei|beiden)[ \t]++)?(?i:kinder|zwillinge|söhne|töchter)"
+    rf"[ \t]++(?:(?i:heißen|heissen|sind)[ \t]++)?\(?{_CAPITAL_WORD}(?:[ \t]*+,[ \t]*+"
+    rf"{_CAPITAL_WORD})*+[ \t]++(?:und|&|and)[ \t]++{_CAPITAL_WORD}"
     rf"|{_NOT_AFTER}{_POSSESSIVE}[ \t]+{_CHILD_NOUN}[ \t]+{_CAPITAL_WORD}"
     rf"(?:{_PERSON_VERB}|{_RELATIVE_CLAUSE})"
     rf"|{_PREPOSITION_RELATIVE}"
@@ -500,7 +581,7 @@ _PHRASE_END = (
     r"(?!\s+and\s+a\s+half\s+(?:hours?|hrs?|minutes?|mins?|days?|weeks?|miles?|km)\b)"
     r"(?=\s*(?:$|[.,;!?)(\-–]|:(?!\d)|(?:and|und|và|now|jetzt|schon|already|years?|jahre|"
     r"geworden|im|in|next|nächste\w*|but|aber|so|soon|bald|"
-    r"this\s+(?:year|summer|winter|spring|autumn|fall|month|week)|dieses\s+jahr|too|auch)\b))"
+    r"this\s+(?:year|summer|winter|spring|autumn|fall|month|week)|dieses\s+jahr|diesen\s+(?:sommer|winter|monat|herbst|frühling)|diese\s+woche|too|auch)\b))"
 )
 _NO_ARTICLE = "".join(
     rf"(?<!\b{w} )" for w in "der die das den dem the a an für for ein eine".split()
@@ -509,14 +590,14 @@ _NO_ARTICLE = "".join(
 # "seven years old", "7yo", "turns 7", "Lena is 7", "he is 8", "Leon, 6, likes". Age groups
 # ("6-9", "6 to 9", "3-5 tuổi"), thresholds ("under 6") and time spans are not exact ages.
 _AGE = re.compile(
-    rf"{_NOT_A_RANGE}(?<!\w)\d{{1,2}}{_NO_RANGE_AFTER}\s*-?\s*(?:years?|yrs?|months?)[\s-]*old(?!\w)"
+    rf"{_NOT_A_RANGE}(?<!\w)\d{{1,2}}{_NO_RANGE_AFTER}\s*+-?\s*+(?:years?|yrs?|months?)[\s-]*old(?!\w)"
     rf"|(?<!\w)(?:{_NUMBER_WORDS})[\s-]*(?:years?|months?)[\s-]*old(?!\w)"
     r"|(?<!from )(?<!minimum )(?<!min\. )(?<!under )(?<!over )(?<!ab )(?<!least )"
     rf"(?<!\w)aged?\s+\d{{1,2}}{_NO_RANGE_AFTER}(?!\w)"
     rf"|{_NOT_A_RANGE}(?<!\w)\d{{1,2}}\s*(?:yo|y/o)(?!\w)"
     rf"|(?<!\w)turns?\s+\d{{1,2}}{_UNITS}(?!\w)"
-    rf"|{_NOT_A_RANGE}(?<!\w)\d{{1,2}}{_NO_RANGE_AFTER}\s*-?\s*(?:jahre|monate)\s+alt(?!\w)"
-    rf"|{_NOT_A_RANGE}(?<!\w)\d{{1,2}}{_NO_RANGE_AFTER}\s*-?\s*(?:jährig\w*|monatig\w*)"
+    rf"|{_NOT_A_RANGE}(?<!\w)\d{{1,2}}{_NO_RANGE_AFTER}\s*+-?\s*+(?:jahre|monate)\s+alt(?!\w)"
+    rf"|{_NOT_A_RANGE}(?<!\w)\d{{1,2}}{_NO_RANGE_AFTER}\s*+-?\s*+(?:jährig\w*|monatig\w*)"
     rf"|{_NOT_A_RANGE}(?<!\w)\d{{1,2}}{_NO_RANGE_AFTER}\s*(?:tháng\s+)?tuổi(?!\w)(?!\s+trở)"
     rf"|(?<!\w)(?:{_CHILD_WORDS}|he|she|er|sie|{_SIBLING_WORDS})"
     rf"\s+(?:is|ist|wird|turns|lên)\s+{_AGE_ADVERB}(?:\d{{1,2}}|{_NUMBER_WORDS})"
@@ -577,6 +658,9 @@ def find_sensitive(text: str) -> list[Finding]:
         # Accents typed away, often only on some words: each word of a term may match with or
         # without its accents, but a word with other accents ("từ" is not "tự") never matches.
         findings = [Finding("health", m.group(0)) for m in _HEALTH_PLAIN.finditer(folded)]
+    # Step-free access is a child's need unless the message is only about a pram or buggy.
+    if not (_PRAM.search(folded) and not _DISABILITY.search(folded)):
+        findings += [Finding("health", m.group(0)) for m in _ACCESS.finditer(folded)]
     findings += [Finding("email", m.group(0)) for m in _EMAIL.finditer(soft)]
     findings += [Finding("phone", p) for p in _phones(soft)]
     findings += [Finding("name", m.group(0)) for m in _NAME.finditer(soft)]
@@ -654,7 +738,8 @@ _NOT_PLACE_WORDS = frozenset(
         "regeln instructions policy previous earlier above orders system prompt "
         "monate monaten months wochen weeks jahren kleinkind kleinkinder schulkinder "
         "grundschüler grundschueler zwilling enkel enkelin enkelkind enkelkinder kindern "
-        "jährig jaehrig jährige jährigen jaehrige jaehrigen yrs yr yo mo sick ill"
+        "jährig jaehrig jährige jährigen jaehrige jaehrigen yrs yr yo mo sick ill accessible "
+        "cold sprained hurt"
     ).split()
 )
 # "Seven Berlin" is an age before a city, not a town ("Seven Sisters").
@@ -722,7 +807,7 @@ def check_place_name(value: str) -> str:
         if not bare or not (bare[0].isupper() or bare in _PLACE_CONNECTORS or apostrophe):
             raise error
         # Words about a family or instructions are never part of a town's name.
-        if bare.casefold() in _NOT_PLACE_WORDS:
+        if bare.casefold() in _NOT_PLACE_WORDS or re.search(r"j(?:ä|ae)hrig", bare.casefold()):
             raise error
     # A dot followed by two letters (evil.example) is a domain; "St. Peter", "D.C." are not.
     if re.search(r"\.[^\W\d_]{2}", value) or find_sensitive(value):

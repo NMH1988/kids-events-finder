@@ -358,3 +358,23 @@ def test_extra_keys_in_an_edit_are_dropped_or_blocked():
     state = graph.get_state({"configurable": {"thread_id": "t23"}}).values
     calls = [tc for m in state["messages"] if isinstance(m, AIMessage) for tc in m.tool_calls]
     assert calls[0]["args"] == {"city": "Munich"}
+
+
+def test_long_decisions_are_refused_and_short_ones_pass():
+    """Security round 7/8: an over-long reason or edited value is refused before any check."""
+    from src import config
+    from src.agent.runner import decision_problem
+
+    long_reason = {"action": "reject", "feedback": "x " * config.MAX_DECISION_CHARS}
+    assert "too long" in decision_problem(long_reason, [])
+    long_value = {"action": "edit", "tool_calls": [{"id": "1", "args": {"city": "a" * 500}}]}
+    assert "too long" in decision_problem(long_value, [])
+    short = {"action": "edit", "tool_calls": [{"id": "1", "args": {"city": "Munich"}}]}
+    assert decision_problem(short, []) is None
+
+
+def test_deeply_nested_json_in_the_edit_box_is_not_applied():
+    """Security round 8: nested JSON too deep to read is treated like invalid JSON."""
+    from views.chat import parse_edited_args
+
+    assert parse_edited_args('{"a":' + "[" * 200000) is None

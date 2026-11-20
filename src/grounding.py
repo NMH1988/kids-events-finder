@@ -102,7 +102,7 @@ _SPACED_DOMAIN = re.compile(
     # A short lower-case ending after a dot with spaces, at the end of the label ("evil . top");
     # not after abbreviations ("incl. tax", "vs. kids").
     r"|(?<![\w.])(?!(?i:incl|inkl|ca|vs|bzw|nr|ggf|evtl|etc)\b)[A-Za-z0-9]+\s*\.\s+[a-z]{2,4}"
-    r"(?=\s*[.!?)]*\s*(?:$|/))"
+    r"(?=[\s.!?)]*+(?:$|/))"
 )
 # An e-mail-like "@" (a word character on both sides) once escapes are resolved.
 _MAIL_AT = re.compile(r"[\w.+-]@[\w-]")

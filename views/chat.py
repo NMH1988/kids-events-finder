@@ -376,7 +376,7 @@ def parse_edited_args(text: str) -> dict | None:
     """Return the edited arguments when the text is a JSON object; anything else is not applied."""
     try:
         parsed = json.loads(text)
-    except json.JSONDecodeError:
+    except ValueError, RecursionError:  # bad JSON, or nested too deep to read
         return None
     return parsed if isinstance(parsed, dict) else None
 
@@ -409,6 +409,7 @@ def _render_approval(settings: Settings) -> None:
                     json.dumps(call["args"], indent=2, ensure_ascii=False),
                     key=f"args_{call['id']}",
                     height=130,
+                    max_chars=config.MAX_DECISION_CHARS,
                 )
                 parsed = parse_edited_args(text)
                 if parsed is not None:

@@ -46,7 +46,11 @@ The users are parents, but the app handles data about children, who are speciall
     about accessibility needs ("wheelchair", "barrierefrei", "rollstuhlgerecht", "disabled
     access", "step-free", "xe lăn") are blocked by the keyword check like health data; the system
     prompt also forbids judging development, and red-team case r08 checks the block. The About
-    page tells parents to check accessibility on the venue's official website;
+    page tells parents to check accessibility on the venue's official website. Step-free or
+    barrier-free questions about a pram or buggy ("mit Kinderwagen barrierefrei?") pass when they
+    name no wheelchair or disability, because they are about the pram, not the child. "Development"
+    and "Entwicklung" are blocked only about a child ("his development", "Entwicklung meines
+    Kindes"), so "game development workshop" or "Stadtentwicklung" pass;
   - the system prompt forbids asking about, repeating or inferring health information;
   - medical and therapy places (paediatricians, Ergotherapie, Logopädie, Frühförderung) are not in
     the knowledge base or the OpenStreetMap categories.
@@ -103,7 +107,11 @@ The users are parents, but the app handles data about children, who are speciall
   preposition, "mein Kind X, das …" (neuter nouns look the same); a domain spelled in link text in
   the middle of the label ("Visit evil . top today"); and two ages as a shortened compound ("4- und
   6-jährige Kinder"), because "für 4- und 5-Jährige" is an age-group question; health words with
-  an extra accent on a letter that has none ("Thérapie"); link text whose spelled domain is in
+  an extra accent on a letter that has none ("Thérapie"); a daughter's name ending in -ion or -s
+  after a preposition ("Marion, die …"); first names in a place-name field ("Max Lena Berlin").
+  Accepted false alarms (the parent rephrases once): slang ("That's sick!"), rare uses of health
+  words ("rash decision", "Der Stau ist übel"), and a German noun
+  before "ist N" without an article ("Film ist etwa 4"); link text whose spelled domain is in
   title case (".Com"). The link target itself is always a verified tool URL.
 - **2.7 Retention.** Conversations are deleted from the server when the parent starts a new one and
   automatically after 2 hours without use (`CONVERSATION_RETENTION_SECONDS`, enforced by a
@@ -137,7 +145,8 @@ The users are parents, but the app handles data about children, who are speciall
 - **4.2 No manipulation (Art. 5).** No techniques that exploit the vulnerability of children or
   pressure parents (no fake urgency, no dark patterns). The system prompt forbids urgency and
   scarcity claims and claims about a child's development (5.5); red-team cases in
-  `data/eval_questions.json` check both.
+  `data/eval_questions.json` check both: r09 (urgency) and r13 ("make my child smarter") reach the
+  model and must be declined, r08 (a development statement) is blocked before the model.
 - **4.3 Grounding.** The AI recommends only places, events, times and links returned by tools; the
   grounding check removes any other link. Money is calculated in code, never by the model: the
   family for the ticket comparison is taken from the app's settings (the model cannot pass it), and
