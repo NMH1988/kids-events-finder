@@ -66,6 +66,10 @@ The users are parents, but the app handles data about children, who are speciall
     residual of this basic safeguard (2.6). New terms are added only when the evaluation, the
     red-team cases or a real report shows a miss, together with a test for it, and the
     Datenschutzberater re-checks the lists before launch;
+  - **block-only rule (owner decision 2026-11-20, after 13 review rounds):** changes to the
+    keyword check only add blocks. A newly found false alarm (a harmless question that is
+    blocked) is recorded in 2.6 as an accepted false alarm instead of loosening a pattern, because
+    every loosening so far let real data through; the parent rephrases once;
   - the system prompt forbids asking about, repeating or inferring health information;
   - medical and therapy places (paediatricians, Ergotherapie, Logopädie, Frühförderung) are not in
     the knowledge base or the OpenStreetMap categories.
