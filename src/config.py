@@ -76,6 +76,8 @@ CALCULATION_TOOLS: frozenset[str] = frozenset({"compare_train_tickets", "check_b
 MAX_USER_MESSAGE_CHARS = 1000
 # Limit for the parent's reason and edits in the approval panel (keeps every check fast).
 MAX_DECISION_CHARS = 5000
+# Longest reject reason; enforced on the server too, not only by the text box.
+MAX_REJECT_REASON_CHARS = 300
 # Longest single value in edited arguments (the longest tool field, the knowledge base query, is
 # 300 characters).
 MAX_EDIT_VALUE_CHARS = 400

@@ -427,7 +427,7 @@ def _render_approval(settings: Settings) -> None:
             "Reason if you reject (optional)",
             key="reject_reason",
             placeholder="e.g. only indoor places, please",
-            max_chars=300,
+            max_chars=config.MAX_REJECT_REASON_CHARS,
         )
         c1, c2, c3 = st.columns(3)
         decision = None

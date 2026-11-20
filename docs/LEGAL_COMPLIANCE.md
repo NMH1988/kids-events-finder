@@ -188,6 +188,12 @@ The users are parents, but the app handles data about children, who are speciall
   gifted with a great view", "You're gifted a free drink at the cafe", "Does the ride have a
   booster section?", "booster" alone, "Museum for kids aged 3 and 4", "Activities for kids aged
   6 and 9", "Kinder 6 und 9 Jahre gemischt?", "Die Entwicklung von Berlin ist spannend".
+  Review round 20: price questions with one child's age ("Eintritt Kind 6 Jahre?", "Eintritt
+  Kinder 6 Jahre frei", "Preis für ein Kind 6 Jahre im Zoo?"), "Injury-free …" at the start of a
+  sentence, "The park's staff are trained for any injury", "Nobody was badly hurt …", "Brauchen
+  Sie Ihren Impfpass?", "We're gifted a voucher …", "Is there a booster club?". Residual: a
+  bare "booster" statement in a message that also names a vehicle or seat ("The booster made
+  him tired, can we take the train?"), because that message is read as a booster-seat question.
   Regressions are measured from c560f86 (baseline rule in 1.4): every sentence the reviewers
   used in rounds 1-19 was run at every commit of the branch, and none that a commit from c560f86
   on blocked passes now, apart from look-alike cases under 1.4. Sentences only the earlier
@@ -201,7 +207,9 @@ The users are parents, but the app handles data about children, who are speciall
 - **2.8 Data subject rights.** Parents can delete their data (and export it where stored on the
   server) without contacting support.
 - **2.9 Security.** Keys only through `config.get_secret()`, never logged or shown; HTTPS only;
-  invite codes and rate limits protect the deployed app.
+  invite codes and rate limits protect the deployed app. Every length limit on the parent's text
+  (question, reject reason, edited values, folded length) is enforced on the server, not only by
+  the text box, so the privacy check stays fast.
 - **2.10 No tracing, quiet logs.** No LangSmith or other third-party tracing, observability or
   error-reporting service (they would receive messages, age groups and trip settings): the tracing
   switches in `config.TRACING_ENV_OFF` are forced off in `src/llm.py`. Libraries that log request

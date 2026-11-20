@@ -73,7 +73,10 @@ def decision_problem(decision: dict, original_calls: list[dict]) -> str | None:
         return too_long
     if privacy_check.folded_length(dumped) > 2 * config.MAX_DECISION_CHARS:
         return too_long
-    texts = [decision.get("feedback") or ""]
+    reason = decision.get("feedback") or ""
+    if not isinstance(reason, str) or len(reason) > config.MAX_REJECT_REASON_CHARS:
+        return too_long
+    texts = [reason]
     # Only values the parent typed or changed; the model's own unchanged values are not capped.
     changed = [
         s

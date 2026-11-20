@@ -868,14 +868,15 @@ _AGE = re.compile(
     rf"|{_NO_ARTICLE}(?<!\w)(?!(?:{_NOT_A_CHILD})\b)(?-i:{_CAPITAL_WORD})"
     rf"{_AGE_VERB}{_AGE_ADVERB}{_CHILD_AGE}[ \t]*(?:[13]⁄[24]|[½¼¾]){_UNITS}"
     # R19-J: "Kind 7 Jahre", "zwei Kinder, 5 und 8 Jahre".
-    r"|(?<!\w)(?:kind|sohn|tochter|junge|mädchen)[ \t]*[,:]?[ \t]+\d{1,2}[ \t]*jahre?(?!\w)"
+    # The separators are atomic (*+, ++): "Kind" and thousands of spaces stay linear.
+    r"|(?<!\w)(?:kind|sohn|tochter|junge|mädchen)(?:[ \t]*+[,:])?[ \t]++\d{1,2}[ \t]*jahre?(?!\w)"
     r"(?![ \t]+(?:und|oder|&)[ \t]+(?:älter|jünger|mehr|darüber|darunter|drunter|weniger))"
-    r"|(?<!\w)kinder[ \t]*[,:]?[ \t]+\d{1,2}[ \t]+(?:und|&)[ \t]+\d{1,2}[ \t]+jahre(?!\w)"
+    r"|(?<!\w)kinder(?:[ \t]*+[,:])?[ \t]++\d{1,2}[ \t]+(?:und|&)[ \t]+\d{1,2}[ \t]+jahre(?!\w)"
     # R19-L: "kids aged 7 and 4".
     r"|(?<!from )(?<!under )(?<!over )(?<!\w)aged?\s+\d{1,2}\s*(?:and|&|und)\s*\d{1,2}(?!\d)"
     r"(?!\s*\+)(?!\s+(?:years?\s+)?(?:and|or)\s+(?:up|over|older|above))"
     # "zwei Kinder, 5, 7 und 8 Jahre" (not "Kinder 3 Jahre und älter").
-    rf"|(?<!\w)(?<!für )(?<!fuer )(?:kind|kinder)\s*[,:]?\s*{_CHILD_AGE}"
+    rf"|(?<!\w)(?<!für )(?<!fuer )(?:kind|kinder)(?:\s*+[,:])?\s*+{_CHILD_AGE}"
     rf"(?:\s*(?:und|&|,)\s*{_CHILD_AGE})*"
     r"\s+jahren?(?!\w)(?!\s+(?:und|oder)\s+(?:älter|jünger|aelter|juenger))(?!\s+lang\b)",
     re.IGNORECASE,

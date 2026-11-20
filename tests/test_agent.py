@@ -380,6 +380,10 @@ def test_long_decisions_are_refused_and_short_ones_pass():
 
     long_reason = {"action": "reject", "feedback": "x " * config.MAX_DECISION_CHARS}
     assert "too long" in decision_problem(long_reason, [])
+    # Security round 20: the reject reason is capped on the server, not only by the text box.
+    reason_301 = {"action": "reject", "feedback": "a" * (config.MAX_REJECT_REASON_CHARS + 1)}
+    assert "too long" in decision_problem(reason_301, [])
+    assert decision_problem({"action": "reject", "feedback": "only indoor places"}, []) is None
     long_value = {"action": "edit", "tool_calls": [{"id": "1", "args": {"city": "a" * 500}}]}
     assert "too long" in decision_problem(long_value, [])
     short = {"action": "edit", "tool_calls": [{"id": "1", "args": {"city": "Munich"}}]}

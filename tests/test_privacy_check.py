@@ -1019,8 +1019,22 @@ def test_other_text_is_not_a_place_name(name):
         "7" + " " * 4900 + "x",
         "a" + " " * 4900 + "1",
         "[a. ab" + " " * 20000 + "x](https://a.org)",
+        "kind" + " " * 4950 + "x",
+        "Kinder" + "\t" * 4950 + "x",
+        "Kinder" + "\n" * 4950 + "x",
     ],
-    ids=["letters", "digits", "dots", "kids-spaces", "age-spaces", "letter-spaces", "label"],
+    ids=[
+        "letters",
+        "digits",
+        "dots",
+        "kids-spaces",
+        "age-spaces",
+        "letter-spaces",
+        "label",
+        "kind-spaces",
+        "kinder-tabs",
+        "kinder-newlines",
+    ],
 )
 def test_long_input_is_checked_fast(text):
     """Security round 7: long input does not slow the checks down (no quadratic regex)."""
