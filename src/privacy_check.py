@@ -346,16 +346,17 @@ _ACCESS = re.compile(
     r"accessibility(?!\s+(?:by|via|from)\s)|"
     r"(?<!\w)(?:is|are)\s+(?:it|the|they)\s+(?:\w+\s+){0,3}accessible"
     # Not getting there ("by train", "on foot"), a season, or whether small children can manage
-    # it ("accessible for toddlers"), which is about age, not health.
+    # it ("accessible for toddlers?"), which is about age, not health; only when the clause ends
+    # there, so "accessible for kids with a walker" stays blocked.
     r"(?!\s+(?:by|via|from|with\s+public)\s)(?!\s+on\s+foot)"
     r"(?!\s+in\s+(?:winter|summer|spring|autumn|fall)\b)"
-    r"(?!\s+(?:for|to)\s+(?:\w+\s+)?(?:kids|children|toddlers|families|little\s+ones|babies|"
-    r"young\s+kids|small\s+children)\b)"
+    r"(?!\s+(?:for|to)\s+(?:(?:my|our|the|young|small|little|older|younger)\s+)?(?:kids|children|"
+    r"toddlers|families|little\s+ones|babies|young\s+kids|small\s+children)\s*(?:[?.!,;]|$))"
 )
 # Equipment, not the child: a step-free or barrier-free question about a pram, a bike, a
 # scooter or luggage is no health data ("Ist das Museum mit Kinderwagen barrierefrei?").
 _PRAM = re.compile(
-    r"(?<!\w)(?:kinderwagen|buggy|buggies|prams?|pushchairs?|strollers?|xe đẩy|skate\w*|"
+    r"(?<!\w)(?:\w*kinderwagen\w*|buggy|buggies|prams?|pushchairs?|strollers?|xe đẩy|skate\w*|"
     r"scooters?|bmx|bikes?|fahrrad|fahrräder|luggage|gepäck|suitcases?|koffer)(?!\w)"
 )
 # A wheelchair, a disability or a mobility aid in the same message keeps the block.
@@ -381,21 +382,28 @@ _HEALTH_EXTRA = (
     r"wildtiere|tieren))\w*",
     r"(?<!get )(?<!gets )(?<!getting )(?<!be )(?<!\w)injured(?!\s+(?:birds?|animals?|wildlife))"
     r"(?!\w)",
-    # An injury of someone ("his injury", "a knee injury", "my son's injury", "has an injury"),
-    # not "injuries at trampoline parks", "in case of an injury" or "an injury risk".
-    r"(?:(?<!\w)(?:his|her|their|my|a)|'s)\s+(?:\w+\s+)?injur(?:y|ies)(?!\s+risk)(?!\w)",
-    r"(?<!\w)(?:has|had|have)\s+an\s+(?:\w+\s+)?injury",
+    # An injury of someone ("his injury", "a knee injury", "my son's injury", "got an injury"),
+    # not "injuries at trampoline parks", "in case of an injury", "a minor injury unit" or "an
+    # injury risk".
+    r"(?:(?<!\w)(?<!case of )(?<!event of )(?<!if there is )(?<!if there's )"
+    r"(?:his|her|their|my|an?)|'s)\s+(?!(?:typical|minor|common|possible|serious)\s)(?:\w+\s+)?injur(?:y|ies)"
+    r"(?!\s+(?:risk|clinic|unit|centre|center|prevention))(?!\w)",
+    r"(?<!\w)(?:has|have)\s+injuries",
     r"'s\s+hurt(?!\w)",
     # "hurt/broke his …" is checked in `_hurt_findings`, which skips questions with a modal or a
     # negation earlier in the clause ("Will my son hurt his hands on the climbing wall?").
     # Fever in Vietnamese, not "sốt ruột" (impatient), "sốt sắng" (eager) or "sốt vé" (sold out).
     r"(?:con\s+đang\s+sốt|bé\s+đang\s+sốt|hơi\s+sốt|sốt\s+cao|sốt\s+nhẹ)(?!\s*(?:ruột|sắng|vé))",
-    r"(?:(?<!\w)(?:is|are|feels?|feeling|was|were|been|still)|'s)\s+(?:\w+\s+){0,2}?poorly"
-    r"(?!\s+(?:\w+ed|lit|kept|run|made|designed|paid|built)\b)",
+    r"(?:(?<!\w)(?:is|are|feels?|feeling|was|were|been|still|seems?|looks?|got|became)|'s)\s+"
+    # "running poorly", "written poorly" describe things, not a child.
+    r"(?:\w+\s+){0,2}?(?<!ing )(?<!ten )poorly"
+    r"(?!\s+(?:\w+ed|lit|kept|run|made|designed|paid|built|written)\b)",
     r"(?<!\w)(?:my|our|his|her)\s+poorly(?!\s+(?:\w+ed|lit|kept|run|made|designed)\b)",
-    # Giftedness of a child, not the verb ("we were gifted tickets").
-    r"(?:(?<!\w)(?:is|are|highly|very|so)|'s)\s+gifted(?!\s+(?:with|tickets|a|an|us|them)\b)",
-    r"(?<!\w)gifted\s+(?:child|children|kid|kids|son|daughter|boy|girl)",
+    r"(?<!\w)poorly\s+since",
+    # Giftedness of a child; not the verb with an object ("we were gifted tickets", "gifted us a
+    # voucher") or "gift shop".
+    r"(?<!\w)gifted(?!\s+(?:with\s+(?!numbers|music|maths|math)|tickets|a|an|the|us|them|me|him|her|"
+    r"our|my|some)\b)(?!\w)",
     r"spricht\s+noch\s+nicht(?!\s+(?:so\s+)?(?:gut\s+|viel\s+)?(?:englisch|deutsch|französisch|"
     r"spanisch|italienisch|niederländisch))",
     # Statements about a child's development (owner decision 2026-11-20).
@@ -405,10 +413,13 @@ _HEALTH_EXTRA = (
     r"(?:motorische|sprachliche|kognitive|soziale|emotionale)\s+entwicklung",
     r"entwicklung\w*\s+(?:\w+\s+){0,3}?(?:verzögert|zurück)",
     r"phát\s+triển\s+của\s+(?:con|bé|cháu|trẻ)|phát\s+triển\s+chậm",
-    r"(?<!\w)(?:has|have)\s+(?:got\s+)?(?:a\s+)?(?:bad\s+|heavy\s+)?colds?(?!\s+(?:plunge|drink|"
-    r"drinks|shower|pool|water|temperature|room|buffet|food|snacks?|weather)\b)(?!\w)",
-    # Booster vaccine, not a booster seat or ride.
-    r"(?<!\w)booster(?!\s+(?:seats?|rides?|cushions?))(?!\w)",
+    # A cold needs "a" ("has a cold") or the plural ("have colds"); "have cold drinks" is food.
+    r"(?<!\w)(?:has|have|had)\s+(?:got\s+)?(?:a\s+(?:bad\s+|heavy\s+|nasty\s+)?cold(?!\s+(?:plunge|"
+    r"drink|drinks|shower|showers|pool|water|temperature|room|buffet|food|snacks?|weather|dessert|"
+    r"desserts|sandwich|sandwiches|milk)\b)|(?:bad\s+|heavy\s+)?colds)(?!\w)",
+    # Booster vaccine ("had his booster"), not a booster seat ("a booster in the taxi").
+    r"(?<!\w)(?:had|got|gets|needs?|getting)\s+(?:his|her|their|the|a)\s+booster(?!\s+(?:seats?|"
+    r"rides?|cushions?|in|for)\b)(?!\w)",
     r"(?<!\w)(?:the\s+)?flu(?!\s+(?:season|outbreak|wave|shot\s+clinic)\b)"
     r"(?<!because of the flu)(?!\w)",
     r"(?<!\w)corona(?!\s+park)(?!\w)(?!\s+(?:rules|regeln|restrictions))",
@@ -554,6 +565,31 @@ _PERSON_VERB = rf"(?=[ \t]+(?!(?:{_NOT_VERBS})\b)(?:mag|will|kann|möchte|darf|\
 # A relative clause after the name: in a main clause any name ("Mein Sohn Ben, der gern malt").
 _RELATIVE_CLAUSE = r"(?=[ \t]*,[ \t]*(?:der|die|das|who)\b)"
 _POSSESSIVE = r"(?i:mein|meine|meinen|meinem|meiner|unser|unsere|unseren|unserem|unserer)"
+# Endings of activity and other common nouns that are no names (Fußball, Ski, Kanu, Kajak, Kunst,
+# Musik, Sport, Golf, Yoga, Judo, Tanz, Theater, Vögel, Bilder).
+_ACTIVITY_ENDINGS = "".join(
+    f"(?<!{e})"
+    for e in (
+        "ball",
+        "Ski",
+        "anu",
+        "ajak",
+        "unst",
+        "usik",
+        "port",
+        "olf",
+        "oga",
+        "udo",
+        "anz",
+        "ater",
+        "ögel",
+        "ilder",
+        "ett",
+        "ate",
+        "oard",
+        "piel",
+    )
+)
 _CHILD_NOUN = r"(?i:sohn|tochter|kind|junge|kleine[rnm]?)"
 # After a preposition the pronoun must fit the child ("für meinen Sohn Max, der", "mit meiner
 # Tochter Lena, die"), and for a daughter the word must not look plural ("Events, die", "Kurse,
@@ -595,8 +631,11 @@ _NAME = re.compile(
     rf"{_CAPITAL_WORD}(?=[ \t]++(?i:and)[ \t]++)"
     rf"|{_CAPITAL_WORD}[ \t]++(?i:and|und)[ \t]++{_CAPITAL_WORD}[ \t]++(?i:are|sind)[ \t]++"
     r"(?i:my|our|meine|unsere)[ \t]++(?i:kids|children|sons|daughters|kinder)"
-    r"|(?<!for )(?<!For )(?<!für )(?<!Für )(?i:kids|children|kinder)[ \t]*+:[ \t]*+"
-    rf"{_CAPITAL_WORD}(?=[ \t]*+(?:,|and\b|und\b|&)[ \t]*+[A-ZÀ-ÖØ-ÞĐ])"
+    # "Kids: Max and Lena", "Ideas for kids: Mia, Leo and Ben", "Kids: Mia, and Leo"; a second
+    # capitalised word must follow, so "Activities for kids: Swimming, climbing" passes.
+    r"|(?i:kids|children|kinder)[ \t]*+:[ \t]*+"
+    rf"{_CAPITAL_WORD}(?=[ \t]*+(?:,[ \t]*+(?:and[ \t]++)?|and\b[ \t]*+|und\b[ \t]*+|&[ \t]*+)"
+    r"[A-ZÀ-ÖØ-ÞĐ])"
     r"|(?i:my|our)[ \t]++(?i:son|daughter|boy|girl|kids|children|youngest|eldest|oldest|"
     r"little\s+one)[ \t]*+,[ \t]*+"
     rf"{_CAPITAL_WORD}(?=[ \t]*+(?:,|and\b|und\b))"
@@ -605,8 +644,9 @@ _NAME = re.compile(
     rf"{_CAPITAL_WORD})*+[ \t]++(?:und|&|and)[ \t]++{_CAPITAL_WORD}(?!\w)"
     # "wo meine Kinder Tiere und Pflanzen sehen?": plural nouns (ending in -e, -n, -s) before a
     # clause-final verb are no names; "Max und Lena tanzen." still counts.
-    r"(?:(?<![ens])|(?![ \t]+\w+(?:[ \t]+(?:können|kann|wollen|will|möchten|dürfen|müssen))?"
-    r"[ \t]*(?:[.?!,;]|$)))"
+    # Activity nouns ("Fußball und Basketball spielen?") count as plural-looking nouns too.
+    rf"(?:(?<![ens]){_ACTIVITY_ENDINGS}|(?![ \t]+\w+(?:[ \t]+(?:können|kann|wollen|will|möchten|"
+    r"dürfen|müssen))?[ \t]*(?:[.?!,;]|$)))"
     rf"|{_NOT_AFTER}{_POSSESSIVE}[ \t]+{_CHILD_NOUN}[ \t]+{_CAPITAL_WORD}"
     rf"(?:{_PERSON_VERB}|{_RELATIVE_CLAUSE})"
     rf"|{_PREPOSITION_RELATIVE}"
@@ -738,8 +778,11 @@ _HURT = re.compile(r"(?<!\w)(?:hurt|broke)\s+(?:his|her|my)\s+\w+", re.IGNORECAS
 # question. "May" is a modal only in lower case or at the start of the clause ("In May my son
 # hurt his knee" is a statement).
 _MODAL_BEFORE = re.compile(
+    # "might have hurt" is a statement about a past injury, not a safety question.
     r"(?:^\s*(?i:will|would|could|can|might|may)|(?<!\w)(?:will|would|could|can|might|may))"
-    r"\s+(?:\w+\s+){0,2}$|(?<!\w)(?i:don't|doesn't|won't|didn't|not|to|never)\s+$"
+    r"\s+(?:\w+\s+){0,2}(?<!have )$"
+    r"|(?<!\w)(?i:don't|doesn't|won't|didn't|can't|cannot|couldn't|wouldn't|shouldn't|not|to|"
+    r"never)\s+$"
 )
 
 
@@ -748,7 +791,8 @@ def _hurt_findings(soft: str) -> list[Finding]:
     found = []
     for match in _HURT.finditer(soft):
         # The clause before the verb ends at punctuation and at "and", "but", "because".
-        clause = re.split(r"[.?!;,]|\b(?:and|but|because|und|aber|weil)\b", soft[: match.start()])
+        before = soft[max(0, match.start() - 200) : match.start()]
+        clause = re.split(r"[.?!;,]|\b(?:and|but|because|und|aber|weil)\b", before)
         if not _MODAL_BEFORE.search(clause[-1]):
             found.append(Finding("health", match.group(0)))
     return found

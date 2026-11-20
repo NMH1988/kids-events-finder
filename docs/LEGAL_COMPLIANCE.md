@@ -51,10 +51,13 @@ The users are parents, but the app handles data about children, who are speciall
     ("mit Kinderwagen barrierefrei?") pass when they name no wheelchair, disability or mobility
     aid (Rollator, Reha-Buggy, walker, crutches); the check does not test that the question is
     about the equipment, so such a word anywhere in the message turns off the accessibility
-    check for that message (a residual, 2.6). Generic
+    check for that message (a residual, 2.6). "Is it accessible by train / on foot / in winter?"
+    (getting there) and "Is the playground accessible for toddlers?" (suitability by age, only
+    when nothing follows the age word) pass; "accessible for kids with a walker" is blocked. Generic
     accessibility questions ("Is the museum accessible?", "What accessibility does the zoo
-    offer?") are blocked too; "accessible by train" (getting there) passes. Giftedness ("gifted",
-    "hochbegabt", "advanced for his age") counts as a development statement and is blocked.
+    offer?") are blocked too. Giftedness ("gifted", "hochbegabt", "advanced for his age") counts
+    as a development statement and is blocked; only the verb with an object ("we were gifted
+    tickets") passes.
     "Development" and "Entwicklung" are blocked only about a child ("my son's development",
     "seine Entwicklung", "sprachliche Entwicklung"), so "game development workshop" or
     "Stadtentwicklung" pass;
