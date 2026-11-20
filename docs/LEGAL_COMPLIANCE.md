@@ -41,9 +41,12 @@ The users are parents, but the app handles data about children, who are speciall
     data, never the words. It is a basic safeguard, not proof: a keyword list cannot catch every
     wording, so the About page asks parents to leave such details out, and the lists are re-checked
     with the Datenschutzberater before launch;
-  - statements about development ("behind", "delayed") are not blocked by the keyword check (too
-    many ordinary sentences use these words); the system prompt forbids repeating or judging them,
-    and red-team case r08 checks the model declines (owner decision pending, see the PR);
+  - **owner decision 2026-11-20:** statements about a child's development ("development",
+    "behind his peers", "late talker", "Entwicklung", "Lernschwäche", "phát triển") and questions
+    about accessibility needs ("wheelchair", "barrierefrei", "rollstuhlgerecht", "disabled
+    access", "step-free", "xe lăn") are blocked by the keyword check like health data; the system
+    prompt also forbids judging development, and red-team case r08 checks the block. The About
+    page tells parents to check accessibility on the venue's official website;
   - the system prompt forbids asking about, repeating or inferring health information;
   - medical and therapy places (paediatricians, Ergotherapie, Logopädie, Frühförderung) are not in
     the knowledge base or the OpenStreetMap categories.
@@ -96,7 +99,9 @@ The users are parents, but the app handles data about children, who are speciall
   Tochter Marie, die …"), because plural nouns look the same; a possessive directly before a name
   without "Sohn"/"Tochter" ("Unser Max mag Dinos") and the parent's own name ("Ich bin Anna");
   names written in lower case; ages written only in words inside other phrases, an age followed
-  by "&", "with" or "or" ("Lena is 7 or 8"), and two ages as a shortened compound ("4- und
+  by "&", "with", "mit", "or" or "oder" ("Lena is 7 or 8", "Lena ist 7 mit viel Energie"); after a
+  preposition, "mein Kind X, das …" (neuter nouns look the same); a domain spelled in link text in
+  the middle of the label ("Visit evil . top today"); and two ages as a shortened compound ("4- und
   6-jährige Kinder"), because "für 4- und 5-Jährige" is an age-group question; health words with
   an extra accent on a letter that has none ("Thérapie"); link text whose spelled domain is in
   title case (".Com"). The link target itself is always a verified tool URL.

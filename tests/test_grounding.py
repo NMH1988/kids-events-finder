@@ -586,3 +586,10 @@ def test_spaced_short_endings_in_link_text_show_the_host(text):
     """Security round 6: a short ending after a spaced dot at the end shows the host."""
     cleaned, _ = enforce_grounding(f"[{text}](https://a.org)", ALLOWED)
     assert cleaned == "[a.org](https://a.org)"
+
+
+@pytest.mark.parametrize("text", ["evil . top.", "Evil . top", "EVIL . top"])
+def test_spaced_endings_with_punctuation_or_capitals_show_the_host(text):
+    """Security round 7: a spaced domain with a capital start or a final dot shows the host."""
+    cleaned, _ = enforce_grounding(f"[{text}](https://a.org)", ALLOWED)
+    assert cleaned == "[a.org](https://a.org)"

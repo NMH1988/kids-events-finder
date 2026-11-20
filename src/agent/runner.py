@@ -59,6 +59,8 @@ def decision_problem(decision: dict, original_calls: list[dict]) -> str | None:
         s.strip() for call in original_calls for s in privacy_check.string_values(call.get("args"))
     }
     texts = [decision.get("feedback") or ""]
+    if len(json.dumps(decision, ensure_ascii=False, default=str)) > config.MAX_DECISION_CHARS:
+        return "This is too long. Please keep the reason and your edits short."
     texts += [
         s
         for call in decision.get("tool_calls", [])

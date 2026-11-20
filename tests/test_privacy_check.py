@@ -224,6 +224,50 @@ from src.privacy_check import check_place_name, explain, find_sensitive
         ("bé bị cảm", "health"),
         ("Zahndoktor um 9", "health"),
         ("nach dem Augendoktor", "health"),
+        # owner decision 2026-11-20: accessibility needs and development statements
+        ("Is the zoo wheelchair accessible?", "health"),
+        ("Ist das Museum barrierefrei?", "health"),
+        ("Gibt es einen behindertengerechten Eingang?", "health"),
+        ("Is there disabled access?", "health"),
+        ("Is the route step-free?", "health"),
+        ("Có chỗ cho xe lăn không?", "health"),
+        ("Which outing helps his development?", "health"),
+        ("She is behind her peers", "health"),
+        ("he is a late talker", "health"),
+        ("Gut für die Entwicklung meines Kindes?", "health"),
+        ("Er hat eine Lernschwäche", "health"),
+        ("bé chậm phát triển", "health"),
+        ("Hoạt động nào giúp con phát triển?", "health"),
+        # round 7: legal C10/C11, code Should 1, security 1/2
+        ("für unseren Kleinen Paul, der gern malt", "name"),
+        ("mit meinem Kleinen Paul, der gern malt", "name"),
+        ("mit meinem Kind Paul, der gern malt", "name"),
+        ("Meine Kinder Max und Lena lieben Dinos", "name"),
+        ("Unsere Zwillinge Max und Moritz spielen gern", "name"),
+        ("my two kids Max and Lena love dinos", "name"),
+        ("my children, Max and Lena, love dinos", "name"),
+        ("my son, Max, loves dinos", "name"),
+        ("Lena is 7: any tips?", "exact_age"),
+        ("Max ist 6: was können wir machen?", "exact_age"),
+        ("Lena is 7 this summer", "exact_age"),
+        ("Max is 6 this week", "exact_age"),
+        ("Lena ist 7 auch wenn sie klein ist", "exact_age"),
+        ("Is there a doctor who speaks English near the zoo?", "health"),
+        ("Is there a doctor who can see my son today?", "health"),
+        ("my son has a sore throat", "health"),
+        ("she has a headache", "health"),
+        ("she's got a cold", "health"),
+        ("meine Tochter hat Corona", "health"),
+        ("er hat Schnupfen", "health"),
+        ("sie hat Halsweh", "health"),
+        ("sie hat eine Verletzung", "health"),
+        ("er hat sich das Bein gebrochen", "health"),
+        ("Mein Sohn hat sich verletzt", "health"),
+        ("he got injured last week", "health"),
+        ("she hurt her knee", "health"),
+        ("ihm ist übel", "health"),
+        ("con đang sốt", "health"),
+        ("my son has the flu", "health"),
     ],
 )
 def test_sensitive_text_is_found(text, kind):
@@ -394,6 +438,34 @@ def test_sensitive_text_is_found(text, kind):
         "Migration museum",
         "Cold weather tips",
         "Schimpfen ist doof",
+        # round 7: code Must 1-3, Should 2-3; security 3; legal N13
+        "Is the playground safe so nobody gets injured?",
+        "Is the trail safe, can kids get injured?",
+        "Ist der Spielplatz sicher, damit sich keiner verletzt?",
+        "Hat sich dort schon mal jemand verletzt?",
+        "Indoor ideas during flu season?",
+        "Is the event postponed because of the flu outbreak?",
+        "What can I do with my kids Thanksgiving weekend?",
+        "Things to do with my kids Labor Day weekend",
+        "Ideas for my kids Memorial Day weekend?",
+        "Where to take my kids Bank Holiday Monday?",
+        "What to do with my kids Boxing Day?",
+        "Plans for my kids Spring Break?",
+        "Sunset is around 5, any indoor ideas?",
+        "Pickup is around 3, can we fit a museum?",
+        "Checkout is about 11, then what?",
+        "Showtime is around 4.",
+        "Vorstellung ist etwa 4, lohnt sich das?",
+        "Rückfahrt ist etwa 5",
+        "Ich suche für meine Tochter Ferienbetreuung, die bezahlbar ist",
+        "Gibt es für meine Tochter Beschäftigung, die drinnen geht?",
+        "Suche für meinen Sohn Schwimmunterricht, der samstags ist",
+        "Which pool has a cold plunge?",
+        "Impfpass needed for the petting zoo?",
+        "Wildlife rescue with verletzte Tiere",
+        "Verletzungsgefahr auf dem Spielplatz?",
+        "Is the zoo accessible by train?",
+        "Flughafen Besichtigung",
     ],
 )
 def test_ordinary_questions_pass(text):
@@ -511,12 +583,31 @@ def test_place_names_pass(name):
         "Neun Kindern",
         "Enkelkind Berlin",
         "Grippe Berlin",
+        "Acht Jährige",
+        "Sieben Jährigen",
+        "Seven Yo",
+        "Sick Berlin",
     ],
 )
 def test_other_text_is_not_a_place_name(name):
     """Anything but a plain town name is rejected."""
     with pytest.raises(ValueError):
         check_place_name(name)
+
+
+@pytest.mark.parametrize(
+    "text", ["a" * 20000, "1" * 20000, "a." * 10000], ids=["letters", "digits", "dots"]
+)
+def test_long_input_is_checked_fast(text):
+    """Security round 7: long input does not slow the checks down (no quadratic regex)."""
+    import time
+
+    from src.grounding import enforce_grounding
+
+    started = time.perf_counter()
+    find_sensitive(text)
+    enforce_grounding(text, set())
+    assert time.perf_counter() - started < 2
 
 
 def test_red_team_cases_marked_blocked_are_blocked_and_questions_pass():

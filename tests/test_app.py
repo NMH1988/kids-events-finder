@@ -355,7 +355,10 @@ def test_words_that_look_like_units_are_no_money(text):
     assert not _MONEY.search(text)
 
 
-@pytest.mark.parametrize("text", ["￥500", "kostet 12,50 pro Person", "20 Franken"])
+@pytest.mark.parametrize(
+    "text",
+    ["￥500", "kostet 12,50 pro Person", "20 Franken", "500 yen", "50 Rappen", "₹200", "₩5000"],
+)
 def test_yen_and_decimal_amounts_get_the_caption(text):
     """Security round 5: more amounts get the caption."""
     from views.chat import _MONEY

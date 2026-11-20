@@ -74,6 +74,8 @@ TOOLS_ALWAYS_REVIEWED: frozenset[str] = frozenset({"check_budget"})
 # results under the answer (never from the model's text).
 CALCULATION_TOOLS: frozenset[str] = frozenset({"compare_train_tickets", "check_budget"})
 MAX_USER_MESSAGE_CHARS = 1000
+# Limit for the parent's reason and edits in the approval panel (keeps every check fast).
+MAX_DECISION_CHARS = 5000
 # Conversations are deleted from server memory after this much idle time (LEGAL_COMPLIANCE 2.7).
 CONVERSATION_RETENTION_SECONDS = 2 * 60 * 60
 # A background cleaner enforces both retention limits this often, even when nobody uses the app.

@@ -58,7 +58,9 @@ talking to an AI assistant, and every answer is labelled as AI-generated.
 - Children are described only as "Child 1", "Child 2" with an age group; the app never asks for
   names, exact ages or health information. A simple check tries to stop messages that contain
   them, or contact details, before anything is sent; it cannot catch every wording, so please
-  leave them out yourself.
+  leave them out yourself. The app does not handle questions about a child's development or about
+  accessibility needs (e.g. wheelchair access): please check accessibility on the venue's
+  official website.
 - **AI model ({config.AI_PROVIDER_NAME}; model and embedding providers possibly outside the EU,
   e.g. in the US or Asia):** receives your question, the country and city, the children's age
   groups and, when trip planning is on, the budget, the number of adults, Deutschlandticket

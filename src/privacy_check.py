@@ -117,24 +117,78 @@ HEALTH_TERMS: tuple[str, ...] = (
     "~kopfweh",
     "~entzündung*",
     "heuschnupfen",
-    "impf*",
     "~impfung*",
     "~impftermin*",
     "läuse",
     "physio*",
-    "verletzt*",
-    "flu",
     "cough*",
-    "has a cold",
     "caught a cold",
+    "got a cold",
     "chickenpox",
+    "headache*",
+    "stomach ache*",
+    "stomachache*",
+    "earache*",
+    "toothache*",
+    "sore throat",
+    "covid*",
+    "corona",
+    "~schnupfen",
+    "~halsweh",
+    "~ohrenweh",
+    "~zahnweh",
+    "mumps",
+    "röteln",
+    "bronchitis",
+    "~ausschlag",
+    "rash",
+    "nause*",
+    "übelkeit",
+    "ist übel",
+    "verletzung",
+    "injury",
+    "bein gebrochen",
+    "arm gebrochen",
+    "erbroch*",
+    "nosebleed*",
+    "throw up",
+    "influenza",
+    "ear infection",
+    "strep throat",
+    "stomach bug",
+    # Accessibility needs (owner decision 2026-11-20: handled like health data)
+    "~barrierefrei*",
+    "~behindertengerecht*",
+    "~rollstuhlgerecht*",
+    "accessibility",
+    "wheelchair accessible",
+    "disabled access",
+    "step-free",
+    "stufenlos*",
+    # Development statements (owner decision 2026-11-20: blocked, not only left to the prompt)
+    "development*",
+    "developmental*",
+    "developing slowly",
+    "late talker",
+    "slow learner",
+    "behind her peers",
+    "behind his peers",
+    "behind their peers",
+    "behind in development",
+    "behind in school",
+    "behind in speech",
+    "~entwicklung*",
+    "zurückgeblieben",
+    "~lernschwäch*",
+    "~sprachstörung*",
+    "~förderschul*",
+    "phát triển",
     "measles",
     "diarrh*",
     "vomit*",
     "migraine*",
-    "vaccin*",
-    "injured",
     "lice",
+    "sốt",
     "bị sốt",
     "bị ho",
     "bị cảm",
@@ -194,7 +248,7 @@ HEALTH_TERMS: tuple[str, ...] = (
     "khiếm thị",
 )
 # Without accents these are other common words ("ôm" hug), so they match only with accents.
-_ACCENT_ONLY = frozenset({"ốm", "bị sốt", "bị ho", "bị cảm"})
+_ACCENT_ONLY = frozenset({"ốm", "sốt", "bị sốt", "bị ho", "bị cảm", "phát triển"})
 # Phrases a regex states better than a word list ("is sick", but not "sick of the rain").
 _HEALTH_EXTRA = (
     r"(?:(?<!\w)(?:is|are|got|feels?|feeling|was|has\s+been|gets?|getting|being)|'s)\s+sick"
@@ -203,8 +257,21 @@ _HEALTH_EXTRA = (
     # Any doctor, also in compounds (Ohrenarzt, Frauenärztin); not "Schwarztee", the Harz
     # ("Harztour"), "Märztage" or the vet ("Tierarzt werden", a common child's wish).
     r"(?<!schw)(?<!tier)(?<!\bh)(?<!\bm)(?<!\bqu)(?:arzt|ärzt|aerzt)",
-    r"(?<!\w)(?:doctor(?!\s+who)|(?:zahn|augen|kinder|haus|frauen|ohren)?doktor(?!fisch)|hno|"
-    r"pa?ediatrician|dentist|zahnklinik)\w*",
+    r"(?<!\w)(?:doctor(?!\s+who\s+(?:exhibition|experience|ausstellung|museum|show|tour|shop|"
+    r"event|themed)\b)(?!\s+dolittle)|(?:zahn|augen|kinder|haus|frauen|ohren)?doktor(?!fisch)|"
+    r"hno|pa?ediatrician|dentist|zahnklinik)\w*",
+    # Injuries and a cold with a person as subject; "damit sich keiner verletzt", "nobody gets
+    # injured" or "a cold plunge" are no health data.
+    r"(?<!\w)(?:er|sie|ich|sohn|tochter|kind|max|lena)\s+(?:hat|ist)\s+(?:sich\s+)?"
+    r"(?:\w+\s+){0,3}verletzt\w*",
+    r"(?<!\w)(?:he|she|son|daughter|child|kid|i)\s+(?:is|was|got|has\s+been|'s|were)\s+"
+    r"(?:badly\s+|slightly\s+)?(?:injured|hurt)(?!\w)",
+    r"(?<!\w)(?:hurt|injured|broke)\s+(?:his|her|their|my)\s+\w+",
+    r"(?<!\w)(?:he|she|son|daughter|child|kid|i)\s+(?:has|'s|got|have)\s+(?:got\s+)?"
+    r"(?:a\s+)?(?:bad\s+|heavy\s+)?(?:cold|flu)(?!\w)",
+    r"(?<!\w)(?:the\s+)?flu(?!\s+(?:season|outbreak|wave|shot\s+clinic)\b)(?!\w)",
+    # Vaccination of the child, not the rules ("Impfpass", "vaccine passport", "Impfpflicht").
+    r"(?<!\w)(?:impf(?!pass|pflicht|nachweis)\w*|vaccin(?!e\s+passport)\w*)",
 )
 
 # Cyrillic, Greek and other letters that look like Latin ones, and small capitals.
@@ -287,7 +354,8 @@ _HEALTH_PLAIN = re.compile(
 )
 # name@host.tld, also "name (at) host.tld"; "Zoo @ 10.30" is not an address.
 _EMAIL = re.compile(
-    r"[\w.+-]+(?:@|\s*\(at\)\s*|\s*\[at\]\s*)[\w-]+(?:\.[\w-]+)*\.[^\W\d_]{2,}(?!\w)",
+    # The lookbehind anchors the start, so a long run of letters is not re-scanned (no slow-down).
+    r"(?<![\w.+-])[\w.+-]+(?:@|\s*\(at\)\s*|\s*\[at\]\s*)[\w-]+(?:\.[\w-]+)*\.[^\W\d_]{2,}(?!\w)",
     re.IGNORECASE,
 )
 # International (+49 ..., 0049 ...) or national (030 1234567, 030 123 45 67) phone numbers; a
@@ -304,6 +372,9 @@ _NOT_NAMES = (
     r"januar|februar|märz|mai|juni|juli|oktober|dezember|"
     r"easter|christmas|halloween|xmas|ostern|weihnacht\w*|pfingst\w*|silvester|karneval|fasching|"
     r"next|last|this|year|nächste\w*|letzte\w*|münchen|köln|nürnberg|düsseldorf|"
+    r"thanksgiving|memorial|labou?r|bank|boxing|spring|summer|winter|autumn|fall|half|"
+    r"mother'?s|mothers|father'?s|fathers|independence|presidents?|valentine\w*|new|trick|"
+    r"veterans|easter\w*|"
     + "|".join(re.escape(c.casefold()) for cities in config.CITIES.values() for c in cities)
 )
 # Words with a count in brackets that are no person: "Adults (2)", "Tickets (2)", "Pizza (3)".
@@ -340,18 +411,33 @@ _CHILD_NOUN = r"(?i:sohn|tochter|kind|junge|kleine[rnm]?)"
 # After a preposition the pronoun must fit the child ("für meinen Sohn Max, der", "mit meiner
 # Tochter Lena, die"), and for a daughter the word must not look plural ("Events, die", "Kurse,
 # die"), so "für mein Kind Tipps, die" or "für meinen Sohn Workshops, die" pass.
+# Nouns ending like these are no names ("Ferienbetreuung, die", "Schwimmunterricht, der").
+_NOUN_ENDINGS_F = (
+    "".join(
+        f"(?<!{e})"
+        for e in ("e", "es", "er", "s", "n", "ung", "heit", "keit", "schaft", "ion", "tät")
+    )
+    + "(?<!ik)(?<!ur)"
+)
+_NOUN_ENDINGS_M = "(?<!richt)(?<!sport)(?<!kurs)(?<!s)"
 _PREPOSITION_RELATIVE = (
-    rf"{_POSSESSIVE}[ \t]+(?:(?i:sohn|junge|kleiner)[ \t]+{_CAPITAL_WORD}"
-    r"(?=[ \t]*,[ \t]*der\b)"
-    rf"|(?i:tochter|kleine)[ \t]+{_CAPITAL_WORD}(?<!e)(?<!en)(?<!es)(?<!er)(?<!s)(?<!n)"
-    r"(?=[ \t]*,[ \t]*die\b))"
+    rf"{_POSSESSIVE}[ \t]+(?:(?i:sohn|junge|jungen|kleiner|kleinen|kleinem)[ \t]+{_CAPITAL_WORD}"
+    rf"{_NOUN_ENDINGS_M}(?=[ \t]*,[ \t]*der\b)"
+    rf"|(?i:tochter|kleine)[ \t]+{_CAPITAL_WORD}{_NOUN_ENDINGS_F}(?=[ \t]*,[ \t]*die\b)"
+    # "mit meinem Kind Paul, der …" / "für mein Kind Lena, die …"; ", das" is left out because
+    # neuter nouns look the same ("für mein Kind Spielzeug, das …").
+    rf"|(?i:kind)[ \t]+{_CAPITAL_WORD}{_NOUN_ENDINGS_M}(?=[ \t]*,[ \t]*der\b)"
+    rf"|(?i:kind)[ \t]+{_CAPITAL_WORD}{_NOUN_ENDINGS_F}(?=[ \t]*,[ \t]*die\b))"
 )
 _NAME = re.compile(
     rf"(?<!\w)(?:(?i:{_CHILD_WORDS})[ \t]+(?:(?i:is|ist)[ \t]+)?"
     r"(?i:named|called|heißt|heisst|namens|tên là|tên)[ \t]+[^\W\d_]+"
     rf"|(?i:{_CHILD_WORDS})'s[ \t]+(?i:name)[ \t]+(?i:is)[ \t]+[^\W\d_]+"
     rf"|(?i:my|our)[ \t]+(?i:son|daughter|child|kid|boy|girl|baby)[ \t]+{_CAPITAL_WORD}"
-    rf"|(?i:my|our)[ \t]+(?i:kids|children|sons|daughters|twins)[ \t]+{_CAPITAL_WORD}"
+    rf"|(?i:my|our)[ \t]+(?:(?i:two|three|four|2|3|4)[ \t]+)?"
+    rf"(?i:kids|children|sons|daughters|twins|son|daughter|boy|girl)[ \t]*,?[ \t]+{_CAPITAL_WORD}"
+    rf"|{_POSSESSIVE}[ \t]+(?:(?i:zwei|drei|beiden)[ \t]+)?(?i:kinder|zwillinge|söhne|töchter)"
+    rf"[ \t]+{_CAPITAL_WORD}[ \t]+(?:und|&|and)[ \t]+{_CAPITAL_WORD}"
     rf"|{_NOT_AFTER}{_POSSESSIVE}[ \t]+{_CHILD_NOUN}[ \t]+{_CAPITAL_WORD}"
     rf"(?:{_PERSON_VERB}|{_RELATIVE_CLAUSE})"
     rf"|{_PREPOSITION_RELATIVE}"
@@ -389,7 +475,10 @@ _NOT_A_CHILD = (
     r"entry|admission|ticket|tickets|budget|price|total|it|this|that|there|today|tomorrow|"
     r"weather|temperature|parking|eintritt|preis|wetter|es|das|der|die|zug|bus|start|lunch|"
     r"limit|bedtime|naptime|dinner|breakfast|kickoff|abfahrt|ankunft|treffpunkt|beginn|einlass|"
-    r"mittagessen|abendessen|frühstück|gleis|platform|membership|mitgliedschaft|legoland"
+    r"mittagessen|abendessen|frühstück|gleis|platform|membership|mitgliedschaft|legoland|"
+    r"sunset|sunrise|pickup|dropoff|checkout|checkin|showtime|storytime|opening|closing|feeding|"
+    r"vorstellung|fütterung|öffnung|sonnenuntergang|abholung|rückfahrt|rückweg|heimfahrt|"
+    r"return|departure|arrival"
 )
 # Words before a number that still give an exact age: "Lena is only 7", "Lena ist erst 7".
 _AGE_ADVERB = (
@@ -409,8 +498,9 @@ _CHILD_AGE = (
 )
 _PHRASE_END = (
     r"(?!\s+and\s+a\s+half\s+(?:hours?|hrs?|minutes?|mins?|days?|weeks?|miles?|km)\b)"
-    r"(?=\s*(?:$|[.,;!?)(\-–]|(?:and|und|và|now|jetzt|schon|already|years?|jahre|geworden|im|"
-    r"in|next|nächste\w*|but|aber|so|soon|bald|this\s+year|dieses\s+jahr|too)\b))"
+    r"(?=\s*(?:$|[.,;!?)(\-–]|:(?!\d)|(?:and|und|và|now|jetzt|schon|already|years?|jahre|"
+    r"geworden|im|in|next|nächste\w*|but|aber|so|soon|bald|"
+    r"this\s+(?:year|summer|winter|spring|autumn|fall|month|week)|dieses\s+jahr|too|auch)\b))"
 )
 _NO_ARTICLE = "".join(
     rf"(?<!\b{w} )" for w in "der die das den dem the a an für for ein eine".split()
@@ -564,7 +654,7 @@ _NOT_PLACE_WORDS = frozenset(
         "regeln instructions policy previous earlier above orders system prompt "
         "monate monaten months wochen weeks jahren kleinkind kleinkinder schulkinder "
         "grundschüler grundschueler zwilling enkel enkelin enkelkind enkelkinder kindern "
-        "jährig jaehrig yrs yr mo"
+        "jährig jaehrig jährige jährigen jaehrige jaehrigen yrs yr yo mo sick ill"
     ).split()
 )
 # "Seven Berlin" is an age before a city, not a town ("Seven Sisters").

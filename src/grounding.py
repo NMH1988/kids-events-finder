@@ -60,11 +60,14 @@ _WORD_ESCAPE = re.compile(r"(?<=[\w@.+\-])\\([.\-_+])(?=[\w@.+\-\\])")
 # Escapes resolved before the URL passes; every other escape (e.g. \| or \#) is kept as written.
 _URL_ESCAPES = frozenset("\\[]<>$`~@&:/")
 _SPECIAL = re.compile(r"([\\\[\]<>$`~@&])")
-_EMAIL = re.compile(r"([\w.+-]+)@([\w-]+(?:\.[\w-]+)+)")
+# The lookbehind anchors the start, so long runs of letters are not re-scanned (no slow-down).
+_EMAIL = re.compile(r"(?<![\w.+-])([\w.+-]+)@([\w-]+(?:\.[\w-]+)+)")
 # A domain-like word (paypal.com, zoo．de) or a scheme; abbreviations like "z.B." or "St. Pauli"
 # are not addresses.
 _ADDRESS = re.compile(
-    r"[\w-]+[.．。｡﹒․‧·⸱]+[^\W\d_]{2,}|\d{1,3}(?:[.．。｡﹒․‧·⸱]\d{1,3}){3}|://", re.IGNORECASE
+    # The lookbehinds anchor the start, so long runs of letters are not re-scanned (no slow-down).
+    r"(?<![\w-])[\w-]+[.．。｡﹒․‧·⸱]+[^\W\d_]{2,}|(?<!\d)\d{1,3}(?:[.．。｡﹒․‧·⸱]\d{1,3}){3}|://",
+    re.IGNORECASE,
 )
 # Zero-width joiner stays (it builds emoji such as family emoji); every other invisible format
 # character (zero-width space, soft hyphen, word joiner, BOM ...) is removed before matching.
@@ -98,8 +101,8 @@ _SPACED_DOMAIN = re.compile(
     r"|[A-Za-z0-9]\s*\.\s*[A-Z]{2,6}(?![A-Za-z])"
     # A short lower-case ending after a dot with spaces, at the end of the label ("evil . top");
     # not after abbreviations ("incl. tax", "vs. kids").
-    r"|(?<![\w.])(?!(?:incl|inkl|ca|vs|bzw|nr|ggf|evtl|etc)\b)[a-z0-9]+\s*\.\s+[a-z]{2,4}"
-    r"(?=\s*(?:$|/))"
+    r"|(?<![\w.])(?!(?i:incl|inkl|ca|vs|bzw|nr|ggf|evtl|etc)\b)[A-Za-z0-9]+\s*\.\s+[a-z]{2,4}"
+    r"(?=\s*[.!?)]*\s*(?:$|/))"
 )
 # An e-mail-like "@" (a word character on both sides) once escapes are resolved.
 _MAIL_AT = re.compile(r"[\w.+-]@[\w-]")
