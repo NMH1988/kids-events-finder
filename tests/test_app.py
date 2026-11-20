@@ -41,6 +41,8 @@ def test_children_are_age_groups_and_trip_settings_are_germany_only():
 
 def _budget_page():
     """Render only the budget editor of the approval panel and keep its result."""
+    from types import SimpleNamespace
+
     import streamlit as st
 
     from views.chat import _budget_editor
@@ -52,16 +54,70 @@ def _budget_page():
             "items": [{"label": "Train", "amount_eur": 34}, {"label": "Zoo entry"}],
         },
     }
-    st.session_state["edited"] = _budget_editor(call)
+    settings = SimpleNamespace(
+        trip={"budget_eur": 120, "adults": 2, "deutschlandticket_holders": 0}
+    )
+    st.session_state["edited"] = _budget_editor(call, settings)
 
 
 def test_budget_editor_keeps_unknown_amounts_empty():
-    """The parent sees the agent's items; empty amounts stay None instead of a guess."""
+    """Empty amounts stay None; the budget comes from the trip settings, not the model."""
     at = AppTest.from_function(_budget_page, default_timeout=30).run()
     assert not at.exception
     edited = at.session_state["edited"]
-    assert edited["budget_eur"] == 80.0
+    assert edited["budget_eur"] == 120.0
     assert edited["items"][0]["amount_eur"] == 34.0 and edited["items"][1]["amount_eur"] is None
+
+
+def _calculations_page():
+    """Render an answer's calculation box, attributions and AI label parts."""
+    import streamlit as st
+
+    from views.chat import AI_LABEL, _render_attributions, _render_calculations
+
+    st.caption(AI_LABEL)
+    message = {
+        "tools": [{"name": "get_weather_forecast", "args": {}}],
+        "calculations": {
+            "compare_train_tickets": {
+                "options": [
+                    {"label": "One Bayern-Ticket", "total_eur": 44.0, "checked_on": "2026-11-19"}
+                ],
+                "warnings": [],
+            },
+            "check_budget": {
+                "budget_eur": 100.0,
+                "items": [{"label": "Train", "amount_eur": 44.0}, {"label": "Zoo"}],
+                "known_total_eur": 44.0,
+                "remaining_eur": 56.0,
+                "unknown_items": ["Zoo"],
+            },
+        },
+    }
+    _render_calculations(message)
+    _render_attributions(message)
+
+
+def test_money_and_sources_are_shown_by_the_app():
+    """Ticket and budget figures come from the tool results; the source credit is set in code."""
+    at = AppTest.from_function(_calculations_page, default_timeout=30).run()
+    assert not at.exception
+    assert len(at.dataframe) == 2
+    assert any("56.00 EUR left" in t.value and "Zoo" in t.value for t in at.text)
+    assert any("Open-Meteo" in c.value for c in at.caption)
+    assert any("AI-generated" in c.value for c in at.caption)
+
+
+def test_privacy_warning_for_the_parents_own_text_in_the_approval_panel():
+    """A reject reason or an edited budget note with health data is not sent."""
+    from views.chat import sensitive_text_in
+
+    assert sensitive_text_in({"action": "reject", "feedback": "my son has asthma"})
+    edit = {"action": "edit", "tool_calls": [{"id": "1", "args": {"items": [{"label": "Arzt"}]}}]}
+    assert sensitive_text_in(edit)
+    fine = {"action": "edit", "tool_calls": [{"id": "1", "args": {"city": "Halle (Saale)"}}]}
+    assert sensitive_text_in(fine) is None
+    assert sensitive_text_in({"action": "reject", "feedback": "only indoor places"}) is None
 
 
 def test_idle_conversations_are_deleted_from_server_memory(monkeypatch):

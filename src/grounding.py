@@ -41,8 +41,9 @@ _INLINE = re.compile(
 )
 _AUTOLINK = re.compile(r"<([a-zA-Z][a-zA-Z0-9+.-]*:[^\s<>]*|www\.[^\s<>]*)>")
 # A URL-like run up to the next space or "<": a scheme, a protocol-relative host or "www.".
+# "www." after a letter or digit ("Awww.") is not an autolink for the renderer, so it is left alone.
 _BARE = re.compile(
-    r"(?:https?:|(?<![\w:/])//(?=[\w-]+\.)|www\.)[^\s<]*",
+    r"(?:https?:|(?<![\w:/])//(?=[\w-]+\.)|(?<![^\W_])www\.)[^\s<]*",
     re.IGNORECASE,
 )
 # Trailing characters the renderer's autolink rule leaves out of a link.
@@ -63,11 +64,17 @@ _EMAIL = re.compile(r"([\w.+-]+)@([\w-]+(?:\.[\w-]+)+)")
 # A domain-like word (paypal.com, zoo．de) or a scheme; abbreviations like "z.B." or "St. Pauli"
 # are not addresses.
 _ADDRESS = re.compile(
-    r"[\w-]+[.．。｡﹒․·⸱]+[^\W\d_]{2,}|\d{1,3}(?:[.．。｡﹒․·⸱]\d{1,3}){3}|://", re.IGNORECASE
+    r"[\w-]+[.．。｡﹒․‧·⸱]+[^\W\d_]{2,}|\d{1,3}(?:[.．。｡﹒․‧·⸱]\d{1,3}){3}|://", re.IGNORECASE
 )
 # Zero-width joiner stays (it builds emoji such as family emoji); every other invisible format
 # character (zero-width space, soft hyphen, word joiner, BOM ...) is removed before matching.
 _KEEP_FORMAT = frozenset("‍")
+# Tag characters build subdivision flags (England, Scotland, Wales) after the black flag U+1F3F4;
+# they are kept only there.
+_BLACK_FLAG = "\U0001f3f4"
+_TAG_CHARS = range(0xE0020, 0xE0080)
+# An e-mail-like "@" (a word character on both sides) once escapes are resolved.
+_MAIL_AT = re.compile(r"[\w.+-]@[\w-]")
 _PLACEHOLDER = "\x00{}\x00"
 _KEPT_ESCAPE = "\x01{}\x01"
 
@@ -129,9 +136,17 @@ def _normalise(url: str) -> str:
 
 
 def _strip_invisible(text: str) -> str:
-    """Remove control characters and invisible format characters (except the emoji joiner)."""
+    """Remove control characters and invisible format characters (except emoji building blocks)."""
     text = _CONTROL.sub("", text)
-    return "".join(ch for ch in text if ch in _KEEP_FORMAT or unicodedata.category(ch) != "Cf")
+    out: list[str] = []
+    for ch in text:
+        if ord(ch) in _TAG_CHARS:
+            # Part of a flag only right after the black flag or another tag character.
+            if out and (out[-1] == _BLACK_FLAG or ord(out[-1]) in _TAG_CHARS):
+                out.append(ch)
+        elif ch in _KEEP_FORMAT or unicodedata.category(ch) != "Cf":
+            out.append(ch)
+    return "".join(out)
 
 
 def _decode(text: str, kept_escapes: list[str] | None = None) -> str:
@@ -169,6 +184,12 @@ def _escape(text: str) -> str:
 def _label(text: str, url: str) -> str:
     """Return safe link text; text that looks like an address is replaced by the link's host."""
     text = _SPECIAL.sub("", _ESCAPED.sub(r"\1", _strip_invisible(text))).replace("!", "").strip()
+    # Link text needs no joiners, tag characters or combining marks: they can only disguise it.
+    text = "".join(
+        ch
+        for ch in text
+        if ch not in _KEEP_FORMAT and ord(ch) not in _TAG_CHARS and unicodedata.category(ch) != "Mn"
+    ).strip()
     if not text or _BARE.search(text) or _ADDRESS.search(text):
         return urlsplit(url).netloc.lower().removeprefix("www.") or "link"
     return text
@@ -200,7 +221,7 @@ def enforce_grounding(answer: str, allowed: set[str]) -> tuple[str, GroundingRep
 def _leftover_address(text: str) -> bool:
     """Return True when text (verified links already hidden) still reads as an address."""
     plain = _strip_invisible(_ESCAPED.sub(r"\1", text))
-    return bool(_BARE.search(plain) or "@" in plain)
+    return bool(_BARE.search(plain) or _MAIL_AT.search(plain))
 
 
 def _clean(
@@ -253,7 +274,12 @@ def _clean(
     cleaned = _AUTOLINK.sub(replace_autolink, cleaned)
     cleaned = _BARE.sub(replace_bare, cleaned)
     # The renderer turns name@host into a mail link even when "@" is escaped, so it is reworded.
-    cleaned = _EMAIL.sub(r"\1 (at) \2", cleaned)
+    # Repeated until stable: overlapping addresses (a@b.de@c.de) leave a new one after one pass.
+    for _ in range(10):
+        reworded = _EMAIL.sub(r"\1 (at) \2", cleaned)
+        if reworded == cleaned:
+            break
+        cleaned = reworded
     cleaned = _escape(cleaned)
     for i, escape in enumerate(kept_escapes):
         cleaned = cleaned.replace(_KEPT_ESCAPE.format(i), escape)

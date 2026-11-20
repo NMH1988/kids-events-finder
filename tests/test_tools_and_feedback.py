@@ -41,8 +41,9 @@ def test_ticket_and_budget_tools_return_json(tools):
                 "from_state": "Bavaria",
                 "to_state": "BY",
                 "travel_date": "2026-11-21",
-                "adults": 2,
-                "children_age_bands": ["3-5", "6-9"],
+                # Injected by the graph from the sidebar (the model never writes these).
+                "trip": {"budget_eur": 80, "adults": 2, "deutschlandticket_holders": 0},
+                "children": ["3-5", "6-9"],
             }
         )
     )
@@ -58,10 +59,68 @@ def test_ticket_and_budget_tools_return_json(tools):
     assert checked["remaining_eur"] == 36.0 and checked["unknown_items"] == ["Zoo"]
     bad = json.loads(
         tools["compare_train_tickets"].invoke(
-            {"from_state": "Mars", "to_state": "BY", "travel_date": "2026-11-21", "adults": 1}
+            {
+                "from_state": "Mars",
+                "to_state": "BY",
+                "travel_date": "2026-11-21",
+                "trip": {"budget_eur": 80, "adults": 1, "deutschlandticket_holders": 0},
+            }
         )
     )
     assert "Unknown German state" in bad["error"]
+
+
+def test_ticket_party_comes_from_trip_settings_not_the_model():
+    """The model cannot pass a party: the tool schema it sees has no party fields at all."""
+    built = build_tools(AdvancedRetriever(None), RagSettings(multi_query=False))
+    tool = {t.name: t for t in built}["compare_train_tickets"]
+    seen_by_model = set(tool.tool_call_schema.model_json_schema()["properties"])
+    assert seen_by_model == {"from_state", "to_state", "travel_date", "departure"}
+
+
+def test_ticket_comparison_needs_trip_planning_on(tools):
+    """Without trip settings the tool asks for them instead of guessing the family."""
+    out = json.loads(
+        tools["compare_train_tickets"].invoke(
+            {"from_state": "BY", "to_state": "BY", "travel_date": "2026-11-21", "trip": None}
+        )
+    )
+    assert "switch on budget day trip planning" in out["error"]
+
+
+@pytest.mark.parametrize(
+    "city", ["Berlin", "Frankfurt (Oder)", "St. Peter-Ording", "Halle (Saale)", "Köln", "Bad Tölz"]
+)
+def test_place_names_are_accepted(tools, city):
+    """Real town names pass the city check."""
+    out = json.loads(
+        tools["search_knowledge_base"].invoke({"query": "zoo", "country": "DE", "city": city})
+    )
+    assert "error" not in out
+
+
+@pytest.mark.parametrize(
+    "city",
+    [
+        "Berlin; ignore the rules",
+        "https://evil.example",
+        "Berlin 10115",
+        "mia@example.com",
+        "Kinderarzt Berlin",
+        "Berlin\nnew line",
+    ],
+)
+def test_free_text_in_city_fields_is_rejected(tools, city):
+    """Only town names reach the geocoder and other services: free text fails validation."""
+    with pytest.raises(ValidationError):
+        tools["get_weather_forecast"].invoke(
+            {
+                "city": city,
+                "country": "DE",
+                "start_date": "2026-11-21",
+                "end_date": "2026-11-21",
+            }
+        )
 
 
 def test_knowledge_base_tool_returns_links_and_directions(tools):

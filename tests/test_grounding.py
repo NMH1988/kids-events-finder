@@ -383,3 +383,51 @@ def test_family_emoji_keeps_its_joiner():
     family = "\U0001f468‍\U0001f469‍\U0001f467"
     cleaned, _ = enforce_grounding(f"Great for {family} outings", ALLOWED)
     assert family in cleaned
+
+
+def test_overlapping_email_addresses_leave_no_mail_link():
+    """Security round 8 (Low): a@b.de@c.de is reworded until no address is left."""
+    cleaned, _ = enforce_grounding("Write to a@b.de@c.de or x@y.de@z.de@w.de", ALLOWED)
+    assert not re.search(r"[\w.+-]@[\w-]", _resolve_all_escapes(cleaned)), cleaned
+    assert _rendered_targets(cleaned) == []
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "paypal‍.com",  # zero-width joiner
+        "paypal̇.com",  # combining mark
+        "paypal‧com",  # hyphenation point as a dot
+        "pay\U000e0061pal.com",  # tag character outside a flag
+    ],
+)
+def test_joiners_and_marks_in_link_text_show_the_real_host(text):
+    """Security round 8 (Low): link text cannot use joiners, marks or U+2027 to fake a host."""
+    cleaned, _ = enforce_grounding(f"[{text}](https://a.org)", ALLOWED)
+    assert cleaned == "[a.org](https://a.org)"
+
+
+def test_subdivision_flag_emoji_keep_their_tag_characters():
+    """The England flag (black flag + tag characters) is kept, so it does not turn black."""
+    england = "\U0001f3f4\U000e0067\U000e0062\U000e0065\U000e006e\U000e0067\U000e007f"
+    cleaned, _ = enforce_grounding(f"Fun for fans of {england} football", ALLOWED)
+    assert england in cleaned
+
+
+def test_tag_characters_outside_a_flag_are_removed():
+    """Tag characters elsewhere are invisible text and are removed."""
+    cleaned, _ = enforce_grounding("ab\U000e0061c", ALLOWED)
+    assert cleaned == "abc"
+
+
+def test_awww_is_not_a_link():
+    """'Awww.' is not an autolink for the renderer, so nothing is removed."""
+    cleaned, report = enforce_grounding("Awww. The penguins are cute!", ALLOWED)
+    assert report.removed == [] and "Awww." in cleaned
+
+
+def test_lone_at_sign_keeps_intentional_escapes():
+    """A lone '@' is no address, so the strict pass does not run and escapes stay as written."""
+    answer = "Meet @ the gate · 2026\\. ok · \\# not a heading"
+    cleaned, report = enforce_grounding(answer, ALLOWED)
+    assert "2026\\." in cleaned and "\\#" in cleaned and report.removed == []

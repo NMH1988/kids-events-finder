@@ -33,8 +33,10 @@ The users are parents, but the app handles data about children, who are speciall
 - **1.4 No health data, ever (Art. 9 GDPR).** The app never asks for, stores, infers or comments on
   health, illness, disability, diagnoses, therapy or development. Concretely:
   - no input field about health;
-  - a keyword check blocks chat messages that mention health topics (e.g. ADHD, Autismus,
+  - a keyword check (`src/privacy_check.py`, English, German, Vietnamese) blocks chat messages and
+    the parent's text in the approval panel that mention health topics (e.g. ADHD, Autismus,
     Diagnose, Krankheit, therapy) and asks the parent to remove that part before anything is sent;
+    blocked text is not stored, not even on the page;
   - the system prompt forbids asking about, repeating or inferring health information;
   - medical and therapy places (paediatricians, Ergotherapie, Logopädie, Frühförderung) are not in
     the knowledge base or the OpenStreetMap categories.
@@ -70,8 +72,11 @@ The users are parents, but the app handles data about children, who are speciall
   providers that may be in the US. Before public launch: confirm the transfer basis (DPA, SCCs or
   Data Privacy Framework), enable zero data retention routing if the plan allows, and name the
   providers in the privacy policy.
-- **2.6 Personal details in free text.** Before a chat message leaves the app, obvious personal data
-  (emails, phone numbers, "my son X") is detected and the parent is asked to remove it.
+- **2.6 Personal details in free text.** Before a chat message, a budget note or a reason for
+  rejecting a step leaves the app, obvious personal data (e-mails, phone numbers, street addresses,
+  names such as "my son X", exact ages such as "7 years old") is detected by `src/privacy_check.py`
+  and the parent is asked to remove it. Town and city fields of tools accept only place names
+  (`check_place_name`), so no free text reaches the geocoder or other outside services.
 - **2.7 Retention.** Conversations are deleted from the server when the parent starts a new one and
   automatically after 2 hours without use (`CONVERSATION_RETENTION_SECONDS`, enforced by a
   background cleaner every `CLEANUP_INTERVAL_SECONDS`, also when nobody uses the app); feedback is deleted after 90 days and stores the question text
@@ -81,6 +86,12 @@ The users are parents, but the app handles data about children, who are speciall
   server) without contacting support.
 - **2.9 Security.** Keys only through `config.get_secret()`, never logged or shown; HTTPS only;
   invite codes and rate limits protect the deployed app.
+- **2.10 No tracing, quiet logs.** No LangSmith or other third-party tracing, observability or
+  error-reporting service (they would receive messages, age groups and trip settings): the tracing
+  switches in `config.TRACING_ENV_OFF` are forced off in `src/llm.py`. Libraries that log request
+  bodies at DEBUG (`config.QUIET_LOGGERS`) are capped at `config.LOG_LEVEL` (INFO). The app's own
+  logs hold only event names and error types. Adding any such service is an owner decision that
+  updates the processor register first.
 
 ## 3. Device storage and tracking (TDDDG § 25)
 - **3.1 No trackers.** No analytics, advertising pixels, fingerprinting or third-party tracking
@@ -92,11 +103,18 @@ The users are parents, but the app handles data about children, who are speciall
 
 ## 4. AI rules (EU AI Act)
 - **4.1 Disclosure (Art. 50, in force since 2 August 2026).** The chat clearly says the parent is
-  talking to an AI, and answers are labelled as AI-generated.
+  talking to an AI (notice above the chat), every answer is labelled "AI-generated" and carries a
+  machine-readable marker (a hidden element with `data-ai-generated="true"`), and the About page
+  says so.
 - **4.2 No manipulation (Art. 5).** No techniques that exploit the vulnerability of children or
-  pressure parents (no fake urgency, no dark patterns).
+  pressure parents (no fake urgency, no dark patterns). The system prompt forbids urgency and
+  scarcity claims and claims about a child's development (5.5); red-team cases in
+  `data/eval_questions.json` check both.
 - **4.3 Grounding.** The AI recommends only places, events, times and links returned by tools; the
-  grounding check removes any other link. Money is calculated in code, never by the model.
+  grounding check removes any other link. Money is calculated in code, never by the model: the
+  family for the ticket comparison is taken from the app's settings (the model cannot pass it), and
+  the ticket and budget figures are shown under the answer from the tool results, not from the
+  model's text.
 
 ## 5. Advertising, affiliate links and ranking (UWG)
 Affiliate links are **off** in the Capstone version. Before they are switched on:
@@ -107,7 +125,7 @@ Affiliate links are **off** in the Capstone version. Before they are switched on
   when the final answer is displayed. Free places stay in the results. No paid placement unless it
   is clearly marked as an ad.
 - **5.3 Publish the main ranking parameters** (country, city, age, indoor/outdoor, relevance to the
-  question, weather) on the About page.
+  question, weather) on the About page (done: "How results are ranked").
 - **5.4 No advertising aimed at children (UWG Annex No. 28).** Commercial content addresses parents
   only.
 - **5.5 No unproven claims.** No promises that the app improves a child's development or health.
@@ -121,10 +139,15 @@ Affiliate links are **off** in the Capstone version. Before they are switched on
 - **6.2 Facts are fine** (names, addresses, ticket prices as facts) but keep the source and the date
   checked (`data/fares.json`).
 - **6.3 Licences and attribution** for every data source are recorded in the data source register
-  below and shown on the About page. A new source is not used until its licence is checked and
-  recorded, including whether commercial use is allowed.
-- **6.4 Dependencies.** Only permissive licences (MIT, BSD, Apache-2.0, ISC) in shipped code; any
-  GPL/AGPL dependency needs the owner's decision.
+  below and shown on the About page; under an answer, the app itself (not the model) credits the
+  live sources it used. A new source is not used until its licence is checked and recorded,
+  including whether commercial use is allowed.
+- **6.4 Licences of everything we use.** Only permissive licences (MIT, BSD, Apache-2.0, ISC,
+  PSF, MPL-2.0 unmodified) for Python packages (runtime and dev), JavaScript libraries, fonts,
+  icons and images; AI models and embedding models are used only under terms that allow the use
+  (record them in the processor register); data sets follow 6.3. Any GPL/AGPL/SSPL, "non-commercial"
+  or unclear licence needs the owner's decision first. Check the licence when adding or upgrading a
+  dependency in `pyproject.toml`.
 - **6.5 Brand.** Before choosing a public app name, check DPMA and EUIPO for existing trademarks.
 
 ## 7. Consumer and business duties (owner, before public launch or income)
@@ -141,6 +164,10 @@ Affiliate links are **off** in the Capstone version. Before they are switched on
 - Therefore, until the owner has an AI provider account of their own with a DPA: **only synthetic
   (made-up) data** in development, demos, evaluations and tests; **no real users and no public
   deployment**. User tests with real parents use made-up questions and no real family details.
+- **Testers:** only adults (18+) who agreed beforehand (a short written note is enough) that they
+  test an AI demo, use only made-up questions, and that their feedback may be kept for 90 days;
+  no children take part, no screen or voice recordings, and testers' names are not stored with
+  their feedback.
 
 ## Before a public deployment (checklist)
 Remind the owner of this whole list whenever deployment comes up. Nothing here blocks the local
@@ -152,7 +179,8 @@ Capstone demo with synthetic data.
       Mistral. Sign the DPA, enable zero data retention, exclude providers that train on prompts.
 - [ ] Replace the Qwen embedding model (providers possibly outside the EU, e.g. China/Singapore)
       and rebuild the Chroma index.
-- [ ] Provider, base URL, model names and embedding model switchable from `src/config.py` only.
+- [x] Provider, base URL, model names and embedding model switchable from `src/config.py` only
+      (`AI_PROVIDER_NAME`, `AI_BASE_URL`, `EMBEDDING_BASE_URL`, `API_KEY_NAME`, model names).
 
 **Legal texts and contracts**
 - [ ] Impressum (name, address where legal papers can be served, email; § 5 DDG / § 18 MStV) and
@@ -164,12 +192,14 @@ Capstone demo with synthetic data.
       processors? UK GDPR if UK parents are targeted?
 
 **App features**
-- [ ] AI disclosure in the chat plus a machine-readable marker on answers (AI Act Art. 50).
-- [ ] Health / personal-data keyword check on every free-text field.
+- [x] AI disclosure in the chat plus a machine-readable marker on answers (AI Act Art. 50).
+- [x] Health / personal-data keyword check on every free-text field (chat, budget table, reject
+      reason, edited arguments); re-check the word lists with the Datenschutzberater.
 - [ ] Invite codes (hashes and counters only) and per-code daily limits.
 - [ ] Web Push: own opt-in screen, minimal payload, subscriptions deleted after the trip date.
 - [ ] Ticketmaster: family events only, drop 18+ events; privacy link in the footer.
-- [ ] Overpass: own or another instance; identifying User-Agent; caching.
+- [ ] Overpass: own or another instance; caching. (Identifying User-Agent with the repository as
+      contact: done, `config.HTTP_USER_AGENT`.)
 - [ ] Transitous: request counter (coordinate above 720 `/plan` per day).
 - [ ] Coordinates from OpenStreetMap, not Google; `place_id_checked_on` for Place IDs.
 - [ ] Re-check `data/fares.json` prices and every knowledge base entry (closed places).
@@ -190,9 +220,9 @@ Capstone demo with synthetic data.
 |---|---|---|---|---|
 | Own knowledge base | Places | Project's own text | Yes | No copied text or images |
 | `data/fares.json` | Ticket rules and prices | Facts copied by hand from bahn.de, notes in the project's own words | Yes (facts) | Keep `source_url` and `checked_on`; owner re-checks prices before each release |
-| OpenStreetMap (Overpass) | Nearby places | ODbL, attribution | Yes | Queried live, not stored |
-| Open-Meteo | Weather, geocoding | CC BY 4.0, attribution | **No on the free API** | Paid plan, or DWD / Bright Sky, before income |
-| Ticketmaster Discovery API | Family events | Ticketmaster terms | Check terms | Optional key |
+| OpenStreetMap (Overpass, overpass-api.de) | Nearby places | ODbL, attribution; Overpass usage policy (fair use, no heavy load) | Yes (data); the public server is for light use only | Queried live, not stored; identifying User-Agent with the repository as contact; attribution shown under answers by the app |
+| Open-Meteo | Weather, geocoding | CC BY 4.0, attribution | **No on the free API** | Paid plan, or DWD / Bright Sky, before income; attribution shown under answers by the app |
+| Ticketmaster Discovery API | Family events | Ticketmaster Discovery API terms (attribution, no caching beyond the terms, privacy link) | Check terms; revenue only through its affiliate programme | Optional key, read only through `config.get_secret()`; family events only; attribution shown under answers by the app |
 | Google Maps URLs, Place IDs | Directions, transit | Public URL scheme, no key | Yes | Place IDs may be stored |
 | Transitous | Train journeys (current code) | Free for open-source, non-commercial projects only | No | Owner decision 2026-11-19: the repository stays public while Transitous is used. **Must be switched off before the repository goes private or the app earns money.** Visible link to https://transitous.org/sources/ (About page); its sources' conditions apply (OSM attribution); coordinate with Transitous above 720 `/plan` requests per day; the service may stop at any time, so DELFI + MOTIS is the fallback |
 | DELFI GTFS (planned) | Timetables | CC BY 4.0 | Yes | Self-hosted MOTIS |
@@ -205,7 +235,10 @@ Capstone demo with synthetic data.
 | Chat message, country and city, children's age groups | Answer the question | Contract (Art. 6(1)(b)) | Server memory, OpenRouter → model provider | Deleted on new conversation or after 2 h idle |
 | Trip settings: budget, number of adults, Deutschlandticket holders; ticket comparison results; budget items (labels, amounts, notes typed by the parent) | Plan a budget day trip | Contract (Art. 6(1)(b)) | Server memory, OpenRouter → model provider | As above |
 | Start and destination town names → coordinates, date, time | Train journeys | Contract (Art. 6(1)(b)) | Open-Meteo geocoder, Transitous | Not stored by the app |
-| Feedback rating and technical facts (model, country, tools, grounding); question, answer and comment plus a random browser-session id only when the parent ticks "share" | Evaluation | Rating: legitimate interest (Art. 6(1)(f)); shared text: consent (Art. 6(1)(a)), withdrawable with the "Delete the questions and answers I shared" button while the page is open | Local file on the server | 90 days, then deleted automatically by the background cleaner; records saved before 2026-11-19 (no consent tick) are deleted by the owner after this change is merged |
+| Town or city name, country, place category | Nearby places | Contract (Art. 6(1)(b)) | Open-Meteo geocoder, Overpass (OpenStreetMap) | Not stored by the app; the service sees the server's IP address and User-Agent, not the parent's |
+| Town or city name, country, dates | Family events | Contract (Art. 6(1)(b)) | Ticketmaster (US) | Not stored by the app; only with the optional key |
+| Town or city name, country, dates | Weather forecast | Contract (Art. 6(1)(b)) | Open-Meteo geocoder and forecast | Not stored by the app |
+| Feedback rating and technical facts (model, country, tools, grounding); question, answer and comment plus a random browser-session id only when the parent ticks "share" | Evaluation | Rating: legitimate interest (Art. 6(1)(f)); shared text: consent (Art. 6(1)(a)), withdrawable with the "Delete the questions and answers I shared" button while the page is open | Local file on the server | 90 days, then deleted automatically by the background cleaner (no records from before the consent tick existed; checked 2026-11-20) |
 | Activity history (themes, dates) | Variety nudges | Consent; stays on the device | Phone only | Until the parent deletes it |
 | Push subscription (planned) | Trip notifications | Consent | Server | Until the trip date |
 | Invite code, request counts (planned) | Access control, cost limits | Legitimate interest (Art. 6(1)(f)) | Server | While the code is active |

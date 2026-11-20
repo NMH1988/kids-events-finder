@@ -14,9 +14,15 @@ CHROMA_DIR = ROOT / "chroma"
 CHROMA_COLLECTION = "kid_places"
 PROMPTS_DIR = Path(__file__).resolve().parent / "prompts"
 
-# --- Models (all calls go through OpenRouter's OpenAI-compatible API) ---
-OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
+# --- AI provider and models ---
+# Any OpenAI-compatible provider works: switching (e.g. to an account with a DPA and zero data
+# retention, LEGAL_COMPLIANCE "Before a public deployment") changes only these lines, the model
+# names below and the About page text that names the provider. Today: the school's OpenRouter
+# account, so synthetic data only (LEGAL_COMPLIANCE 8).
+AI_PROVIDER_NAME = "OpenRouter"
+AI_BASE_URL = "https://openrouter.ai/api/v1"
 API_KEY_NAME = "OPENROUTER_API_KEY"
+EMBEDDING_BASE_URL = AI_BASE_URL
 ALLOWED_MODELS: tuple[str, ...] = ("openai/gpt-5-mini", "openai/gpt-5-nano", "openai/gpt-5")
 DEFAULT_AGENT_MODEL = "openai/gpt-5-mini"
 # Query rewriting and reranking are simple tasks, so the cheapest model does them.
@@ -27,6 +33,22 @@ REASONING_EFFORT = "low"
 MAX_TOKENS = 4000
 LLM_TIMEOUT_SECONDS = 60
 LLM_MAX_RETRIES = 2
+# Environment switches that would send runs to LangSmith; `src/llm.py` sets them to "false".
+TRACING_ENV_OFF: tuple[str, ...] = (
+    "LANGSMITH_TRACING",
+    "LANGCHAIN_TRACING_V2",
+    "LANGCHAIN_TRACING",
+)
+# Highest log detail allowed; logs never hold message content, ages, budgets or keys (2.7, 2.10).
+LOG_LEVEL = "INFO"
+QUIET_LOGGERS: tuple[str, ...] = (
+    "openai",
+    "httpx",
+    "httpcore",
+    "urllib3",
+    "langchain",
+    "langgraph",
+)
 
 # --- Agent ---
 # LangGraph counts every node visit; this bounds one turn's agent <-> tool loop.
@@ -47,6 +69,9 @@ TOOLS_REQUIRING_APPROVAL: frozenset[str] = frozenset(
 # These pause even with auto-approve on: the parent's own amounts must replace anything the model
 # wrote, so a guessed price can never become a real total (LEGAL_COMPLIANCE 7.3).
 TOOLS_ALWAYS_REVIEWED: frozenset[str] = frozenset({"check_budget"})
+# Tools whose results are the app's own money calculations; the UI shows them from the tool
+# results under the answer (never from the model's text).
+CALCULATION_TOOLS: frozenset[str] = frozenset({"compare_train_tickets", "check_budget"})
 MAX_USER_MESSAGE_CHARS = 1000
 # Conversations are deleted from server memory after this much idle time (LEGAL_COMPLIANCE 2.7).
 CONVERSATION_RETENTION_SECONDS = 2 * 60 * 60
@@ -66,7 +91,8 @@ RERANK_CANDIDATES = 8
 
 # --- External services (no personal data is sent: only city, country, dates, categories) ---
 HTTP_TIMEOUT_SECONDS = 15
-HTTP_USER_AGENT = "kids-events-finder/0.1 (student project)"
+# Overpass, Open-Meteo and Ticketmaster ask for an identifying User-Agent with a contact.
+HTTP_USER_AGENT = "kids-events-finder/0.3 (+https://github.com/NMH1988/kids-events-finder)"
 GEOCODING_URL = "https://geocoding-api.open-meteo.com/v1/search"
 WEATHER_URL = "https://api.open-meteo.com/v1/forecast"
 OVERPASS_URL = "https://overpass-api.de/api/interpreter"
@@ -83,7 +109,7 @@ EVENTS_MAX_DAYS_AHEAD = 90
 # policy asks for a User-Agent with the app name, version and a contact; the public repository
 # is the contact.
 TRANSITOUS_PLAN_URL = "https://api.transitous.org/api/v5/plan"
-TRANSITOUS_USER_AGENT = "kids-events-finder/0.2 (+https://github.com/NMH1988/kids-events-finder)"
+TRANSITOUS_USER_AGENT = HTTP_USER_AGENT
 # Modes the Deutschlandticket and Länder-Tickets cover: no ICE, IC, night trains or coaches.
 REGIONAL_TRANSIT_MODES = ("REGIONAL_RAIL", "SUBURBAN", "SUBWAY", "TRAM", "BUS", "FERRY")
 TRAIN_MAX_RESULTS = 3

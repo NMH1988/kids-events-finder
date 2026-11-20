@@ -1,5 +1,6 @@
 """Runs one chat turn of the agent and reports whether it finished or waits for approval."""
 
+import json
 import time
 from dataclasses import dataclass, field
 from typing import Any, Literal
@@ -7,12 +8,12 @@ from typing import Any, Literal
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from langgraph.types import Command
 
-from src import config, family
+from src import config, family, privacy_check
 from src.agent.graph import message_text
 
 
 class InputRejected(ValueError):
-    """The user's message was empty or too long; no model call was made."""
+    """The user's message was empty, too long or held sensitive data; no model call was made."""
 
 
 @dataclass
@@ -26,6 +27,9 @@ class TurnResult:
     pending_tool_calls: list[dict] = field(default_factory=list)
     needs_approval: list[str] = field(default_factory=list)
     tools_used: list[dict] = field(default_factory=list)
+    # The app's own calculations in this turn (latest ticket comparison and budget check), shown
+    # by the UI from the tool results, so money never depends on the model's text.
+    calculations: dict[str, dict] = field(default_factory=dict)
     grounding: dict | None = None
     input_tokens: int = 0
     output_tokens: int = 0
@@ -41,6 +45,9 @@ def check_input(text: str) -> str:
         raise InputRejected(
             f"Please keep questions under {config.MAX_USER_MESSAGE_CHARS} characters."
         )
+    findings = privacy_check.find_sensitive(text)
+    if findings:
+        raise InputRejected(privacy_check.explain(findings))
     return text
 
 
@@ -50,6 +57,20 @@ def _run_config(thread_id: str, auto_approve: bool) -> dict:
         "configurable": {"thread_id": thread_id, "auto_approve": auto_approve},
         "recursion_limit": config.AGENT_RECURSION_LIMIT,
     }
+
+
+def calculations(messages: list) -> dict[str, dict]:
+    """Return the latest successful result of each calculation tool among the messages."""
+    found: dict[str, dict] = {}
+    for message in messages:
+        if isinstance(message, ToolMessage) and message.name in config.CALCULATION_TOOLS:
+            try:
+                data = json.loads(message.content)
+            except json.JSONDecodeError, TypeError:
+                continue
+            if isinstance(data, dict) and not data.get("error"):
+                found[message.name] = data
+    return found
 
 
 def _summarise(graph, run_config: dict, start_index: int, started: float) -> TurnResult:
@@ -69,6 +90,7 @@ def _summarise(graph, run_config: dict, start_index: int, started: float) -> Tur
         status="done",
         start_index=start_index,
         tools_used=tools_used,
+        calculations=calculations(new),
         input_tokens=sum(u.get("input_tokens", 0) for u in usage),
         output_tokens=sum(u.get("output_tokens", 0) for u in usage),
         seconds=round(time.perf_counter() - started, 2),
