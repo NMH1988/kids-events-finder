@@ -58,20 +58,22 @@ def decision_problem(decision: dict, original_calls: list[dict]) -> str | None:
     known = {
         s.strip() for call in original_calls for s in privacy_check.string_values(call.get("args"))
     }
-    texts = [decision.get("feedback") or ""]
+    too_long = "This is too long. Please keep the reason and your edits short."
+    if privacy_check.json_depth(decision) > config.MAX_EDIT_DEPTH + 3:
+        return too_long
     if len(json.dumps(decision, ensure_ascii=False, default=str)) > config.MAX_DECISION_CHARS:
-        return "This is too long. Please keep the reason and your edits short."
-    values = [
-        s for call in decision.get("tool_calls", []) for s in privacy_check.string_values(call)
-    ]
-    if any(len(s) > config.MAX_EDIT_VALUE_CHARS for s in values):
-        return "An edited value is too long. Please keep each value short."
-    texts += [
+        return too_long
+    texts = [decision.get("feedback") or ""]
+    # Only values the parent typed or changed; the model's own unchanged values are not capped.
+    changed = [
         s
         for call in decision.get("tool_calls", [])
         for s in privacy_check.string_values(call.get("args"))
         if s.strip() not in known
     ]
+    if any(len(s) > config.MAX_EDIT_VALUE_CHARS for s in changed):
+        return "An edited value is too long. Please keep each value short."
+    texts += changed
     findings = [f for text in texts for f in privacy_check.find_sensitive(text)]
     return privacy_check.explain(findings) if findings else None
 

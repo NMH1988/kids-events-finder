@@ -378,3 +378,25 @@ def test_deeply_nested_json_in_the_edit_box_is_not_applied():
     from views.chat import parse_edited_args
 
     assert parse_edited_args('{"a":' + "[" * 200000) is None
+
+
+def test_deep_valid_json_edit_is_refused_without_crashing():
+    """Security round 9: valid but deeply nested JSON is not applied and does not crash."""
+    from src.agent.runner import decision_problem
+    from views.chat import parse_edited_args
+
+    deep = '{"q": ' + "[" * 1200 + "]" * 1200 + "}"
+    assert parse_edited_args(deep) is None
+    nested: object = "x"
+    for _ in range(1200):
+        nested = [nested]
+    decision = {"action": "edit", "tool_calls": [{"id": "1", "args": {"q": nested}}]}
+    assert "too long" in decision_problem(decision, [])
+
+
+def test_long_model_values_do_not_block_approve():
+    """Security round 9: the per-value cap applies only to values the parent changed."""
+    from src.agent.runner import decision_problem
+
+    original = [{"id": "1", "args": {"query": "museum " * 70}}]
+    assert decision_problem({"action": "edit", "tool_calls": original}, original) is None

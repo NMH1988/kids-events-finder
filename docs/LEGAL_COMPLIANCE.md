@@ -47,10 +47,20 @@ The users are parents, but the app handles data about children, who are speciall
     access", "step-free", "xe lăn") are blocked by the keyword check like health data; the system
     prompt also forbids judging development, and red-team case r08 checks the block. The About
     page tells parents to check accessibility on the venue's official website. Step-free or
-    barrier-free questions about a pram or buggy ("mit Kinderwagen barrierefrei?") pass when they
-    name no wheelchair or disability, because they are about the pram, not the child. "Development"
-    and "Entwicklung" are blocked only about a child ("his development", "Entwicklung meines
-    Kindes"), so "game development workshop" or "Stadtentwicklung" pass;
+    barrier-free questions about a pram, a buggy, a bike or luggage ("mit Kinderwagen
+    barrierefrei?") pass when they name no wheelchair, disability or mobility aid (Rollator,
+    Reha-Buggy, walker, crutches), because they are about the equipment, not the child. Generic
+    accessibility questions ("Is the museum accessible?", "What accessibility does the zoo
+    offer?") are blocked too; "accessible by train" (getting there) passes. Giftedness ("gifted",
+    "hochbegabt", "advanced for his age") counts as a development statement and is blocked.
+    "Development" and "Entwicklung" are blocked only about a child ("my son's development",
+    "seine Entwicklung", "sprachliche Entwicklung"), so "game development workshop" or
+    "Stadtentwicklung" pass;
+  - **stopping rule (owner decision 2026-11-20):** after nine review rounds the keyword lists
+    cover the wordings the reviewers found. Other wordings of the same data are an accepted
+    residual of this basic safeguard (2.6). New terms are added only when the evaluation, the
+    red-team cases or a real report shows a miss, together with a test for it, and the
+    Datenschutzberater re-checks the lists before launch;
   - the system prompt forbids asking about, repeating or inferring health information;
   - medical and therapy places (paediatricians, Ergotherapie, Logopädie, Frühförderung) are not in
     the knowledge base or the OpenStreetMap categories.
@@ -108,11 +118,14 @@ The users are parents, but the app handles data about children, who are speciall
   the middle of the label ("Visit evil . top today"); and two ages as a shortened compound ("4- und
   6-jährige Kinder"), because "für 4- und 5-Jährige" is an age-group question; health words with
   an extra accent on a letter that has none ("Thérapie"); a daughter's name ending in -ion or -s
-  after a preposition ("Marion, die …"); first names in a place-name field ("Max Lena Berlin").
+  after a preposition ("Marion, die …"); link text whose spelled domain is in title case (".Com")
+  or written with "dot", "(.)" or spaced letters and an uncommon ending; and, under the stopping
+  rule in 1.4, any other wording of health data, names or ages that the lists do not contain.
+  The link target itself is always a verified tool URL.
   Accepted false alarms (the parent rephrases once): slang ("That's sick!"), rare uses of health
-  words ("rash decision", "Der Stau ist übel"), and a German noun
-  before "ist N" without an article ("Film ist etwa 4"); link text whose spelled domain is in
-  title case (".Com"). The link target itself is always a verified tool URL.
+  words ("rash decision", "Der Stau ist übel", "Corona beer garden", "his shots at goal"), a
+  pram word turns off the step-free check for the whole message, and a German noun before
+  "ist N" without an article ("Film ist etwa 4").
 - **2.7 Retention.** Conversations are deleted from the server when the parent starts a new one and
   automatically after 2 hours without use (`CONVERSATION_RETENTION_SECONDS`, enforced by a
   background cleaner every `CLEANUP_INTERVAL_SECONDS`, also when nobody uses the app); feedback is deleted after 90 days and stores the question text

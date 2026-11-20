@@ -161,19 +161,51 @@ HEALTH_TERMS: tuple[str, ...] = (
     "her jabs",
     "his shots",
     "her shots",
-    "poorly",
     "under the weather",
     "got hurt",
     "is hurt",
     "was hurt",
+    "been hurt",
+    "are hurt",
+    "hurt himself",
+    "hurt herself",
+    "is hurting",
+    "rolli",
+    "rollis",
+    "rollifahrer*",
+    "~rollifreundlich*",
+    "can't climb stairs",
+    "can't walk far",
+    "in plaster",
+    "in gips",
+    "einen gips",
+    "been sick",
+    "~reiseübelkeit",
+    "his operation",
+    "her operation",
+    "nach der op",
+    "stitches",
+    "concussion",
+    "~gehirnerschütterung",
+    "aufgeschlagen",
+    "wehgetan",
+    "tummy ache",
+    "sniffles",
+    "runny nose",
+    "booster",
+    "mmr",
+    "have a cold",
+    "have colds",
+    "bị thương",
+    # Giftedness is a development statement too (owner decision 2026-11-20)
+    "gifted",
+    "~hochbegabt*",
+    "late bloomer",
+    "advanced for his age",
+    "advanced for her age",
     "đau bụng",
     "sổ mũi",
     "bị nôn",
-    "con đang sốt",
-    "bé đang sốt",
-    "sốt cao",
-    "sốt nhẹ",
-    "hơi sốt",
     "lên cơn sốt",
     "arm gebrochen",
     "erbroch*",
@@ -229,7 +261,6 @@ HEALTH_TERMS: tuple[str, ...] = (
     "~entwicklungsstörung*",
     "~sprachentwickl*",
     "~kindesentwickl*",
-    "spricht noch nicht",
     "con phát triển",
     "bé phát triển",
     "trẻ phát triển",
@@ -302,18 +333,30 @@ HEALTH_TERMS: tuple[str, ...] = (
 )
 # Without accents these are other common words ("ôm" hug), so they match only with accents.
 _ACCENT_ONLY = frozenset(
-    {"ốm", "bị sốt", "bị ho", "bị cảm", "con đang sốt", "bé đang sốt", "sốt cao", "sốt nhẹ"}
-    | {"hơi sốt", "bị nôn"}
+    {"ốm", "bị sốt", "bị ho", "bị cảm", "bị nôn", "bị thương"}
     | {"con phát triển", "bé phát triển", "trẻ phát triển"}
 )
 # Step-free access: a child's accessibility need, unless the message is about a pram or buggy
 # and names no wheelchair or disability ("Ist das Museum mit Kinderwagen barrierefrei?").
 _ACCESS = re.compile(
-    r"barrierefrei\w*|barrier[\s-]*free|step[\s-]*free|stufenlos(?!\s+verstellbar)|ohne\s+stufen|"
-    r"accessible\s+toilets?|(?<!\w)a\s+ramp(?!\w)"
+    r"barrierefrei\w*|barrier\W*free|step\W*free|stufenlos(?!\s+verstellbar)|ohne\s+stufen|"
+    r"accessible\s+toilets?|(?<!\w)a\s+ramp(?!\w)|(?<!\w)ramps\s+for|"
+    # Generic accessibility questions (owner decision 2026-11-20), not getting there by transport.
+    r"accessibility(?!\s+(?:by|via|from)\s)|"
+    r"(?<!\w)(?:is|are)\s+(?:it|the|they)\s+(?:\w+\s+){0,3}accessible"
+    r"(?!\s+(?:by|via|from|with\s+public)\s)"
 )
-_PRAM = re.compile(r"kinderwagen|buggy|buggies|pram|pushchair|stroller|xe đẩy")
-_DISABILITY = re.compile(r"wheelchair|rollstuhl|behindert|disab|xe lăn|handicap")
+# Equipment, not the child: a step-free or barrier-free question about a pram, a bike, a
+# scooter or luggage is no health data ("Ist das Museum mit Kinderwagen barrierefrei?").
+_PRAM = re.compile(
+    r"kinderwagen|buggy|buggies|pram|pushchair|stroller|xe đẩy|skate|scooter|bmx|bikes?|"
+    r"fahrrad|luggage|gepäck|suitcase|koffer"
+)
+# A wheelchair, a disability or a mobility aid in the same message keeps the block.
+_DISABILITY = re.compile(
+    r"wheelchair|rollstuhl|rolli(?!ng)|behindert|disab|xe lăn|handicap|reha|adaptive|rollator|"
+    r"walker|gehhilfe|nicht\s+laufen|can'?t\s+walk|crutch|krücke"
+)
 # Phrases a regex states better than a word list ("is sick", but not "sick of the rain").
 _HEALTH_EXTRA = (
     r"(?:(?<!\w)(?:is|are|got|feels?|feeling|was|has\s+been|gets?|getting|being)|'s)\s+sick"
@@ -330,10 +373,26 @@ _HEALTH_EXTRA = (
     # "verletzte Tiere", "so they don't hurt their feet", "a cold plunge").
     r"(?<!keiner )(?<!niemand )(?<!jemand )(?<!\w)verletzt(?!e[nr]?\s+(?:tiere|igel|vögel|"
     r"wildtiere|tieren))\w*",
-    r"(?<!get )(?<!gets )(?<!getting )(?<!\w)injured(?!\s+(?:birds?|animals?|wildlife))(?!\w)",
-    r"(?<!risk of )(?<!chance of )(?<!prevent )(?<!\w)injur(?:y|ies)(?!\w)",
-    r"(?<!don't )(?<!won't )(?<!not )(?<!can )(?<!could )(?<!might )(?<!will )(?<!would )"
-    r"(?<!to )(?<!so they )(?<!\w)(?:hurt|broke)\s+(?:his|her|my)\s+\w+",
+    r"(?<!get )(?<!gets )(?<!getting )(?<!be )(?<!\w)injured(?!\s+(?:birds?|animals?|wildlife))"
+    r"(?!\w)",
+    # An injury of someone ("his injury", "she has an injury"), not "injuries at trampoline
+    # parks" or "an injury risk".
+    r"(?<!\w)(?:his|her|their|my|an)\s+(?:\w+\s+)?injur(?:y|ies)(?!\s+risk)(?!\w)",
+    r"'s\s+hurt(?!\w)",
+    # "hurt/broke his …" is checked in `_hurt_findings`, which skips questions with a modal or a
+    # negation earlier in the clause ("Will my son hurt his hands on the climbing wall?").
+    # Fever in Vietnamese, not "sốt ruột" (impatient), "sốt sắng" (eager) or "sốt vé" (sold out).
+    r"(?:con\s+đang\s+sốt|bé\s+đang\s+sốt|hơi\s+sốt|sốt\s+cao|sốt\s+nhẹ)(?!\s*(?:ruột|sắng|vé))",
+    r"(?:(?<!\w)(?:is|feels?|feeling|was|been)|'s)\s+poorly(?!\s+\w+ed\b)",
+    r"spricht\s+noch\s+nicht(?!\s+(?:so\s+)?(?:gut\s+|viel\s+)?(?:englisch|deutsch|französisch|"
+    r"spanisch|italienisch|niederländisch))",
+    # Statements about a child's development (owner decision 2026-11-20).
+    r"(?:son|daughter|kid|child|toddler|baby|boy|girl)'s\s+(?:\w+\s+)?development",
+    r"(?:speech|language|motor|cognitive|social|emotional)\s+development",
+    r"(?:seine|ihre|deren)\s+entwicklung|in\s+(?:der|ihrer|seiner)\s+entwicklung",
+    r"(?:motorische|sprachliche|kognitive|soziale|emotionale)\s+entwicklung",
+    r"entwicklung\w*\s+(?:\w+\s+){0,3}?(?:verzögert|zurück)",
+    r"phát\s+triển\s+của\s+(?:con|bé|cháu|trẻ)|phát\s+triển\s+chậm",
     r"(?<!\w)has\s+(?:got\s+)?a\s+(?:bad\s+|heavy\s+)?cold(?!\s+(?:plunge|drink|shower|pool|"
     r"water|temperature|room)\b)(?!\w)",
     r"(?<!\w)(?:the\s+)?flu(?!\s+(?:season|outbreak|wave|shot\s+clinic)\b)"
@@ -445,9 +504,10 @@ _NOT_NAMES = (
     r"next|last|this|year|nächste\w*|letzte\w*|münchen|köln|nürnberg|düsseldorf|"
     r"thanksgiving|memorial|labou?r|bank|boxing|spring|summer|winter|autumn|fall|half|"
     r"mother'?s|mothers|father'?s|fathers|independence|presidents?|valentine\w*|new|trick|"
-    r"veterans|easter\w*|fourth|good|columbus|martin|st|saint|patrick'?s|bonfire|guy|juneteenth|"
-    r"hanukk?ah|chanukah|diwali|eid|ramadan|day|mlk|lego|legoland|playmobil|disneyland|ideas?|"
-    r"what|which|where|how|any|help|"
+    r"veterans|easter\w*|fourth|good|columbus|martin(?=\s+luther)|st|saint|patrick'?s|bonfire|"
+    r"guy(?=\s+fawkes)|juneteenth|hanukk?ah|chanukah|diwali|eid|ramadan|day|mlk|lego|legoland|"
+    r"playmobil|disneyland|ideas?|what|which|where|how|any|help|black|lunar|mardi|pokemon|"
+    r"pokémon|zoo|"
     + "|".join(re.escape(c.casefold()) for cities in config.CITIES.values() for c in cities)
 )
 # Words with a count in brackets that are no person: "Adults (2)", "Tickets (2)", "Pizza (3)".
@@ -507,18 +567,30 @@ _NAME = re.compile(
     rf"(?<!\w)(?:(?i:{_CHILD_WORDS})[ \t]+(?:(?i:is|ist)[ \t]+)?"
     r"(?i:named|called|heißt|heisst|namens|tên là|tên)[ \t]+[^\W\d_]+"
     rf"|(?i:{_CHILD_WORDS})'s[ \t]+(?i:name)[ \t]+(?i:is)[ \t]+[^\W\d_]+"
-    rf"|(?i:my|our)[ \t]+(?i:son|daughter|child|kid|boy|girl|baby)[ \t]+{_CAPITAL_WORD}"
-    # "my kids Max and Lena", "my two kids Max …"; with a comma the name needs a second comma or
-    # "and" after it ("my son, Max, loves"), so "For my son, Lego or Playmobil?" passes.
-    # Possessive quantifiers (*+, ++) keep this linear on long input.
-    rf"|(?i:my|our)[ \t]++(?:(?i:two|three|four|2|3|4)[ \t]++)?"
-    r"(?i:kids|children|sons|daughters|twins)[ \t]++(?:(?i:are|are\s+called)[ \t]++)?"
+    rf"|(?i:my|our)[ \t]+(?i:son|daughter|child|kid|boy|girl|baby|little\s+one)[ \t]+"
     rf"{_CAPITAL_WORD}"
-    r"|(?i:my|our)[ \t]++(?i:son|daughter|boy|girl|kids|children)[ \t]*+,[ \t]*+"
+    # "my kids Max and Lena", "my two kids Max …", "my boys Max and Tom", "Kids: Max and Lena";
+    # with a comma the name needs a second comma or "and" after it ("my son, Max, loves"), so
+    # "For my son, Lego or Playmobil?" passes. Possessive quantifiers keep this linear.
+    rf"|(?i:my|our)[ \t]++(?:(?i:two|three|four|2|3|4)[ \t]++)?"
+    r"(?i:kids|children|sons|daughters|twins|boys|girls)[ \t]*+:?[ \t]*+"
+    rf"(?:(?i:are|are\s+called)[ \t]++)?{_CAPITAL_WORD}"
+    r"|(?i:my|our)[ \t]++(?i:children's|kids')[ \t]++(?i:names?)[ \t]++(?i:are|is)[ \t]++"
+    rf"{_CAPITAL_WORD}"
+    r"|(?i:the)[ \t]++(?i:kids|children)[ \t]++(?i:are)[ \t]++"
+    rf"{_CAPITAL_WORD}(?=[ \t]++(?i:and)[ \t]++)"
+    rf"|{_CAPITAL_WORD}[ \t]++(?i:and|und)[ \t]++{_CAPITAL_WORD}[ \t]++(?i:are|sind)[ \t]++"
+    r"(?i:my|our|meine|unsere)[ \t]++(?i:kids|children|sons|daughters|kinder)"
+    r"|(?i:kids|children|kinder)[ \t]*+:[ \t]*+"
+    rf"{_CAPITAL_WORD}(?=[ \t]*+(?:,|and\b|und\b|&))"
+    r"|(?i:my|our)[ \t]++(?i:son|daughter|boy|girl|kids|children|youngest|eldest|oldest|"
+    r"little\s+one)[ \t]*+,[ \t]*+"
     rf"{_CAPITAL_WORD}(?=[ \t]*+(?:,|and\b|und\b))"
     rf"|{_POSSESSIVE}[ \t]++(?:(?i:zwei|drei|beiden)[ \t]++)?(?i:kinder|zwillinge|söhne|töchter)"
-    rf"[ \t]++(?:(?i:heißen|heissen|sind)[ \t]++)?\(?{_CAPITAL_WORD}(?:[ \t]*+,[ \t]*+"
-    rf"{_CAPITAL_WORD})*+[ \t]++(?:und|&|and)[ \t]++{_CAPITAL_WORD}"
+    rf"[ \t]*+:?[ \t]*+(?:(?i:heißen|heissen|sind)[ \t]++)?\(?{_CAPITAL_WORD}(?:[ \t]*+,[ \t]*+"
+    rf"{_CAPITAL_WORD})*+[ \t]++(?:und|&|and)[ \t]++{_CAPITAL_WORD}(?!\w)"
+    # "wo meine Kinder Tiere und Pflanzen sehen?": a verb ends the clause, so these are nouns.
+    r"(?![ \t]+\w+(?:[ \t]+(?:können|kann|wollen|will|möchten|dürfen|müssen))?[ \t]*(?:[.?!,;]|$))"
     rf"|{_NOT_AFTER}{_POSSESSIVE}[ \t]+{_CHILD_NOUN}[ \t]+{_CAPITAL_WORD}"
     rf"(?:{_PERSON_VERB}|{_RELATIVE_CLAUSE})"
     rf"|{_PREPOSITION_RELATIVE}"
@@ -561,6 +633,8 @@ _NOT_A_CHILD = (
     r"vorstellung|fütterung|öffnung|sonnenuntergang|abholung|rückfahrt|rückweg|heimfahrt|"
     r"return|departure|arrival"
 )
+# The verb before an age: "is", "ist", "wird", "turns", "is turning", "will be", "'s", "'ll be".
+_AGE_VERB = r"(?:\s+(?:is\s+turning|will\s+be|is|ist|wird|turns|lên)|'s|'ll\s+be)\s+"
 # Words before a number that still give an exact age: "Lena is only 7", "Lena ist erst 7".
 _AGE_ADVERB = (
     r"(?:(?:only|just|almost|nearly|now|already|about|around|erst|fast|schon|gerade|bald|jetzt|"
@@ -600,11 +674,14 @@ _AGE = re.compile(
     rf"|{_NOT_A_RANGE}(?<!\w)\d{{1,2}}{_NO_RANGE_AFTER}\s*+-?\s*+(?:jährig\w*|monatig\w*)"
     rf"|{_NOT_A_RANGE}(?<!\w)\d{{1,2}}{_NO_RANGE_AFTER}\s*(?:tháng\s+)?tuổi(?!\w)(?!\s+trở)"
     rf"|(?<!\w)(?:{_CHILD_WORDS}|he|she|er|sie|{_SIBLING_WORDS})"
-    rf"\s+(?:is|ist|wird|turns|lên)\s+{_AGE_ADVERB}(?:\d{{1,2}}|{_NUMBER_WORDS})"
+    rf"{_AGE_VERB}{_AGE_ADVERB}(?:\d{{1,2}}|{_NUMBER_WORDS})"
     rf"{_NO_RANGE_AFTER}{_UNITS}(?!\w)"
     rf"|{_NO_ARTICLE}(?<!\w)(?!(?:{_NOT_A_CHILD})\b)(?-i:{_CAPITAL_WORD})"
-    rf"\s+(?:is|ist|wird|turns)\s+{_AGE_ADVERB}{_CHILD_AGE}(?!\d){_NO_RANGE_AFTER}{_UNITS}"
+    rf"{_AGE_VERB}{_AGE_ADVERB}{_CHILD_AGE}(?!\d){_NO_RANGE_AFTER}{_UNITS}"
     rf"{_PHRASE_END}"
+    # "my kids are 7 and 4", "meine Kinder sind 5 und 8"
+    rf"|(?<!\w)(?:kids|children|kinder|boys|girls)\s+(?:are|sind)\s+{_CHILD_AGE}\s+(?:and|und|&)\s+"
+    rf"{_CHILD_AGE}(?!\d){_UNITS}"
     rf"|(?-i:{_CAPITAL_WORD}),\s*\d{{1,2}}\s*,\s*(?-i:[a-z])",
     re.IGNORECASE,
 )
@@ -639,6 +716,21 @@ class Finding:
         return _DESCRIPTIONS[self.kind]
 
 
+_HURT = re.compile(r"(?<!\w)(?:hurt|broke)\s+(?:his|her|my)\s+\w+")
+# A modal or negation earlier in the clause makes "hurt his …" a safety question.
+_MODAL = re.compile(r"\b(?:will|would|could|can|might|may|so|to|don't|doesn't|won't|not)\b")
+
+
+def _hurt_findings(folded: str) -> list[Finding]:
+    """Return "hurt/broke his …" statements; "Will my son hurt his hands?" is a safety question."""
+    found = []
+    for match in _HURT.finditer(folded):
+        clause = re.split(r"[.?!;]", folded[: match.start()])[-1][-40:]
+        if not _MODAL.search(clause):
+            found.append(Finding("health", match.group(0)))
+    return found
+
+
 def _phones(text: str) -> list[str]:
     """Return phone-number candidates that have a phone number's count of digits."""
     found = []
@@ -658,6 +750,7 @@ def find_sensitive(text: str) -> list[Finding]:
         # Accents typed away, often only on some words: each word of a term may match with or
         # without its accents, but a word with other accents ("từ" is not "tự") never matches.
         findings = [Finding("health", m.group(0)) for m in _HEALTH_PLAIN.finditer(folded)]
+    findings += _hurt_findings(folded)
     # Step-free access is a child's need unless the message is only about a pram or buggy.
     if not (_PRAM.search(folded) and not _DISABILITY.search(folded)):
         findings += [Finding("health", m.group(0)) for m in _ACCESS.finditer(folded)]
@@ -687,13 +780,34 @@ def explain(findings: list[Finding]) -> str:
 
 def string_values(value: object) -> list[str]:
     """Return every text inside a JSON-like value: dict keys and values, list items, numbers."""
-    if isinstance(value, str):
-        return [value]
-    if isinstance(value, dict):
-        return [s for k, v in value.items() for s in [str(k), *string_values(v)]]
-    if isinstance(value, list):
-        return [s for v in value for s in string_values(v)]
-    return [] if value is None or isinstance(value, bool) else [str(value)]
+    # Iterative, so deeply nested input cannot overflow the stack.
+    found: list[str] = []
+    stack = [value]
+    while stack:
+        item = stack.pop()
+        if isinstance(item, str):
+            found.append(item)
+        elif isinstance(item, dict):
+            found.extend(str(k) for k in item)
+            stack.extend(item.values())
+        elif isinstance(item, list):
+            stack.extend(item)
+        elif item is not None and not isinstance(item, bool):
+            found.append(str(item))
+    return found
+
+
+def json_depth(value: object) -> int:
+    """Return how deeply a JSON-like value nests lists and dicts (iterative)."""
+    deepest, stack = 0, [(value, 0)]
+    while stack:
+        item, depth = stack.pop()
+        deepest = max(deepest, depth)
+        if isinstance(item, dict):
+            stack.extend((v, depth + 1) for v in item.values())
+        elif isinstance(item, list):
+            stack.extend((v, depth + 1) for v in item)
+    return deepest
 
 
 # Small words that place names keep in lower case ("Frankfurt am Main", "Stratford-upon-Avon").
@@ -739,7 +853,7 @@ _NOT_PLACE_WORDS = frozenset(
         "monate monaten months wochen weeks jahren kleinkind kleinkinder schulkinder "
         "grundschüler grundschueler zwilling enkel enkelin enkelkind enkelkinder kindern "
         "jährig jaehrig jährige jährigen jaehrige jaehrigen yrs yr yo mo sick ill accessible "
-        "cold sprained hurt"
+        "cold sprained hurt kid ramp jabs gips weather"
     ).split()
 )
 # "Seven Berlin" is an age before a city, not a town ("Seven Sisters").

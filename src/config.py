@@ -79,6 +79,8 @@ MAX_DECISION_CHARS = 5000
 # Longest single value in edited arguments (the longest tool field, the knowledge base query, is
 # 300 characters).
 MAX_EDIT_VALUE_CHARS = 400
+# Deepest nesting of lists and dicts in edited arguments (tool arguments need at most 3).
+MAX_EDIT_DEPTH = 6
 # Conversations are deleted from server memory after this much idle time (LEGAL_COMPLIANCE 2.7).
 CONVERSATION_RETENTION_SECONDS = 2 * 60 * 60
 # A background cleaner enforces both retention limits this often, even when nobody uses the app.

@@ -21,6 +21,7 @@ from src.agent.runner import (
 )
 from src.feedback import delete_shared_feedback, purge_old_feedback, save_feedback
 from src.llm import MissingAPIKeyError
+from src.privacy_check import json_depth
 from src.tools.external import (
     ATTRIBUTION_GEOCODING,
     ATTRIBUTION_OSM,
@@ -378,7 +379,9 @@ def parse_edited_args(text: str) -> dict | None:
         parsed = json.loads(text)
     except ValueError, RecursionError:  # bad JSON, or nested too deep to read
         return None
-    return parsed if isinstance(parsed, dict) else None
+    if not isinstance(parsed, dict) or json_depth(parsed) > config.MAX_EDIT_DEPTH:
+        return None
+    return parsed
 
 
 def _render_approval(settings: Settings) -> None:
