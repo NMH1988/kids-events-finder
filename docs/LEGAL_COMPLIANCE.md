@@ -47,9 +47,11 @@ The users are parents, but the app handles data about children, who are speciall
     access", "step-free", "xe lăn") are blocked by the keyword check like health data; the system
     prompt also forbids judging development, and red-team case r08 checks the block. The About
     page tells parents to check accessibility on the venue's official website. Step-free or
-    barrier-free questions about a pram, a buggy, a bike or luggage ("mit Kinderwagen
-    barrierefrei?") pass when they name no wheelchair, disability or mobility aid (Rollator,
-    Reha-Buggy, walker, crutches), because they are about the equipment, not the child. Generic
+    barrier-free questions in a message that names a pram, a buggy, a bike, a scooter or luggage
+    ("mit Kinderwagen barrierefrei?") pass when they name no wheelchair, disability or mobility
+    aid (Rollator, Reha-Buggy, walker, crutches); the check does not test that the question is
+    about the equipment, so such a word anywhere in the message turns off the accessibility
+    check for that message (a residual, 2.6). Generic
     accessibility questions ("Is the museum accessible?", "What accessibility does the zoo
     offer?") are blocked too; "accessible by train" (getting there) passes. Giftedness ("gifted",
     "hochbegabt", "advanced for his age") counts as a development statement and is blocked.
@@ -120,11 +122,15 @@ The users are parents, but the app handles data about children, who are speciall
   an extra accent on a letter that has none ("Thérapie"); a daughter's name ending in -ion or -s
   after a preposition ("Marion, die …"); link text whose spelled domain is in title case (".Com")
   or written with "dot", "(.)" or spaced letters and an uncommon ending; and, under the stopping
-  rule in 1.4, any other wording of health data, names or ages that the lists do not contain.
-  The link target itself is always a verified tool URL.
+  rule in 1.4, any other wording of health data, names or ages that the lists do not contain;
+  a pram, bike, scooter or luggage word anywhere in a message turns off the step-free and
+  generic accessibility check for that message ("Is the museum accessible? We come with a
+  stroller."); German children's names before a clause-final verb when the last name ends in
+  -e, -n or -s ("Meine Kinder Max und Jonas tanzen."). The link target itself is always a
+  verified tool URL.
   Accepted false alarms (the parent rephrases once): slang ("That's sick!"), rare uses of health
-  words ("rash decision", "Der Stau ist übel", "Corona beer garden", "his shots at goal"), a
-  pram word turns off the step-free check for the whole message, and a German noun before
+  words ("rash decision", "Der Stau ist übel", "Corona beer garden", "his shots at goal",
+  "Stitches and craft workshop", "MMR museum", "Zelt aufgeschlagen"), and a German noun before
   "ist N" without an article ("Film ist etwa 4").
 - **2.7 Retention.** Conversations are deleted from the server when the parent starts a new one and
   automatically after 2 hours without use (`CONVERSATION_RETENTION_SECONDS`, enforced by a

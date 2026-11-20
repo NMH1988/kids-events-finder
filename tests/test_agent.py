@@ -400,3 +400,22 @@ def test_long_model_values_do_not_block_approve():
 
     original = [{"id": "1", "args": {"query": "museum " * 70}}]
     assert decision_problem({"action": "edit", "tool_calls": original}, original) is None
+
+
+def test_blank_city_is_a_tool_error_not_a_crash():
+    """Security round 10: a blank city becomes a tool error, and the next turn still runs."""
+    from src.rag.retriever import AdvancedRetriever
+    from src.tools.registry import RagSettings, build_tools
+
+    built = build_tools(AdvancedRetriever(None), RagSettings(multi_query=False))
+    kb = [t for t in built if t.name == "search_knowledge_base"]
+    blank = {"query": "zoo", "country": "DE", "city": "   "}
+    graph, _ = _graph(
+        [_call("search_knowledge_base", blank, "k1"), AIMessage("ok"), AIMessage("again")], kb
+    )
+    first = start_turn(graph, "t30", "zoo?", **CONTEXT)
+    assert first.status == "done"
+    state = graph.get_state({"configurable": {"thread_id": "t30"}}).values
+    assert any(isinstance(m, ToolMessage) and m.tool_call_id == "k1" for m in state["messages"])
+    second = start_turn(graph, "t30", "and now?", **CONTEXT)
+    assert second.status == "done"
