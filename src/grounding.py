@@ -87,13 +87,15 @@ _LABEL_SYMBOLS = frozenset("⭐⭕⬛⬜⬅⬆⬇®™©")
 # "paypal(.)com"): a common top-level domain after a dot, comma or the word "dot".
 _SPACED_DOMAIN = re.compile(
     # A common top-level domain in any case after a dot, "(.)", "dot" or "punkt".
-    r"(?i:\S\s*(?:\.|\(\.\)|\(dot\)|[\"']dot[\"']|\bdot\b|\bpunkt\b)\s*"
+    r"(?i:\S\s*(?:\.|\(\.\)|\(dot\)|[\"']dot[\"']|-dot-|\bdot\b|\bpunkt\b)\s*"
     r"(?:c\s*[o0]\s*m|org|net|de|uk|co|io|eu|at|ch|us|biz|fr|nl|me|info|shop|app|xyz|online)"
     r"(?![a-z]))"
     # .com, .org or .net after any other separator ("paypal, com", "paypal / com").
     r"|(?i:\S\s*(?:[,:;/·]|\s[–-])\s*(?:com|org|net)(?![a-z]))"
-    # Any lower-case ending after a dot ("evil .xyz"); "St. Pauli" and "z.B. hier" are no domain.
-    r"|[a-z0-9]\s*\.\s*[a-z]{2,6}(?![A-Za-z])"
+    # Any lower-case ending right after a dot ("evil .xyz"), or one in capitals ("EVIL .TOP");
+    # "St. Pauli", "ca. ein Tag", "Kids vs. adults" and "z.B. hier" are no domain.
+    r"|[a-z0-9]\s*\.[a-z]{2,6}(?![A-Za-z])"
+    r"|[A-Za-z0-9]\s*\.\s*[A-Z]{2,6}(?![A-Za-z])"
 )
 # An e-mail-like "@" (a word character on both sides) once escapes are resolved.
 _MAIL_AT = re.compile(r"[\w.+-]@[\w-]")

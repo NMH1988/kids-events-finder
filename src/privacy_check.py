@@ -165,8 +165,11 @@ _HEALTH_EXTRA = (
     r"(?:(?<!\w)(?:is|are|got|feels?|feeling|was|has\s+been|gets?|getting|being)|'s)\s+sick"
     r"(?!\w)(?!\s+of\b)",
     r"(?<!\w)(?:carsick|car\s+sick|travel\s+sick|seasick)(?!\w)",
-    # Any doctor, also in compounds (Ohrenarzt, Frauenärztin), but not "Schwarztee".
-    r"(?<!schw)(?:arzt|ärzt|aerzt)",
+    # Any doctor, also in compounds (Ohrenarzt, Frauenärztin); not "Schwarztee", the Harz
+    # ("Harztour"), "Märztage" or the vet ("Tierarzt werden", a common child's wish).
+    r"(?<!schw)(?<!tier)(?<!\bh)(?<!\bm)(?<!\bqu)(?:arzt|ärzt|aerzt)",
+    r"(?<!\w)(?:doctor|doktor|kinderdoktor|hno|pa?ediatrician|dentist|zahnklinik)\w*",
+    r"(?<!\w)kränk\w*",
 )
 
 # Cyrillic, Greek and other letters that look like Latin ones, and small capitals.
@@ -293,18 +296,20 @@ _CHILD_WORDS = r"son|daughter|child|kid|boy|girl|baby|sohn|tochter|kind|junge|m�
 # mein Kind Tiere mag?" the verb ends the clause, so "Tiere" is a noun. A name needs a verb that
 # more words follow (or a relative clause); prepositions and adverbs ending in -t are no verbs.
 _NOT_VERBS = r"mit|nicht|jetzt|seit|oft|gut|sonst|erst|fast|meist|bist|samt|recht|direkt"
-_PERSON_VERB = (
-    rf"(?=[ \t]+(?!(?:{_NOT_VERBS})\b)(?:mag|will|kann|möchte|darf|\w+t)"
-    r"[ \t]+(?!(?:und|oder|aber|sondern|denn)\b)\w"
-    r"|[ \t]*,[ \t]*(?:der|die|das|who)\b)"
-)
+# Main clause: the verb after the name is followed by more words ("Max spielt und malt gern").
+_PERSON_VERB = rf"(?=[ \t]+(?!(?:{_NOT_VERBS})\b)(?:mag|will|kann|möchte|darf|\w+t)[ \t]+\w)"
+# A relative clause after the name ("Max, der gern malt"), also after a preposition; plural
+# nouns ("Kurse, die", "Angebote, die", "Spannendes, das") end in -e, -en, -es or -er.
+_RELATIVE_CLAUSE = r"(?<!e)(?<!en)(?<!es)(?<!er)(?=[ \t]*,[ \t]*(?:der|die|das|who)\b)"
+_POSSESSIVE = r"(?i:mein|meine|meinen|meinem|meiner|unser|unsere|unseren|unserem|unserer)"
+_CHILD_NOUN = r"(?i:sohn|tochter|kind|junge|kleine[rnm]?)"
 _NAME = re.compile(
     rf"(?<!\w)(?:(?i:{_CHILD_WORDS})[ \t]+(?:(?i:is|ist)[ \t]+)?"
     r"(?i:named|called|heißt|heisst|namens|tên là|tên)[ \t]+[^\W\d_]+"
     rf"|(?i:{_CHILD_WORDS})'s[ \t]+(?i:name)[ \t]+(?i:is)[ \t]+[^\W\d_]+"
     rf"|(?i:my|our)[ \t]+(?i:son|daughter|child|kid|boy|girl|baby)[ \t]+{_CAPITAL_WORD}"
-    rf"|{_NOT_AFTER}(?i:mein|meine|meinen|meinem|unser|unsere|unseren|unserem)[ \t]+"
-    rf"(?i:sohn|tochter|kind|junge|kleine[rnm]?)[ \t]+{_CAPITAL_WORD}{_PERSON_VERB}"
+    rf"|{_NOT_AFTER}{_POSSESSIVE}[ \t]+{_CHILD_NOUN}[ \t]+{_CAPITAL_WORD}{_PERSON_VERB}"
+    rf"|{_POSSESSIVE}[ \t]+{_CHILD_NOUN}[ \t]+{_CAPITAL_WORD}{_RELATIVE_CLAUSE}"
     r"|(?i:my name is|ich heiße|ich heisse|tôi tên là|tôi tên)[ \t]+[^\W\d_]+"
     rf"|(?i:bé|cháu|con tôi)[ \t]+{_CAPITAL_WORD}"
     rf"|(?!(?i:{_GROUP_WORDS})\b){_CAPITAL_WORD}[ \t]*\([ \t]*\d{{1,2}}[ \t]*\))"
@@ -319,6 +324,8 @@ _NOT_A_RANGE = (
     r"(?<!under )(?<!over )(?<!unter )(?<!über )(?<!ab )(?<!dưới )(?<!trên )(?<!from )(?<!von )"
     r"(?<!từ )(?<!up to )(?<!below )(?<!above )(?<!than )(?<!least )(?<!mindestens )"
     r"(?<!höchstens )(?<!minimum )(?<!maximum )"
+    # "für 4- und 5-Jährige": a shortened compound of two age groups.
+    r"(?<!\d[-–] und )(?<!\d[-–] oder )(?<!\d[-–] and )(?<!\d[-–] or )"
     # "zwischen 6 und 9" is a range; "Kinder 5 und 8 Jahre alt" are two ages.
     r"(?<!zwischen \d und )(?<!zwischen \d\d und )(?<!between \d and )(?<!between \d\d and )"
 )
@@ -336,16 +343,22 @@ _UNITS = (
 _NOT_A_CHILD = (
     r"entry|admission|ticket|tickets|budget|price|total|it|this|that|there|today|tomorrow|"
     r"weather|temperature|parking|eintritt|preis|wetter|es|das|der|die|zug|bus|start|lunch|"
-    r"limit"
+    r"limit|bedtime|naptime|dinner|breakfast|kickoff|abfahrt|ankunft|treffpunkt|beginn|einlass|"
+    r"mittagessen|abendessen|frühstück|gleis|platform|membership|mitgliedschaft|legoland"
 )
+# Words before a number that still give an exact age: "Lena is only 7", "Lena ist erst 7".
+_AGE_ADVERB = r"(?:(?:only|just|almost|nearly|now|already|erst|fast|schon|gerade|bald|jetzt)\s+)?"
+# Older siblings and the youngest, after an article: "Die Kleine ist 4", "Der Große ist 7".
+_SIBLING_WORDS = r"kleine[rn]?|große[rn]?|grosse[rn]?|jüngste[rn]?|älteste[rn]?|mittlere[rn]?"
 # "Lena is 7 (now, in May, but ...)": a child's age (0-17) that ends the phrase or is followed by
 # a word that fits an age; "Die Fahrt ist 12" (an article before the word) is no age.
 _CHILD_AGE = (
     r"(?:1[0-7]|[0-9]|" + r"|".join(r"(?:" + w + r")" for w in _NUMBER_WORDS.split("|")) + ")"
 )
 _PHRASE_END = (
-    r"(?=\s*(?:$|[.,;!?)(\-–]|(?:and|und|và|now|jetzt|schon|already|years?|jahre|geworden|im|in|"
-    r"next|nächste\w*|but|aber|so|soon|bald)\b))"
+    r"(?!\s+and\s+a\s+half)"
+    r"(?=\s*(?:$|[.,;!?)(\-–&:]|(?:and|und|và|now|jetzt|schon|already|years?|jahre|geworden|im|"
+    r"in|next|nächste\w*|but|aber|so|soon|bald|this|too|auch|with|mit|or|oder)\b))"
 )
 _NO_ARTICLE = "".join(
     rf"(?<!\b{w} )" for w in "der die das den dem the a an für for ein eine".split()
@@ -363,10 +376,12 @@ _AGE = re.compile(
     rf"|{_NOT_A_RANGE}(?<!\w)\d{{1,2}}{_NO_RANGE_AFTER}\s*-?\s*(?:jahre|monate)\s+alt(?!\w)"
     rf"|{_NOT_A_RANGE}(?<!\w)\d{{1,2}}{_NO_RANGE_AFTER}\s*-?\s*(?:jährig\w*|monatig\w*)"
     rf"|{_NOT_A_RANGE}(?<!\w)\d{{1,2}}{_NO_RANGE_AFTER}\s*(?:tháng\s+)?tuổi(?!\w)(?!\s+trở)"
-    rf"|(?<!\w)(?:{_CHILD_WORDS}|he|she|er|sie)"
-    rf"\s+(?:is|ist|wird|turns|lên)\s+(?:\d{{1,2}}|{_NUMBER_WORDS}){_NO_RANGE_AFTER}{_UNITS}(?!\w)"
+    rf"|(?<!\w)(?:{_CHILD_WORDS}|he|she|er|sie|{_SIBLING_WORDS})"
+    rf"\s+(?:is|ist|wird|turns|lên)\s+{_AGE_ADVERB}(?:\d{{1,2}}|{_NUMBER_WORDS})"
+    rf"{_NO_RANGE_AFTER}{_UNITS}(?!\w)"
     rf"|{_NO_ARTICLE}(?<!\w)(?!(?:{_NOT_A_CHILD})\b)(?-i:{_CAPITAL_WORD})"
-    rf"\s+(?:is|ist|wird|turns)\s+{_CHILD_AGE}(?!\d){_NO_RANGE_AFTER}{_UNITS}{_PHRASE_END}"
+    rf"\s+(?:is|ist|wird|turns)\s+{_AGE_ADVERB}{_CHILD_AGE}(?!\d){_NO_RANGE_AFTER}{_UNITS}"
+    rf"{_PHRASE_END}"
     rf"|(?-i:{_CAPITAL_WORD}),\s*\d{{1,2}}\s*,\s*(?-i:[a-z])",
     re.IGNORECASE,
 )
@@ -494,8 +509,18 @@ _NOT_PLACE_WORDS = frozenset(
         "opa grandma grandpa granny grandad adults adult erwachsene kita krippe hort nursery "
         "kindergarten schule school grundschule schulkind boy girl junge mädchen maedchen "
         "budget euro eur jahre jahr years year ignore disregard forget override reveal key rules "
-        "regeln instructions policy previous earlier above orders system prompt"
+        "regeln instructions policy previous earlier above orders system prompt "
+        "monate monaten months wochen weeks jahren kleinkind kleinkinder schulkinder "
+        "grundschüler grundschueler zwilling enkel enkelin"
     ).split()
+)
+# "Seven Berlin" is an age before a city, not a town ("Seven Sisters").
+_KNOWN_CITIES = frozenset(
+    word.casefold() for cities in config.CITIES.values() for c in cities for word in c.split()
+)
+_AFTER_NUMBER_WORDS = frozenset(
+    "bis to und and unter under ab over über monate monaten months wochen weeks jahre jahren "
+    "years tage days".split()
 )
 # Number words: allowed only before another capitalised word ("Drei Gleichen", "Seven Sisters",
 # "Three Rivers"), never alone or before another number ("Berlin Sechs Neun").
@@ -536,8 +561,16 @@ def check_place_name(value: str) -> str:
     bares = [w.strip("().") for w in words]
     for i, bare in enumerate(bares):
         if _NUMBER_WORD.fullmatch(bare):
+            # Only as the first word, before a capitalised word that is no number, range word
+            # or time unit ("Drei Gleichen", not "Sechs Bis Neun" or "Fünf Monate").
             following = bares[i + 1] if i + 1 < len(bares) else ""
-            if not following[:1].isupper() or _NUMBER_WORD.fullmatch(following):
+            if (
+                i != 0
+                or not following[:1].isupper()
+                or _NUMBER_WORD.fullmatch(following)
+                or following.casefold() in _AFTER_NUMBER_WORDS
+                or following.casefold() in _KNOWN_CITIES
+            ):
                 raise error
         # An apostrophe only in "King's" or before a capital ("d'Alene", "L'Isle").
         apostrophe = "'" in bare or "’" in bare

@@ -555,3 +555,27 @@ def test_country_names_and_lists_in_link_text_are_kept(text):
     """Code review round 4: a country or a list after a comma is no domain."""
     cleaned, _ = enforce_grounding(f"[{text}](https://a.org)", ALLOWED)
     assert cleaned == f"[{text}](https://a.org)"
+
+
+@pytest.mark.parametrize("text", ["EVIL .TOP", "paypal -dot- com"])
+def test_capital_and_dash_dot_domains_in_link_text_show_the_host(text):
+    """Security round 5: a domain ending in capitals or written with -dot- shows the host."""
+    cleaned, _ = enforce_grounding(f"[{text}](https://a.org)", ALLOWED)
+    assert cleaned == "[a.org](https://a.org)"
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "Tierpark (ca. ein Tag)",
+        "Kids vs. adults",
+        "Tickets incl. tax",
+        "Opening hours, e.g. today",
+        "Mo. bis Fr. geöffnet",
+        "Infos z.b. hier",
+    ],
+)
+def test_abbreviations_with_a_dot_in_link_text_are_kept(text):
+    """Code review round 5: abbreviations like 'ca.' or 'vs.' are no domain."""
+    cleaned, _ = enforce_grounding(f"[{text}](https://a.org)", ALLOWED)
+    assert cleaned == f"[{text}](https://a.org)"

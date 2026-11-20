@@ -345,3 +345,19 @@ def test_bracket_hint_in_the_privacy_message():
     from src.privacy_check import explain, find_sensitive
 
     assert '"3x"' in explain(find_sensitive("Lena (5)"))
+
+
+@pytest.mark.parametrize("text", ["Ausflüge in Franken", "Hartford, CT", "1080p video"])
+def test_words_that_look_like_units_are_no_money(text):
+    """Code review round 5: a region, a state or a video size is no amount."""
+    from views.chat import _MONEY
+
+    assert not _MONEY.search(text)
+
+
+@pytest.mark.parametrize("text", ["￥500", "kostet 12,50 pro Person", "20 Franken"])
+def test_yen_and_decimal_amounts_get_the_caption(text):
+    """Security round 5: more amounts get the caption."""
+    from views.chat import _MONEY
+
+    assert _MONEY.search(text)

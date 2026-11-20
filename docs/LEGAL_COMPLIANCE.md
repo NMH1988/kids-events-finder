@@ -88,6 +88,12 @@ The users are parents, but the app handles data about children, who are speciall
   words), so no sentence, number or contact detail reaches the geocoder; Ticketmaster receives
   only the geocoder's town name. A capitalised person's name cannot be told from a town by its
   letters; the parent sees every such value in the approval panel first.
+  Accepted residuals of the keyword check (re-checked with the Datenschutzberater before launch):
+  first names in place-name fields; German names inside a clause after "wenn", "weil", "ob" and
+  similar words or after a preposition without a relative clause ("mit meinem Sohn Max ins
+  Museum"), because there the verb comes last and a name cannot be told from a noun; names written
+  in lower case; ages written only in words inside other phrases; link text whose spelled domain
+  is in title case (".Com"). The link target itself is always a verified tool URL.
 - **2.7 Retention.** Conversations are deleted from the server when the parent starts a new one and
   automatically after 2 hours without use (`CONVERSATION_RETENTION_SECONDS`, enforced by a
   background cleaner every `CLEANUP_INTERVAL_SECONDS`, also when nobody uses the app); feedback is deleted after 90 days and stores the question text
