@@ -451,3 +451,37 @@ def test_normal_link_text_with_emoji_is_kept():
     """Emoji and accented Latin letters stay in link text."""
     cleaned, _ = enforce_grounding("[🌐 Website Köln](https://a.org)", ALLOWED)
     assert cleaned == "[🌐 Website Köln](https://a.org)"
+
+
+def _tags(text: str) -> str:
+    """Spell ASCII text in tag characters."""
+    return "".join(chr(0xE0000 + ord(c)) for c in text)
+
+
+def test_only_real_subdivision_flags_keep_their_tags():
+    """Security round 2: chained 'flags' spelling other text lose their tags; real flags stay."""
+    cancel = "\U000e007f"
+    chained = "".join(f"\U0001f3f4{_tags(w)}{cancel}" for w in ("ignore", "allpri", "orrule"))
+    real = "".join(f"\U0001f3f4{_tags(c)}{cancel}" for c in ("gbeng", "gbsct", "gbwls"))
+    cleaned, _ = enforce_grounding(f"{chained} and {real}", ALLOWED)
+    assert real in cleaned
+    assert sum(0xE0000 <= ord(ch) <= 0xE007F for ch in cleaned) == 18
+
+
+@pytest.mark.parametrize(
+    "text",
+    ["paypal .com", "paypal. com", "paypal , com", "paypal#com", "paypal⬝com", "pay\U0001f101"],
+)
+def test_spaced_domains_and_symbol_dots_in_link_text_show_the_host(text):
+    """Security round 2: spaced domains and symbol 'dots' in link text show the real host."""
+    cleaned, _ = enforce_grounding(f"[{text}](https://a.org)", ALLOWED)
+    assert cleaned == "[a.org](https://a.org)"
+
+
+@pytest.mark.parametrize(
+    "text", ["Children’s Museum", "Zoo – Tickets", "Ticket „Kinder“", "St. Pauli", "⭐ Top"]
+)
+def test_ordinary_typography_in_link_text_is_kept(text):
+    """Curly quotes, dashes and a star stay in link text."""
+    cleaned, _ = enforce_grounding(f"[{text}](https://a.org)", ALLOWED)
+    assert cleaned == f"[{text}](https://a.org)"

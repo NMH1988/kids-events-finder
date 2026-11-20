@@ -83,9 +83,11 @@ The users are parents, but the app handles data about children, who are speciall
   rejecting a step leaves the app, obvious personal data (e-mails, phone numbers, street addresses,
   names such as "my son X", exact ages such as "7 years old") is detected by `src/privacy_check.py`
   and the parent is asked to remove it. Town and city fields of tools accept only place names
-  (`check_place_name`: up to 5 capitalised words of Latin letters, small connecting words such as
-  "am" or "upon" allowed), so no sentence or family detail reaches the geocoder or other outside
-  services.
+  (`check_place_name`: up to 5 capitalised words of Latin letters, counted across spaces and
+  hyphens, small connecting words such as "am" or "upon" allowed, no family or instruction
+  words), so no sentence, number or contact detail reaches the geocoder; Ticketmaster receives
+  only the geocoder's town name. A capitalised person's name cannot be told from a town by its
+  letters; the parent sees every such value in the approval panel first.
 - **2.7 Retention.** Conversations are deleted from the server when the parent starts a new one and
   automatically after 2 hours without use (`CONVERSATION_RETENTION_SECONDS`, enforced by a
   background cleaner every `CLEANUP_INTERVAL_SECONDS`, also when nobody uses the app); feedback is deleted after 90 days and stores the question text
@@ -248,7 +250,7 @@ Capstone demo with synthetic data.
 | Trip settings: budget, number of adults, Deutschlandticket holders; ticket comparison results; budget items (labels, amounts, notes typed by the parent) | Plan a budget day trip | Contract (Art. 6(1)(b)) | Server memory, OpenRouter → model provider | As above |
 | Start and destination town names → coordinates, date, time | Train journeys | Contract (Art. 6(1)(b)) | Open-Meteo geocoder, Transitous | Not stored by the app |
 | Town or city name, country, place category | Nearby places | Contract (Art. 6(1)(b)) | Open-Meteo geocoder, Overpass (OpenStreetMap) | Not stored by the app; the service sees the server's IP address and User-Agent, not the parent's |
-| Town or city name, country, dates | Family events | Contract (Art. 6(1)(b)) | Ticketmaster (US) | Not stored by the app; only with the optional key |
+| Town or city name, country, dates | Family events | Contract (Art. 6(1)(b)) | Open-Meteo geocoder, then Ticketmaster (US) with the geocoder's town name | Not stored by the app; only with the optional key |
 | Town or city name, country, dates | Weather forecast | Contract (Art. 6(1)(b)) | Open-Meteo geocoder and forecast | Not stored by the app |
 | Feedback rating and technical facts (model, country, tools, grounding); question, answer and comment plus a random browser-session id only when the parent ticks "share" | Evaluation | Rating: legitimate interest (Art. 6(1)(f)); shared text: consent (Art. 6(1)(a)), withdrawable with the "Delete the questions and answers I shared" button while the page is open | Local file on the server | 90 days, then deleted automatically by the background cleaner (no records from before the consent tick existed; checked 2026-11-20) |
 | Activity history (themes, dates) | Variety nudges | Consent; stays on the device | Phone only | Until the parent deletes it |
@@ -259,6 +261,6 @@ Capstone demo with synthetic data.
 
 | Name | Role | Location | DPA / terms checked |
 |---|---|---|---|
-| OpenRouter (+ model providers, incl. the embedding model's providers). Models: `openai/gpt-5-mini`, `openai/gpt-5-nano`, `openai/gpt-5` (OpenAI terms via OpenRouter); embeddings `qwen/qwen3-embedding-8b` (Qwen licence; providers possibly in China / Singapore). Model terms checked: not yet in writing (owner, before launch) | AI model access | US / other countries; EU routing only on Business/Enterprise plans | **Not possible today:** the project uses the school's OpenRouter account, so the owner cannot sign a DPA or set zero data retention / no-training providers. Allowed only with synthetic data (see "Before a public deployment") |
+| OpenRouter (+ model providers, incl. the embedding model's providers). Models: `openai/gpt-5-mini`, `openai/gpt-5-nano`, `openai/gpt-5` (OpenAI terms via OpenRouter); embeddings `qwen/qwen3-embedding-8b` (Apache-2.0 per the model card, checked 2026-11-20; providers possibly in China / Singapore). OpenAI-via-OpenRouter and hosting providers' terms: not yet checked (owner, before launch) | AI model access | US / other countries; EU routing only on Business/Enterprise plans | **Not possible today:** the project uses the school's OpenRouter account, so the owner cannot sign a DPA or set zero data retention / no-training providers. Allowed only with synthetic data (see "Before a public deployment") |
 | Hosting provider (to be chosen, EU) | Server | EU | To do before launch |
 | Affiliate programmes | — | — | None active |

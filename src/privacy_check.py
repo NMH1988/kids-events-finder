@@ -34,9 +34,24 @@ HEALTH_TERMS: tuple[str, ...] = (
     "are ill",
     "fell ill",
     "illness*",
-    "is sick",
-    "are sick",
     "sickness",
+    "fever",
+    "broken leg",
+    "broken arm",
+    "broke his*",
+    "broke her*",
+    "crutches",
+    "lactose intoleran*",
+    "gluten intoleran*",
+    "coeliac",
+    "celiac",
+    "cystic fibrosis",
+    "asd",
+    "ocd",
+    "ptsd",
+    "tourette*",
+    "on the spectrum",
+    "stutter*",
     "disease*",
     "therap*",
     "medic*",
@@ -52,7 +67,9 @@ HEALTH_TERMS: tuple[str, ...] = (
     "developmental delay*",
     "hyperactiv*",
     "anxiety",
-    "depress*",
+    "depression*",
+    "depressed",
+    "depressive",
     "special needs",
     "hospital",
     "hospitals",
@@ -94,6 +111,17 @@ HEALTH_TERMS: tuple[str, ...] = (
     "~psychiat*",
     "~epilepsie",
     "taub",
+    "taubstumm",
+    "~fieber*",
+    "~erkält*",
+    "~krücke*",
+    "gipsbein",
+    "gipsarm",
+    "~mukoviszidose",
+    "~zöliakie",
+    "~intoleranz",
+    "~zwangsstörung*",
+    "stotter*",
     # Vietnamese (also matched without accents, except the words in `_ACCENT_ONLY`)
     "bệnh",
     "hen suyễn",
@@ -117,19 +145,31 @@ HEALTH_TERMS: tuple[str, ...] = (
 )
 # Without accents these are other common words ("ôm" hug), so they match only with accents.
 _ACCENT_ONLY = frozenset({"ốm"})
+# Phrases a regex states better than a word list ("is sick", but not "sick of the rain").
+_HEALTH_EXTRA = (r"(?<!\w)(?:is|are|got|feels?|was)\s+sick(?!\w)(?!\s+of\b)",)
 
-# Cyrillic and Greek letters that look like Latin ones.
+# Cyrillic, Greek and other letters that look like Latin ones, and small capitals.
 _LOOKALIKES = str.maketrans(
-    "АВЕКМНОРСТХаеорсухіІјѕԁΑΒΕΖΗΙΚΜΝΟΡΤΥΧαοιν",
-    "ABEKMHOPCTXaeopcyxiIjsdABEZHIKMNOPTYXaoiv",
+    "АВЕКМНОРСТХаеорсухіІјѕԁһΑΒΕΖΗΙΚΜΝΟΡΤΥΧαοινρıɑᴀᴄᴅᴇʜɪᴍɴᴏᴘʀꜱᴛᴜᴡʏ",
+    "ABEKMHOPCTXaeopcyxiIjsdhABEZHIKMNOPTYXaoivpiaacdehimnoprstuwy",
 )
-_SPACED_LETTERS = re.compile(r"(?<!\w)(?:[^\W\d_][ .]){2,}[^\W\d_](?!\w)")
+# Hangul fillers look like nothing at all.
+_INVISIBLE = frozenset("ㅤᅟᅠﾠ")
+# Letters written one by one: "a d h d", "A. D. H. D.", "a-d-h-d", "a_d_h_d", "a/d/h/s".
+_SPACED_LETTERS = re.compile(r"(?<!\w)(?:[^\W\d_](?:[ .\-_/·]+\s*|\t)){2,}[^\W\d_](?!\w)")
+# Letters only Vietnamese uses; text with them is matched with its accents, not without.
+_VIETNAMESE = re.compile(r"[ăâđêôơưĂÂĐÊÔƠƯẠ-ỹ]")
+_UMLAUTS = str.maketrans({"ä": "ae", "ö": "oe", "ü": "ue", "ß": "ss"})
 
 
 def _soft(text: str) -> str:
     """Return the text with compatibility forms folded, invisibles removed, look-alikes mapped."""
     text = unicodedata.normalize("NFKC", text or "")
-    text = "".join(ch for ch in text if unicodedata.category(ch) != "Cf")
+    text = "".join(
+        ch
+        for ch in text
+        if unicodedata.category(ch) not in ("Cf", "Me", "Mc") and ch not in _INVISIBLE
+    )
     return unicodedata.normalize("NFC", text.translate(_LOOKALIKES))
 
 
@@ -140,8 +180,8 @@ def _strip_accents(text: str) -> str:
 
 
 def _join_spaced(text: str) -> str:
-    """Join letters written one by one ("a d h d", "A.D.H.D") into one word."""
-    return _SPACED_LETTERS.sub(lambda m: re.sub(r"[ .]", "", m.group(0)), text)
+    """Join letters written one by one ("a d h d", "A. D. H. D.") into one word."""
+    return _SPACED_LETTERS.sub(lambda m: re.sub(r"[^\w]|_", "", m.group(0)), text)
 
 
 def _term_pattern(term: str) -> str:
@@ -154,7 +194,14 @@ def _term_pattern(term: str) -> str:
     return start + body + end
 
 
-_HEALTH = re.compile("|".join(_term_pattern(t) for t in HEALTH_TERMS))
+def _variants(term: str) -> set[str]:
+    """Return the term and its spelling without umlauts (Logopädie -> Logopaedie)."""
+    return {term, term.translate(_UMLAUTS)}
+
+
+_HEALTH = re.compile(
+    "|".join([*(_term_pattern(v) for t in HEALTH_TERMS for v in _variants(t)), *_HEALTH_EXTRA])
+)
 _HEALTH_PLAIN = re.compile(
     "|".join(
         _term_pattern(_strip_accents(t))
@@ -162,63 +209,85 @@ _HEALTH_PLAIN = re.compile(
         if t.removeprefix("~").removesuffix("*") not in _ACCENT_ONLY
     )
 )
-_EMAIL = re.compile(r"[\w.+-]+\s*(?:@|\(at\)|\[at\])\s*[\w-]+(?:\.[\w-]+)+", re.IGNORECASE)
+# name@host.tld, also "name (at) host.tld"; "Zoo @ 10.30" is not an address.
+_EMAIL = re.compile(
+    r"[\w.+-]+(?:@|\s*\(at\)\s*|\s*\[at\]\s*)[\w-]+(?:\.[\w-]+)*\.[^\W\d_]{2,}(?!\w)",
+    re.IGNORECASE,
+)
 # International (+49 ..., 0049 ...) or national (030 1234567, 030 123 45 67) phone numbers; a
 # candidate counts only with 7-15 digits, so dates and times do not.
 _PHONE = re.compile(
     r"(?<![\w+])(?:\+|00)[1-9][\d \t/().-]{5,20}\d(?!\w)"
     r"|(?<![\w.:-])0\d{2,5}(?:[ /-]?\d{2,10}){1,4}(?![\w:-])"
 )
-_WEEKDAYS_MONTHS = (
-    "monday|tuesday|wednesday|thursday|friday|saturday|sunday|weekend|january|february|march|"
-    "april|may|june|july|august|september|october|november|december|montag|dienstag|mittwoch|"
-    "donnerstag|freitag|samstag|sonntag|wochenende|januar|februar|märz|juni|juli|oktober|dezember"
+# Words that are capitalised but no name: days, months, holidays, "Today".
+_NOT_NAMES = (
+    r"(?:mon|tues|wednes|thurs|fri|satur|sun)day\w*|weekend\w*|today|tomorrow|tonight|"
+    r"january|february|march|april|may|june|july|august|september|october|november|december|"
+    r"(?:mon|diens|donners|frei|sams|sonn)tag\w*|mittwoch\w*|wochenende\w*|heute|morgen\w*|"
+    r"januar|februar|märz|mai|juni|juli|oktober|dezember|"
+    r"easter|christmas|halloween|xmas|ostern|weihnacht\w*|pfingst\w*|silvester|karneval|fasching"
 )
-_CAPITAL_WORD = rf"(?!(?i:{_WEEKDAYS_MONTHS})(?!\w))[A-ZÀ-ÖØ-ÞĐ][^\W\d_]+"
+# A capitalised word that could be a name: not a day or holiday, not written in capitals.
+_CAPITAL_WORD = rf"(?!(?i:{_NOT_NAMES})(?!\w))[A-ZÀ-ÖØ-ÞĐ][a-zß-öø-ÿđā-ɏạ-ỹ]+"
 # A person's name: "my daughter is called Mia", "unser Sohn heißt Max", "con tên là Na",
-# "my son Max", "meine Tochter Lena mag ...", "bé Na", "my son's name is max", "Mia (5)".
-# "A place called Legoland" or "my kid Saturday" is not a name of a person.
+# "my son Max", "meine Tochter Lena mag ...", "bé Na", "my son's name is max", "Mia (5) loves".
+# "A place called Legoland", "my kid Saturday" or "für meine Tochter Ausflüge" is not a name.
 _CHILD_WORDS = r"son|daughter|child|kid|boy|girl|baby|sohn|tochter|kind|junge|mädchen|con|bé|cháu"
-_GERMAN_VERB_AFTER_NAME = r"(?=\s*(?:,|\(|$|\s+(?:mag|will|kann|ist|hat|wird|darf|möchte|\w+t)\b))"
+_PERSON_VERB = r"(?=\s+(?:mag|liebt|ist|hat|will|wird|möchte|spielt|geht\s+gern)\b)"
 _NAME = re.compile(
     rf"(?<!\w)(?:(?i:{_CHILD_WORDS})\s+(?:(?i:is|ist)\s+)?"
     r"(?i:named|called|heißt|heisst|namens|tên là|tên)\s+[^\W\d_]+"
     rf"|(?i:{_CHILD_WORDS})'s\s+(?i:name)\s+(?i:is)\s+[^\W\d_]+"
     rf"|(?i:my|our)\s+(?i:son|daughter|child|kid|boy|girl|baby)\s+{_CAPITAL_WORD}"
     rf"|(?i:mein|meine|meinen|unser|unsere|unseren)\s+(?i:sohn|tochter|kind|junge|kleine[rn]?)\s+"
-    rf"{_CAPITAL_WORD}{_GERMAN_VERB_AFTER_NAME}"
+    rf"{_CAPITAL_WORD}{_PERSON_VERB}"
     r"|(?i:my name is|ich heiße|ich heisse|tôi tên là|tôi tên)\s+[^\W\d_]+"
     rf"|(?i:bé|cháu|con tôi)\s+{_CAPITAL_WORD}"
-    rf"|{_CAPITAL_WORD}\s*\(\s*\d{{1,2}}\s*\))"
+    rf"|{_CAPITAL_WORD}\s*\(\s*\d{{1,2}}\s*\)(?=\s+(?!(?:and|und|or|oder|và)\b)[a-z]))"
 )
 _NUMBER_WORDS = (
     "one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|"
-    "sixteen|seventeen"
+    "sixteen|seventeen|eins|zwei|drei|vier|fünf|sechs|sieben|acht|neun|zehn|elf|zwölf"
 )
-_NOT_A_RANGE = r"(?<!\d[-–])(?<!\d [-–] )(?<!\d[-–] )(?<!\d [-–])"
-_NO_RANGE_AFTER = r"(?!\s*[-–]\s*\d)"
-_UNITS = r"(?!\s*(?:km|m|h|min|minutes?|hours?|stunden|std|uhr|euro|eur|€|%|miles?|[.:,]\d))"
+# Not the second number of a range ("6-9", "6 to 9", "6 bis 9") and not a threshold ("under 6").
+_NOT_A_RANGE = (
+    r"(?<!\d[-–])(?<!\d [-–] )(?<!\d[-–] )(?<!\d [-–])(?<!to )(?<!and )(?<!bis )(?<!đến )"
+    r"(?<!under )(?<!over )(?<!unter )(?<!über )(?<!ab )(?<!dưới )(?<!trên )(?<!from )(?<!von )"
+    r"(?<!từ )(?<!up to )(?<!below )(?<!above )"
+)
+_NO_RANGE_AFTER = r"(?!\s*(?:[-–]|to|and|bis|đến|or|oder)\s*\d)(?!\s*\+)"
+_UNITS = (
+    r"(?!\s*(?:km|m|h|min|minutes?|hours?|stunden|std|uhr|euros?|eur|€|%|miles?|pounds?|£|"
+    r"dollars?|\$|gbp|usd|grad|degrees?|°|stars?|sterne)(?!\w))(?!\s*[.:,]\d)"
+)
+# Words before "is 7" that are not a child's name.
+_NOT_A_CHILD = (
+    r"entry|admission|ticket|tickets|budget|price|total|it|this|that|there|today|tomorrow|"
+    r"weather|temperature|parking|eintritt|preis|wetter|es|das|der|die|zug|bus|start"
+)
 # An exact age: "7 years old", "aged 7", "7-jährig", "7 Jahre alt", "7 tuổi", "18 months old",
-# "seven years old", "7yo", "turns 7", "Lena is 7", "Leon, 6,". Age groups ("6-9", "3-5 tuổi")
-# and time spans ("in 2 Monaten") are not exact ages.
+# "seven years old", "7yo", "turns 7", "Lena is 7", "he is 8", "Leon, 6, likes". Age groups
+# ("6-9", "6 to 9", "3-5 tuổi"), thresholds ("under 6") and time spans are not exact ages.
 _AGE = re.compile(
     rf"{_NOT_A_RANGE}(?<!\w)\d{{1,2}}{_NO_RANGE_AFTER}\s*-?\s*(?:years?|yrs?|months?)[\s-]*old(?!\w)"
     rf"|(?<!\w)(?:{_NUMBER_WORDS})[\s-]*(?:years?|months?)[\s-]*old(?!\w)"
     rf"|(?<!\w)aged?\s+\d{{1,2}}{_NO_RANGE_AFTER}(?!\w)"
-    rf"|(?<!\w)\d{{1,2}}\s*(?:yo|y/o)(?!\w)"
+    rf"|{_NOT_A_RANGE}(?<!\w)\d{{1,2}}\s*(?:yo|y/o)(?!\w)"
     rf"|(?<!\w)turns?\s+\d{{1,2}}{_UNITS}(?!\w)"
     rf"|{_NOT_A_RANGE}(?<!\w)\d{{1,2}}{_NO_RANGE_AFTER}\s*-?\s*(?:jahre|monate)\s+alt(?!\w)"
     rf"|{_NOT_A_RANGE}(?<!\w)\d{{1,2}}{_NO_RANGE_AFTER}\s*-?\s*(?:jährig\w*|monatig\w*)"
     rf"|{_NOT_A_RANGE}(?<!\w)\d{{1,2}}{_NO_RANGE_AFTER}\s*(?:tháng\s+)?tuổi(?!\w)"
-    rf"|(?:(?:{_CHILD_WORDS})|(?-i:{_CAPITAL_WORD}))\s+(?:is|ist|wird|turns|lên)\s+\d{{1,2}}"
-    rf"{_NO_RANGE_AFTER}{_UNITS}(?!\w)"
-    rf"|(?-i:{_CAPITAL_WORD}),\s*\d{{1,2}}\s*,",
+    rf"|(?<!\w)(?:(?:{_CHILD_WORDS}|he|she|er|sie)|(?!(?:{_NOT_A_CHILD})\b)(?-i:{_CAPITAL_WORD}))"
+    rf"\s+(?:is|ist|wird|turns|lên)\s+(?:\d{{1,2}}|{_NUMBER_WORDS}){_NO_RANGE_AFTER}{_UNITS}(?!\w)"
+    rf"|(?-i:{_CAPITAL_WORD}),\s*\d{{1,2}}\s*,\s*(?-i:[a-z])",
     re.IGNORECASE,
 )
-# A street address: "Musterstraße 12", "Lindenweg 3a"; "Rückweg 2 Stunden" is a time.
+# A street address: "Musterstraße 12", "Lindenweg 3a"; "Rückweg 2 Stunden" is a time and
+# "Fußweg 15 bis zum Zoo" a distance.
 _ADDRESS = re.compile(
     r"(?<!\w)[^\W\d_]+(?:straße|strasse|str\.|weg|allee|gasse|street|road|avenue)\s+\d{1,4}[a-z]?"
-    rf"(?!\w){_UNITS}",
+    rf"(?!\w){_UNITS}(?!\s+(?:bis|to)\b)",
     re.IGNORECASE,
 )
 
@@ -259,9 +328,11 @@ def find_sensitive(text: str) -> list[Finding]:
     """Return the sensitive parts of a text (health, contact details, names, exact ages)."""
     soft = _join_spaced(_soft(text))
     folded = soft.casefold()
-    plain = _strip_accents(folded)
     findings = [Finding("health", m.group(0)) for m in _HEALTH.finditer(folded)]
-    if not findings:
+    if not findings and not _VIETNAMESE.search(folded):
+        # Accents typed away (or decomposed): match the accent-free copy. Text with Vietnamese
+        # letters is not stripped, so ordinary words ("kể từ kỳ") do not turn into health terms.
+        plain = _strip_accents(folded)
         findings = [Finding("health", m.group(0)) for m in _HEALTH_PLAIN.finditer(plain)]
     findings += [Finding("email", m.group(0)) for m in _EMAIL.finditer(soft)]
     findings += [Finding("phone", p) for p in _phones(soft)]
@@ -282,14 +353,14 @@ def explain(findings: list[Finding]) -> str:
 
 
 def string_values(value: object) -> list[str]:
-    """Return every string inside a JSON-like value (dict values, list items)."""
+    """Return every text inside a JSON-like value: dict keys and values, list items, numbers."""
     if isinstance(value, str):
         return [value]
     if isinstance(value, dict):
-        return [s for v in value.values() for s in string_values(v)]
+        return [s for k, v in value.items() for s in [str(k), *string_values(v)]]
     if isinstance(value, list):
         return [s for v in value for s in string_values(v)]
-    return []
+    return [] if value is None or isinstance(value, bool) else [str(value)]
 
 
 # Small words that place names keep in lower case ("Frankfurt am Main", "Stratford-upon-Avon").
@@ -319,6 +390,12 @@ _PLACE_CONNECTORS = frozenset(
     }
 )
 _PLACE_MAX_WORDS = 5
+_NOT_PLACE_WORDS = frozenset(
+    "familie family kind kinder kids children child sohn tochter son daughter baby eltern "
+    "parents mama papa mum dad budget euro eur jahre jahr years year alt old ignore rules "
+    "regeln instructions previous system prompt".split()
+)
+_APOSTROPHE_WORD = re.compile(r"[^\W\d_]+['’]s|[dDlL]['’][A-ZÀ-Þ][^\W\d_]*")
 _PLACE_MAX_CHARS = 40
 
 
@@ -337,14 +414,23 @@ def check_place_name(value: str) -> str:
     )
     if value != unicodedata.normalize("NFKC", value) or len(value) > _PLACE_MAX_CHARS:
         raise error
-    if not all(_latin_letter(ch) or ch in " .'’()-" for ch in value) or "  " in value:
+    if not all(_latin_letter(ch) or ch in " .'’()-/" for ch in value) or "  " in value:
         raise error
-    words = value.split(" ")
-    if not words or len(words) > _PLACE_MAX_WORDS or not _latin_letter(value[0]):
+    # Words are split on spaces, hyphens and slashes, so "Berlin-Kind-sieben-Jahre" counts as
+    # four words; every part is capitalised or a small connecting word.
+    words = re.split(r"[ \-/]", value)
+    if len(words) > _PLACE_MAX_WORDS or not _latin_letter(value[0]):
         raise error
     for word in words:
-        bare = word.strip("()")
-        if not bare or (not bare[0].isupper() and bare not in _PLACE_CONNECTORS):
+        bare = word.strip("().")
+        # An apostrophe only in "King's" or before a capital ("d'Alene", "L'Isle").
+        apostrophe = "'" in bare or "’" in bare
+        if apostrophe and not _APOSTROPHE_WORD.fullmatch(bare):
+            raise error
+        if not bare or not (bare[0].isupper() or bare in _PLACE_CONNECTORS or apostrophe):
+            raise error
+        # Words about a family or instructions are never part of a town's name.
+        if bare.casefold() in _NOT_PLACE_WORDS:
             raise error
     # A dot followed by two letters (evil.example) is a domain; "St. Peter", "D.C." are not.
     if re.search(r"\.[^\W\d_]{2}", value) or find_sensitive(value):

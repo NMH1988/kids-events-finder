@@ -216,6 +216,9 @@ def search_family_events(
             "Use the knowledge base and nearby places instead.",
             "results": [],
         }
+    # Ticketmaster gets the geocoder's name for the town, never the model's text: a value that
+    # is not a real town stops here.
+    city = _locate(city, country).name
     response = requests.get(
         config.TICKETMASTER_URL,
         params={

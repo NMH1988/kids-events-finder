@@ -2,6 +2,7 @@
 
 from pathlib import Path
 
+import pytest
 from streamlit.testing.v1 import AppTest
 
 APP = str(Path(__file__).resolve().parent.parent / "app.py")
@@ -248,3 +249,51 @@ def test_tool_names_and_arguments_are_shown_as_plain_code():
     assert not at.exception
     assert any("evil.example" in c.value for c in at.code)
     assert not any("evil.example" in m.value for m in at.markdown)
+
+
+def _money_page(text: str):
+    """Render an answer with an amount but no calculation."""
+    from views.chat import _render_calculations
+
+    _render_calculations({"content": text, "calculations": {}})
+
+
+@pytest.mark.parametrize(
+    "text", ["EUR44", "44EUR", "£12", "$15", "12 GBP", "15 USD", "kostet 44,-"]
+)
+def test_every_currency_spelling_gets_the_warning(text):
+    """Security round 2: any money spelling without a calculation gets the caption."""
+    at = AppTest.from_function(_money_page, args=(text,), default_timeout=30).run()
+    assert any("not calculated by the app" in c.value for c in at.caption)
+
+
+def _chat_page():
+    """Render the chat with a fake key, so the input box is shown without any model."""
+    from src import config
+
+    config.get_api_key = lambda: "test-key"
+    from views.chat import render_chat
+    from views.sidebar import Settings
+
+    render_chat(
+        Settings(
+            country="DE",
+            city="Berlin",
+            children=("3-5",),
+            model="openai/gpt-5-mini",
+            multi_query=False,
+            rerank=False,
+            auto_approve=False,
+            trip=None,
+        )
+    )
+
+
+def test_blocked_chat_message_is_never_stored():
+    """A message with health data is rejected before it reaches the conversation history."""
+    at = AppTest.from_function(_chat_page, default_timeout=30).run()
+    at.chat_input[0].set_value("My daughter has asthma, ideas?").run()
+    assert not at.exception
+    assert at.session_state["history"] == []
+    assert any("not sent" in w.value for w in at.warning)
+    assert not any("asthma" in w.value for w in at.warning)

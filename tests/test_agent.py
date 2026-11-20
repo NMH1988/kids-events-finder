@@ -331,3 +331,30 @@ def test_model_written_arguments_do_not_block_an_approval():
     assert decision_problem(same, original) is None
     changed = {"action": "edit", "tool_calls": [{"id": "b1", "args": {"note": "Kinderarzt"}}]}
     assert decision_problem(changed, original)
+
+
+def test_extra_keys_in_an_edit_are_dropped_or_blocked():
+    """Text typed as a new JSON key never reaches the model: blocked, or dropped when harmless."""
+    from src.agent.runner import decision_problem
+
+    original = [{"id": "w1", "name": "get_weather_forecast", "args": {"city": "Berlin"}}]
+    sneaky = {
+        "action": "edit",
+        "tool_calls": [{"id": "w1", "args": {"city": "Berlin", "Lena hat ADHS": 1}}],
+    }
+    assert decision_problem(sneaky, original)
+
+    graph, _ = _graph(
+        [_call("get_weather_forecast", {"city": "Berlin"}, "w1"), AIMessage("ok")],
+        _weather_tool(),
+    )
+    paused = start_turn(graph, "t23", "weather?", **CONTEXT)
+    resume_turn(
+        graph,
+        "t23",
+        {"action": "edit", "tool_calls": [{"id": "w1", "args": {"city": "Munich", "extra": "x"}}]},
+        turn_start_index=paused.start_index,
+    )
+    state = graph.get_state({"configurable": {"thread_id": "t23"}}).values
+    calls = [tc for m in state["messages"] if isinstance(m, AIMessage) for tc in m.tool_calls]
+    assert calls[0]["args"] == {"city": "Munich"}

@@ -36,7 +36,8 @@ logger = logging.getLogger(__name__)
 TOOL_EXPLANATIONS = {
     "search_knowledge_base": "Searches the app's own curated list. Nothing leaves the app.",
     "find_nearby_places": "Sends the city and a place category to OpenStreetMap (Overpass API).",
-    "search_family_events": "Sends the city, country and dates to Ticketmaster's event search.",
+    "search_family_events": "Looks up the city with Open-Meteo, then sends the town name, country "
+    "and dates to Ticketmaster's event search.",
     "get_weather_forecast": "Sends the city, country and dates to Open-Meteo's weather service.",
     "find_train_connection": "Looks up the two towns with Open-Meteo, then sends their "
     "coordinates and the date and time to Transitous (journey planner, regional trains only).",
@@ -55,9 +56,13 @@ ATTRIBUTIONS = {
     "sources; street data © OpenStreetMap contributors (ODbL)",
 }
 # Tools that look up a town with the Open-Meteo geocoder (GeoNames data).
-GEOCODING_TOOLS = frozenset({"find_nearby_places", "get_weather_forecast", "find_train_connection"})
-# A money amount in an answer's text, e.g. "44 EUR" or "€44".
-_MONEY = re.compile(r"€|\bEUR\b|\beuros?\b", re.IGNORECASE)
+GEOCODING_TOOLS = frozenset(
+    {"find_nearby_places", "search_family_events", "get_weather_forecast", "find_train_connection"}
+)
+# A money amount in an answer's text: "44 EUR", "EUR44", "€44", "£12", "$15", "12 GBP", "44,-".
+_MONEY = re.compile(
+    r"[€£$]|(?<![A-Za-z])(?:EUR|GBP|USD)(?![A-Za-z])|\beuros?\b|\d,-", re.IGNORECASE
+)
 # Shown with every answer (AI Act Art. 50, LEGAL_COMPLIANCE 4.1). The hidden element is the
 # machine-readable marker: fixed text, no user or model content.
 AI_LABEL = "🤖 AI-generated answer: it can be wrong; check the official websites."
