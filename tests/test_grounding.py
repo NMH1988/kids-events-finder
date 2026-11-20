@@ -327,3 +327,59 @@ def test_more_address_like_link_text_shows_the_real_host(text):
     """Escaped or look-alike dots and IP addresses in link text are replaced by the real host."""
     cleaned, _ = enforce_grounding(f"[{text}](https://a.org)", ALLOWED)
     assert cleaned == "[a.org](https://a.org)"
+
+
+FAIL_CLOSED_ATTACKS = [
+    "www\\.%65vil.example/p?ages=3-5&budget=90",
+    "WWW\\.%65vil.example/p",
+    "(www\\.%65vil.example/p)",
+    "www\\.​x.evil.example/p?ages=3-5&budget=90",
+    "www\\.­x.evil.example/p",
+    "www\\.⁠x.evil.example/p",
+    "www\\.﻿x.evil.example/p",
+    "WWW\\.​x.evil.example/p",
+    "(www\\.​x.evil.example/p)",
+    "www\\.*x.evil.example/p",
+    "www\\.~x.evil.example/p",
+    "www\\.$x.evil.example/p",
+    "www\\.'x.evil.example/p",
+    "www\\.=x.evil.example/p",
+]
+
+
+@pytest.mark.parametrize("attack", FAIL_CLOSED_ATTACKS)
+def test_any_escape_trick_fails_closed(attack):
+    """If an escape still hides an address, the answer is cleaned again with escapes resolved."""
+    cleaned, report = enforce_grounding(f"Ideas: {attack} done", ALLOWED)
+    plain = _resolve_all_escapes(cleaned).lower()
+    assert "www." not in plain and "evil" not in plain, cleaned
+    assert report.removed
+
+
+def test_intentional_escapes_survive_when_nothing_is_hidden():
+    """Only a suspicious answer is cleaned strictly; a normal one keeps its escapes as written."""
+    answer = "\\# Plan\n\n| a | x \\| y |\n|---|---|\n\n2026\\. ok · [Zoo](https://a.org)"
+    cleaned, report = enforce_grounding(answer, ALLOWED)
+    assert cleaned == answer and report.verified == ["https://a.org"]
+
+
+def test_strict_cleaning_still_keeps_verified_links():
+    """The fail-closed pass removes the hidden address but keeps the verified link."""
+    answer = "[🌐 Website](https://a.org) and www\\.​x.evil.example/p"
+    cleaned, report = enforce_grounding(answer, ALLOWED)
+    assert _rendered_targets(cleaned) == [("link", "https://a.org")]
+    assert "evil" not in _resolve_all_escapes(cleaned)
+
+
+@pytest.mark.parametrize("text", ["paypal​.com/login", "paypal­.com", "paypal·com", "paypal⸱com"])
+def test_invisible_or_dot_like_characters_in_link_text_show_the_real_host(text):
+    """Invisible characters and dot look-alikes cannot make link text show another address."""
+    cleaned, _ = enforce_grounding(f"[{text}](https://a.org)", ALLOWED)
+    assert cleaned == "[a.org](https://a.org)"
+
+
+def test_family_emoji_keeps_its_joiner():
+    """The zero-width joiner inside emoji is kept, so family emoji still render as one."""
+    family = "\U0001f468‍\U0001f469‍\U0001f467"
+    cleaned, _ = enforce_grounding(f"Great for {family} outings", ALLOWED)
+    assert family in cleaned

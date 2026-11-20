@@ -25,6 +25,7 @@ link count as verified or carry Markdown into the answer.
 
 import json
 import re
+import unicodedata
 from dataclasses import dataclass, field
 from html import unescape
 from urllib.parse import urlsplit, urlunsplit
@@ -62,8 +63,11 @@ _EMAIL = re.compile(r"([\w.+-]+)@([\w-]+(?:\.[\w-]+)+)")
 # A domain-like word (paypal.com, zoo．de) or a scheme; abbreviations like "z.B." or "St. Pauli"
 # are not addresses.
 _ADDRESS = re.compile(
-    r"[\w-]+[.．。｡﹒․]+[^\W\d_]{2,}|\d{1,3}(?:[.．。｡﹒․]\d{1,3}){3}|://", re.IGNORECASE
+    r"[\w-]+[.．。｡﹒․·⸱]+[^\W\d_]{2,}|\d{1,3}(?:[.．。｡﹒․·⸱]\d{1,3}){3}|://", re.IGNORECASE
 )
+# Zero-width joiner stays (it builds emoji such as family emoji); every other invisible format
+# character (zero-width space, soft hyphen, word joiner, BOM ...) is removed before matching.
+_KEEP_FORMAT = frozenset("‍")
 _PLACEHOLDER = "\x00{}\x00"
 _KEPT_ESCAPE = "\x01{}\x01"
 
@@ -124,14 +128,20 @@ def _normalise(url: str) -> str:
     return urlunsplit((parts.scheme.lower(), parts.netloc.lower(), *parts[2:]))
 
 
+def _strip_invisible(text: str) -> str:
+    """Remove control characters and invisible format characters (except the emoji joiner)."""
+    text = _CONTROL.sub("", text)
+    return "".join(ch for ch in text if ch in _KEEP_FORMAT or unicodedata.category(ch) != "Cf")
+
+
 def _decode(text: str, kept_escapes: list[str] | None = None) -> str:
     """Read text as a renderer would: no control characters, entities decoded, escapes resolved."""
     # With `kept_escapes`, escapes the URL passes do not need (e.g. \| or \#) become tokens
     # collected there, so they come back exactly as the model wrote them.
-    text = _CONTROL.sub("", text)
+    text = _strip_invisible(text)
     # Decode until nothing changes, so double-encoded entities (&amp;#119;) cannot hide a URL.
     for _ in range(5):
-        decoded = _CONTROL.sub("", _ENTITY.sub(lambda m: unescape(m.group(0)), text))
+        decoded = _strip_invisible(_ENTITY.sub(lambda m: unescape(m.group(0)), text))
         if decoded == text:
             break
         text = decoded
@@ -158,7 +168,7 @@ def _escape(text: str) -> str:
 
 def _label(text: str, url: str) -> str:
     """Return safe link text; text that looks like an address is replaced by the link's host."""
-    text = _SPECIAL.sub("", _ESCAPED.sub(r"\1", text)).replace("!", "").strip()
+    text = _SPECIAL.sub("", _ESCAPED.sub(r"\1", _strip_invisible(text))).replace("!", "").strip()
     if not text or _BARE.search(text) or _ADDRESS.search(text):
         return urlsplit(url).netloc.lower().removeprefix("www.") or "link"
     return text
@@ -179,6 +189,25 @@ def enforce_grounding(answer: str, allowed: set[str]) -> tuple[str, GroundingRep
     """Return the answer with only verified links left as links, and a report."""
     # The answer is decoded before matching, so the allowed URLs are decoded the same way.
     allowed_norm = {_normalise(_decode(u)) for u in allowed if is_strict_url(u)}
+    cleaned, report, leftover = _clean(answer, allowed_norm, strict=False)
+    if leftover:
+        # Fail closed: an escape the model wrote still hid an address. Clean again with every
+        # escape resolved first, so the URL passes see exactly what the renderer will link.
+        cleaned, report, _ = _clean(answer, allowed_norm, strict=True)
+    return cleaned, report
+
+
+def _leftover_address(text: str) -> bool:
+    """Return True when text (verified links already hidden) still reads as an address."""
+    plain = _strip_invisible(_ESCAPED.sub(r"\1", text))
+    return bool(_BARE.search(plain) or "@" in plain)
+
+
+def _clean(
+    answer: str, allowed_norm: set[str], *, strict: bool
+) -> tuple[str, GroundingReport, bool]:
+    """Clean an answer; return the text, the report and whether an address could remain."""
+    # In strict mode every escape is resolved before the URL passes, so none is kept as written.
     report = GroundingReport()
     kept: list[str] = []
 
@@ -219,15 +248,17 @@ def enforce_grounding(answer: str, allowed: set[str]) -> tuple[str, GroundingRep
         return REMOVED + tail
 
     kept_escapes: list[str] = []
-    cleaned = _decode(answer, kept_escapes)
+    cleaned = _decode(answer, None if strict else kept_escapes)
     cleaned = _INLINE.sub(replace_inline, cleaned)
     cleaned = _AUTOLINK.sub(replace_autolink, cleaned)
     cleaned = _BARE.sub(replace_bare, cleaned)
     # The renderer turns name@host into a mail link even when "@" is escaped, so it is reworded.
     cleaned = _EMAIL.sub(r"\1 (at) \2", cleaned)
     cleaned = _escape(cleaned)
-    for i, markdown in enumerate(kept):
-        cleaned = cleaned.replace(_PLACEHOLDER.format(i), markdown)
     for i, escape in enumerate(kept_escapes):
         cleaned = cleaned.replace(_KEPT_ESCAPE.format(i), escape)
-    return cleaned, report
+    # Re-read the result as the renderer will, with verified links still hidden as placeholders.
+    leftover = _leftover_address(cleaned)
+    for i, markdown in enumerate(kept):
+        cleaned = cleaned.replace(_PLACEHOLDER.format(i), markdown)
+    return cleaned, report, leftover
