@@ -440,6 +440,25 @@ from src.privacy_check import check_place_name, explain, find_sensitive
         ("my son's bad left knee injury", "health"),
         ("he has a really bad knee injury", "health"),
         ("My son uses a walker. Is the zoo accessible for kids?", "health"),
+        # round 14: legal C35-C39, code Must 1 and Should 1-2, security 1-4 and Low
+        ("Ben's knee injury is healing", "health"),
+        ("Mia's injury is healing", "health"),
+        ("My youngest's knee injury", "health"),
+        ("Max has injuries from football", "health"),
+        ("She's got injuries from the fall", "health"),
+        ("Both boys have injuries", "health"),
+        ("The twins have injuries", "health"),
+        ("She has the same injury as last year", "health"),
+        ("She has another injury", "health"),
+        ("he has knee injury", "health"),
+        ("He sustained injuries", "health"),
+        ("He got his booster for the trip abroad", "health"),
+        ("She had her booster for the plane", "health"),
+        ("My son is gifted him and his sister love maths", "health"),
+        ("Wo können meine Kinder Max und Ingolf spielen?", "name"),
+        ("Meine Kinder Lena und Ingolf tanzen.", "name"),
+        ("My son cannot walk far, is the zoo accessible for kids?", "health"),
+        ("She has weak legs, is the park accessible for kids?", "health"),
     ],
 )
 def test_sensitive_text_is_found(text, kind):
@@ -734,13 +753,30 @@ def test_sensitive_text_is_found(text, kind):
         "Wo können meine Kinder Judo und Kampfsport machen?",
         "Wo können meine Kinder Schach und Brettspiel spielen?",
         "Should we bring his booster for the taxi?",
-        "Grandma gifted the kids tickets to the zoo",
         "the app is loading poorly",
+        # round 14: the restored checks keep these passing
+        "Meine Kinder spielen Minigolf und Discgolf.",
+        "In case of a minor injury, is there a first aid room?",
     ],
 )
 def test_ordinary_questions_pass(text):
     """Normal questions about outings are not blocked."""
     assert find_sensitive(text) == []
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        # Accepted false alarms under the block-only rule (LEGAL_COMPLIANCE 1.4 and 2.6).
+        "Grandma gifted the kids tickets to the zoo",
+        "Has anyone had injuries on the trampoline?",
+        "My worry is injuries at trampoline parks",
+        "Do I need a booster?",
+    ],
+)
+def test_accepted_false_alarms_stay_blocked(text):
+    """Harmless wordings recorded in 2.6 are blocked; patterns are not loosened for them."""
+    assert find_sensitive(text)
 
 
 def test_check_input_blocks_before_any_model_call():

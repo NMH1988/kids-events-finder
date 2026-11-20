@@ -134,12 +134,20 @@ The users are parents, but the app handles data about children, who are speciall
   generic accessibility check for that message ("Is the museum accessible? We come with a
   stroller."); German children's names before a clause-final verb when the last name ends in
   -e, -n or -s ("Meine Kinder Max und Jonas tanzen."); "has cold" without the article ("my son
-  has cold", owner decision 2026-11-20, so that "have cold drinks" passes). The link target itself is always a
-  verified tool URL.
+  has cold", owner decision 2026-11-20, so that "have cold drinks" passes); "was/were/been gifted"
+  followed by "a", "an", "my" or "our" ("She was gifted a teacher said"), so that "We were gifted
+  a zoo membership" passes. The link target itself is always a verified tool URL.
   Accepted false alarms (the parent rephrases once): slang ("That's sick!"), rare uses of health
   words ("rash decision", "Der Stau ist übel", "Corona beer garden", "his shots at goal",
   "Stitches and craft workshop", "MMR museum", "Zelt aufgeschlagen"), and a German noun before
-  "ist N" without an article ("Film ist etwa 4").
+  "ist N" without an article ("Film ist etwa 4"). Under the block-only rule (1.4, review round
+  14): "gifted" as a verb with a person ("Grandma gifted the kids tickets", "gifted him a
+  voucher") or "the" ("We were gifted the tickets"); injuries in a general question with a verb
+  or "is" ("Has anyone had injuries on the trampoline?", "My worry is injuries at trampoline
+  parks"); "need a booster" and "her booster at home" (could be the car seat); "accessible for
+  toddlers?" followed by another sentence; "doing poorly" about a place ("The museum is doing
+  poorly financially"); "walker" as a hiker or a name next to an accessibility question ("keen
+  walkers", "Walker Art museum").
 - **2.7 Retention.** Conversations are deleted from the server when the parent starts a new one and
   automatically after 2 hours without use (`CONVERSATION_RETENTION_SECONDS`, enforced by a
   background cleaner every `CLEANUP_INTERVAL_SECONDS`, also when nobody uses the app); feedback is deleted after 90 days and stores the question text

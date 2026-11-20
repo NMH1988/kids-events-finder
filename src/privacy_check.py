@@ -371,7 +371,7 @@ _PRAM = re.compile(
 # A wheelchair, a disability or a mobility aid in the same message keeps the block.
 _DISABILITY = re.compile(
     r"wheelchair|rollstuhl|rolli(?!ng)|behindert|disab|xe lăn|handicap|reha|adaptive|rollator|"
-    r"walker|gehhilfe|nicht\s+laufen|can'?t\s+walk|crutch|krücke"
+    r"walker|gehhilfe|nicht\s+laufen|can(?:'?t|not)\s+walk|weak\s+legs|crutch|krücke"
 )
 # Phrases a regex states better than a word list ("is sick", but not "sick of the rain").
 _HEALTH_EXTRA = (
@@ -394,8 +394,10 @@ _HEALTH_EXTRA = (
     # An injury of someone ("his injury", "a knee injury", "my son's injury", "got an injury"),
     # not "injuries at trampoline parks", "in case of an injury", "a minor injury unit" or "an
     # injury risk".
-    # Possessive: "his injury", "my son's bad left knee injury" (not "What's the injury risk").
-    r"(?:(?<!\w)(?:his|her|their|my)|(?:son|daughter|kid|child|boy|girl|baby|toddler)'s)\s+"
+    # Possessive: "his injury", "my son's bad left knee injury", "Max's injury" (not "What's the
+    # injury risk").
+    r"(?:(?<!\w)(?:his|her|their|my)|(?<!\bwhat)(?<!\bthat)(?<!\bit)(?<!\bthere)(?<!\bwhere)"
+    r"(?<!\bhere)(?<!\bwho)(?<!\bhow)'s)\s+"
     r"(?!an?\s)(?:\w+\s+){0,3}?injur(?:y|ies)"
     r"(?!\s+(?:risk|clinic|unit|centre|center|prevention|insurance))(?!\w)",
     # "a/an … injury" is generic in a safety question ("in case of a minor injury", "a typical
@@ -404,12 +406,13 @@ _HEALTH_EXTRA = (
     r"(?!(?:typical|minor|common|possible)\s)(?:\w+\s+)?injur(?:y|ies)"
     r"(?!\s+(?:risk|clinic|unit|centre|center|prevention|insurance))(?!\w)",
     # Statements with a verb keep any qualifier ("has a minor injury", "suffered a serious head
-    # injury"); the singular needs "a/an" ("Do they have injury insurance?" passes), the plural a
-    # person ("he got injuries", not "Have there been injuries at this park?").
-    r"(?<!\w)(?:has|have|had|got|gets|suffered|sustained|picked\s+up)\s+an?\s+"
-    r"(?:\w+\s+){0,3}?injury(?!\s+(?:risk|clinic|unit|centre|center|insurance)\b)",
-    r"(?<!\w)(?:he|she|they|son|daughter|kid|kids|child|children)\s+(?:has|have|had|got|"
-    r"suffered)\s+(?:\w+\s+){0,2}?injuries",
+    # injury", "has knee injury", "sustained injuries"); not "Have there been injuries at this
+    # park?", "the fewest injuries" or "injury insurance".
+    r"(?<!\w)(?:has|have|had|got|gets|suffered|sustained|picked\s+up)\s+(?!there\b)"
+    r"(?!(?:the\s+)?(?:fewest|most|least|fewer|more|less|many|few)\b)(?:\w+\s+){0,4}?"
+    r"injur(?:y|ies)(?!\s+(?:risk|clinic|unit|centre|center|insurance|prevention)\b)",
+    r"(?<!\w)(?:he|she|they|son|daughter|kid|kids|child|children|twins|boys|girls|baby|toddler|"
+    r"both)\s+(?:has|have|had|got|suffered)\s+(?:\w+\s+){0,2}?injuries",
     r"'s\s+hurt(?!\w)",
     # "hurt/broke his …" is checked in `_hurt_findings`, which skips questions with a modal or a
     # negation earlier in the clause ("Will my son hurt his hands on the climbing wall?").
@@ -424,8 +427,7 @@ _HEALTH_EXTRA = (
     r"(?<!\w)poorly\s+since",
     # Giftedness of a child; not the verb: passive with an object ("we were gifted tickets", "we
     # got gifted a zoo membership") or active with a person ("my mum gifted us a voucher").
-    r"(?<!\w)(?<!were )(?<!was )(?<!been )(?<!got )(?<!get )gifted(?!\s+(?:us|them|me|him|"
-    r"the\s+kids)\b)(?!\w)",
+    r"(?<!\w)(?<!were )(?<!was )(?<!been )(?<!got )(?<!get )gifted(?!\s+(?:us|them|me)\b)(?!\w)",
     # Passive with a thing as object; not "was gifted the teacher thinks".
     r"(?<!\w)(?:were|was|been|got|get)\s+gifted(?!\s+(?:tickets?|vouchers?|a|an|two|three|"
     r"some|our|my|\d+)\b)(?!\w)",
@@ -445,7 +447,7 @@ _HEALTH_EXTRA = (
     # Booster vaccine ("after his booster", "had the booster"), not a booster seat ("a booster in
     # the taxi").
     r"(?<!bring )(?<!pack )(?<!\w)(?:his|her|their)\s+booster(?!\s+(?:seats?|cushions?)\b)"
-    r"(?!\s+(?:for|in)\s+the\s+(?:taxi|car|cab|plane|trip)\b)(?!\w)",
+    r"(?!\s+(?:for|in)\s+the\s+(?:taxi|car|cab)\b)(?!\w)",
     r"(?<!\w)(?:had|got|gets|getting|needs?|needed|after|before)\s+(?:the|a)\s+booster"
     r"(?!\s+(?:seats?|rides?|cushions?|in|for)\b)(?!\w)",
     r"(?<!\w)(?:the\s+)?flu(?!\s+(?:season|outbreak|wave|shot\s+clinic)\b)"
@@ -598,7 +600,8 @@ _POSSESSIVE = r"(?i:mein|meine|meinen|meinem|meiner|unser|unsere|unseren|unserem
 # Whole words (with a word start), so first names like Franz, Wolf or Rudolf still count as names.
 # Compound endings no first name has (Kampfsport, Brettspiel, Kindertheater, Skateboard).
 _ACTIVITY_ENDINGS = (
-    "(?<!ball)(?<!sport)(?<!spiel)(?<!theater)(?<!yoga)(?<!golf)(?<!board)"
+    # "golf" only after three letters (Minigolf, Discgolf), so the name Ingolf still counts.
+    r"(?<!ball)(?<!sport)(?<!spiel)(?<!theater)(?<!yoga)(?<![^\W\d_]{3}golf)(?<!board)"
     + "".join(
         rf"(?<!\b{w})"
         for w in (
