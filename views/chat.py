@@ -62,7 +62,8 @@ GEOCODING_TOOLS = frozenset(
 # A money amount in an answer's text: "44 EUR", "EUR44", "€44", "£12", "$15", "12 GBP", "44,-".
 _MONEY = re.compile(
     r"[€£$￡＄﹩₤¥￥]|(?<![A-Za-z])(?:EUR|GBP|USD|CHF)(?![A-Za-z])"
-    r"|\b(?:euros?|pounds?|dollars?|pfund|pfd)\b|\d\s*(?:franken|ct|cents?)\b|\b\d{1,3}p\b"
+    r"|\b(?:euros?|pounds?|dollars?|pfund|pfd)\b|\d\s*(?:franken|ct|cents?|yen|rappen)\b"
+    r"|[₹₩]|\b\d{1,3}p\b"
     r"|\d[,.][-–—](?!\s*\d)|\b\d+,\d{2}\b",
     re.IGNORECASE,
 )

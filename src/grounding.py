@@ -96,6 +96,10 @@ _SPACED_DOMAIN = re.compile(
     # "St. Pauli", "ca. ein Tag", "Kids vs. adults" and "z.B. hier" are no domain.
     r"|[a-z0-9]\s*\.[a-z]{2,6}(?![A-Za-z])"
     r"|[A-Za-z0-9]\s*\.\s*[A-Z]{2,6}(?![A-Za-z])"
+    # A short lower-case ending after a dot with spaces, at the end of the label ("evil . top");
+    # not after abbreviations ("incl. tax", "vs. kids").
+    r"|(?<![\w.])(?!(?:incl|inkl|ca|vs|bzw|nr|ggf|evtl|etc)\b)[a-z0-9]+\s*\.\s+[a-z]{2,4}"
+    r"(?=\s*(?:$|/))"
 )
 # An e-mail-like "@" (a word character on both sides) once escapes are resolved.
 _MAIL_AT = re.compile(r"[\w.+-]@[\w-]")

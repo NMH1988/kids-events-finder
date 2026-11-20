@@ -91,9 +91,15 @@ The users are parents, but the app handles data about children, who are speciall
   Accepted residuals of the keyword check (re-checked with the Datenschutzberater before launch):
   first names in place-name fields; German names inside a clause after "wenn", "weil", "ob" and
   similar words or after a preposition without a relative clause ("mit meinem Sohn Max ins
-  Museum"), because there the verb comes last and a name cannot be told from a noun; names written
-  in lower case; ages written only in words inside other phrases; link text whose spelled domain
-  is in title case (".Com"). The link target itself is always a verified tool URL.
+  Museum"), because there the verb comes last and a name cannot be told from a noun; after a
+  preposition, a daughter's name ending in -e, -en, -er, -es, -n or -s before ", die" ("mit meiner
+  Tochter Marie, die …"), because plural nouns look the same; a possessive directly before a name
+  without "Sohn"/"Tochter" ("Unser Max mag Dinos") and the parent's own name ("Ich bin Anna");
+  names written in lower case; ages written only in words inside other phrases, an age followed
+  by "&", "with" or "or" ("Lena is 7 or 8"), and two ages as a shortened compound ("4- und
+  6-jährige Kinder"), because "für 4- und 5-Jährige" is an age-group question; health words with
+  an extra accent on a letter that has none ("Thérapie"); link text whose spelled domain is in
+  title case (".Com"). The link target itself is always a verified tool URL.
 - **2.7 Retention.** Conversations are deleted from the server when the parent starts a new one and
   automatically after 2 hours without use (`CONVERSATION_RETENTION_SECONDS`, enforced by a
   background cleaner every `CLEANUP_INTERVAL_SECONDS`, also when nobody uses the app); feedback is deleted after 90 days and stores the question text

@@ -579,3 +579,10 @@ def test_abbreviations_with_a_dot_in_link_text_are_kept(text):
     """Code review round 5: abbreviations like 'ca.' or 'vs.' are no domain."""
     cleaned, _ = enforce_grounding(f"[{text}](https://a.org)", ALLOWED)
     assert cleaned == f"[{text}](https://a.org)"
+
+
+@pytest.mark.parametrize("text", ["evil . top", "evil. top", "evil . ru"])
+def test_spaced_short_endings_in_link_text_show_the_host(text):
+    """Security round 6: a short ending after a spaced dot at the end shows the host."""
+    cleaned, _ = enforce_grounding(f"[{text}](https://a.org)", ALLOWED)
+    assert cleaned == "[a.org](https://a.org)"

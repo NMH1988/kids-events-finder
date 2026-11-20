@@ -103,6 +103,41 @@ HEALTH_TERMS: tuple[str, ...] = (
     "~schwanger*",
     "~angststörung*",
     "~depressiv*",
+    "kränk*",
+    # Common illnesses, symptoms and treatments
+    "husten",
+    "grippe",
+    "~windpocken",
+    "masern",
+    "scharlach",
+    "~durchfall",
+    "erbrech*",
+    "~migräne",
+    "~bauchweh",
+    "~kopfweh",
+    "~entzündung*",
+    "heuschnupfen",
+    "impf*",
+    "~impfung*",
+    "~impftermin*",
+    "läuse",
+    "physio*",
+    "verletzt*",
+    "flu",
+    "cough*",
+    "has a cold",
+    "caught a cold",
+    "chickenpox",
+    "measles",
+    "diarrh*",
+    "vomit*",
+    "migraine*",
+    "vaccin*",
+    "injured",
+    "lice",
+    "bị sốt",
+    "bị ho",
+    "bị cảm",
     "~psycholog*",
     "~orthopäd*",
     "~notaufnahme",
@@ -159,7 +194,7 @@ HEALTH_TERMS: tuple[str, ...] = (
     "khiếm thị",
 )
 # Without accents these are other common words ("ôm" hug), so they match only with accents.
-_ACCENT_ONLY = frozenset({"ốm"})
+_ACCENT_ONLY = frozenset({"ốm", "bị sốt", "bị ho", "bị cảm"})
 # Phrases a regex states better than a word list ("is sick", but not "sick of the rain").
 _HEALTH_EXTRA = (
     r"(?:(?<!\w)(?:is|are|got|feels?|feeling|was|has\s+been|gets?|getting|being)|'s)\s+sick"
@@ -168,8 +203,8 @@ _HEALTH_EXTRA = (
     # Any doctor, also in compounds (Ohrenarzt, Frauenärztin); not "Schwarztee", the Harz
     # ("Harztour"), "Märztage" or the vet ("Tierarzt werden", a common child's wish).
     r"(?<!schw)(?<!tier)(?<!\bh)(?<!\bm)(?<!\bqu)(?:arzt|ärzt|aerzt)",
-    r"(?<!\w)(?:doctor|doktor|kinderdoktor|hno|pa?ediatrician|dentist|zahnklinik)\w*",
-    r"(?<!\w)kränk\w*",
+    r"(?<!\w)(?:doctor(?!\s+who)|(?:zahn|augen|kinder|haus|frauen|ohren)?doktor(?!fisch)|hno|"
+    r"pa?ediatrician|dentist|zahnklinik)\w*",
 )
 
 # Cyrillic, Greek and other letters that look like Latin ones, and small capitals.
@@ -298,18 +333,28 @@ _CHILD_WORDS = r"son|daughter|child|kid|boy|girl|baby|sohn|tochter|kind|junge|m�
 _NOT_VERBS = r"mit|nicht|jetzt|seit|oft|gut|sonst|erst|fast|meist|bist|samt|recht|direkt"
 # Main clause: the verb after the name is followed by more words ("Max spielt und malt gern").
 _PERSON_VERB = rf"(?=[ \t]+(?!(?:{_NOT_VERBS})\b)(?:mag|will|kann|möchte|darf|\w+t)[ \t]+\w)"
-# A relative clause after the name ("Max, der gern malt"), also after a preposition; plural
-# nouns ("Kurse, die", "Angebote, die", "Spannendes, das") end in -e, -en, -es or -er.
-_RELATIVE_CLAUSE = r"(?<!e)(?<!en)(?<!es)(?<!er)(?=[ \t]*,[ \t]*(?:der|die|das|who)\b)"
+# A relative clause after the name: in a main clause any name ("Mein Sohn Ben, der gern malt").
+_RELATIVE_CLAUSE = r"(?=[ \t]*,[ \t]*(?:der|die|das|who)\b)"
 _POSSESSIVE = r"(?i:mein|meine|meinen|meinem|meiner|unser|unsere|unseren|unserem|unserer)"
 _CHILD_NOUN = r"(?i:sohn|tochter|kind|junge|kleine[rnm]?)"
+# After a preposition the pronoun must fit the child ("für meinen Sohn Max, der", "mit meiner
+# Tochter Lena, die"), and for a daughter the word must not look plural ("Events, die", "Kurse,
+# die"), so "für mein Kind Tipps, die" or "für meinen Sohn Workshops, die" pass.
+_PREPOSITION_RELATIVE = (
+    rf"{_POSSESSIVE}[ \t]+(?:(?i:sohn|junge|kleiner)[ \t]+{_CAPITAL_WORD}"
+    r"(?=[ \t]*,[ \t]*der\b)"
+    rf"|(?i:tochter|kleine)[ \t]+{_CAPITAL_WORD}(?<!e)(?<!en)(?<!es)(?<!er)(?<!s)(?<!n)"
+    r"(?=[ \t]*,[ \t]*die\b))"
+)
 _NAME = re.compile(
     rf"(?<!\w)(?:(?i:{_CHILD_WORDS})[ \t]+(?:(?i:is|ist)[ \t]+)?"
     r"(?i:named|called|heißt|heisst|namens|tên là|tên)[ \t]+[^\W\d_]+"
     rf"|(?i:{_CHILD_WORDS})'s[ \t]+(?i:name)[ \t]+(?i:is)[ \t]+[^\W\d_]+"
     rf"|(?i:my|our)[ \t]+(?i:son|daughter|child|kid|boy|girl|baby)[ \t]+{_CAPITAL_WORD}"
-    rf"|{_NOT_AFTER}{_POSSESSIVE}[ \t]+{_CHILD_NOUN}[ \t]+{_CAPITAL_WORD}{_PERSON_VERB}"
-    rf"|{_POSSESSIVE}[ \t]+{_CHILD_NOUN}[ \t]+{_CAPITAL_WORD}{_RELATIVE_CLAUSE}"
+    rf"|(?i:my|our)[ \t]+(?i:kids|children|sons|daughters|twins)[ \t]+{_CAPITAL_WORD}"
+    rf"|{_NOT_AFTER}{_POSSESSIVE}[ \t]+{_CHILD_NOUN}[ \t]+{_CAPITAL_WORD}"
+    rf"(?:{_PERSON_VERB}|{_RELATIVE_CLAUSE})"
+    rf"|{_PREPOSITION_RELATIVE}"
     r"|(?i:my name is|ich heiße|ich heisse|tôi tên là|tôi tên)[ \t]+[^\W\d_]+"
     rf"|(?i:bé|cháu|con tôi)[ \t]+{_CAPITAL_WORD}"
     rf"|(?!(?i:{_GROUP_WORDS})\b){_CAPITAL_WORD}[ \t]*\([ \t]*\d{{1,2}}[ \t]*\))"
@@ -347,18 +392,25 @@ _NOT_A_CHILD = (
     r"mittagessen|abendessen|frühstück|gleis|platform|membership|mitgliedschaft|legoland"
 )
 # Words before a number that still give an exact age: "Lena is only 7", "Lena ist erst 7".
-_AGE_ADVERB = r"(?:(?:only|just|almost|nearly|now|already|erst|fast|schon|gerade|bald|jetzt)\s+)?"
-# Older siblings and the youngest, after an article: "Die Kleine ist 4", "Der Große ist 7".
-_SIBLING_WORDS = r"kleine[rn]?|große[rn]?|grosse[rn]?|jüngste[rn]?|älteste[rn]?|mittlere[rn]?"
+_AGE_ADVERB = (
+    r"(?:(?:only|just|almost|nearly|now|already|about|around|erst|fast|schon|gerade|bald|jetzt|"
+    r"inzwischen|mittlerweile|ungefähr|etwa)\s+)?"
+)
+# Older siblings and the youngest, after an article: "Die Kleine ist 4", "Der Große ist 7",
+# "the youngest is 3".
+_SIBLING_WORDS = (
+    r"kleine[rn]?|kleinste[rn]?|große[rn]?|grosse[rn]?|größte[rn]?|grösste[rn]?|jüngste[rn]?|"
+    r"jüngere[rn]?|älteste[rn]?|ältere[rn]?|mittlere[rn]?|youngest|eldest|oldest"
+)
 # "Lena is 7 (now, in May, but ...)": a child's age (0-17) that ends the phrase or is followed by
 # a word that fits an age; "Die Fahrt ist 12" (an article before the word) is no age.
 _CHILD_AGE = (
     r"(?:1[0-7]|[0-9]|" + r"|".join(r"(?:" + w + r")" for w in _NUMBER_WORDS.split("|")) + ")"
 )
 _PHRASE_END = (
-    r"(?!\s+and\s+a\s+half)"
-    r"(?=\s*(?:$|[.,;!?)(\-–&:]|(?:and|und|và|now|jetzt|schon|already|years?|jahre|geworden|im|"
-    r"in|next|nächste\w*|but|aber|so|soon|bald|this|too|auch|with|mit|or|oder)\b))"
+    r"(?!\s+and\s+a\s+half\s+(?:hours?|hrs?|minutes?|mins?|days?|weeks?|miles?|km)\b)"
+    r"(?=\s*(?:$|[.,;!?)(\-–]|(?:and|und|và|now|jetzt|schon|already|years?|jahre|geworden|im|"
+    r"in|next|nächste\w*|but|aber|so|soon|bald|this\s+year|dieses\s+jahr|too)\b))"
 )
 _NO_ARTICLE = "".join(
     rf"(?<!\b{w} )" for w in "der die das den dem the a an für for ein eine".split()
@@ -511,7 +563,8 @@ _NOT_PLACE_WORDS = frozenset(
         "budget euro eur jahre jahr years year ignore disregard forget override reveal key rules "
         "regeln instructions policy previous earlier above orders system prompt "
         "monate monaten months wochen weeks jahren kleinkind kleinkinder schulkinder "
-        "grundschüler grundschueler zwilling enkel enkelin"
+        "grundschüler grundschueler zwilling enkel enkelin enkelkind enkelkinder kindern "
+        "jährig jaehrig yrs yr mo"
     ).split()
 )
 # "Seven Berlin" is an age before a city, not a town ("Seven Sisters").
