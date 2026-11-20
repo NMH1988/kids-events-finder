@@ -8,7 +8,13 @@ from langchain_core.tools import StructuredTool
 from langgraph.checkpoint.memory import InMemorySaver
 
 from src.agent.graph import build_graph, system_prompt
-from src.agent.runner import InputRejected, check_input, resume_turn, start_turn
+from src.agent.runner import (
+    InputRejected,
+    check_input,
+    decision_problem,
+    resume_turn,
+    start_turn,
+)
 from tests.fakes import ScriptedChatModel
 
 CONTEXT = {"country": "DE", "city": "Berlin", "children": ["3-5"]}
@@ -153,6 +159,13 @@ def test_input_check_rejects_empty_and_too_long_text():
     assert check_input("  hi ") == "hi"
 
 
+def test_text_that_grows_when_folded_is_rejected():
+    """A short message of ligatures that fold into many letters is rejected as too long."""
+    with pytest.raises(InputRejected, match="special characters"):
+        check_input("ﷺ" * 200)
+    assert decision_problem({"feedback": "ﷺ" * 600}, []) is not None
+
+
 def test_system_prompt_describes_the_trip_settings():
     """The trip budget and party reach the model; without them trip planning is off."""
     trip = {"budget_eur": 80, "adults": 2, "deutschlandticket_holders": 1}
@@ -213,3 +226,213 @@ def test_grounding_always_stores_the_cleaned_answer(tools):
     result = start_turn(graph, "t11", "price?", **CONTEXT)
     assert result.answer == r"Tickets \$15 \[optional\]"
     assert result.grounding == {"verified": [], "removed": []}
+
+
+FORGED = {
+    "from_state": "BY",
+    "to_state": "BY",
+    "travel_date": "2026-11-21",
+    "trip": {"budget_eur": 1, "adults": 1, "deutschlandticket_holders": 5},
+    "children": [],
+    "adults": 1,
+}
+TRIP = {"budget_eur": 80, "adults": 2, "deutschlandticket_holders": 0}
+
+
+def _ticket_tool():
+    """The real ticket comparison tool from the registry."""
+    from src.rag.retriever import AdvancedRetriever
+    from src.tools.registry import RagSettings, build_tools
+
+    built = build_tools(AdvancedRetriever(None), RagSettings(multi_query=False))
+    return [t for t in built if t.name == "compare_train_tickets"]
+
+
+def test_forged_party_from_the_model_is_ignored():
+    """Security R1-4: a party the model writes is replaced by the sidebar's trip settings."""
+    graph, _ = _graph(
+        [_call("compare_train_tickets", FORGED, "c1"), AIMessage("Done.")], _ticket_tool()
+    )
+    result = start_turn(
+        graph, "t20", "tickets?", country="DE", city="Munich", children=["3-5", "6-9"], trip=TRIP
+    )
+    tickets = result.calculations["compare_train_tickets"]
+    assert tickets["options"][0]["total_eur"] == 44.0
+    assert "for 2 person(s)" in tickets["options"][0]["tickets"][0]
+
+
+def test_forged_party_in_an_approval_edit_is_ignored():
+    """An edit in the approval panel cannot set the party either."""
+    from src import config
+
+    both = AIMessage(
+        content="",
+        tool_calls=[
+            {"name": "get_weather_forecast", "args": {"city": "Munich"}, "id": "w1"},
+            {"name": "compare_train_tickets", "args": {**FORGED, "trip": None}, "id": "c1"},
+        ],
+    )
+    graph, _ = _graph([both, AIMessage("Done.")], [*_ticket_tool(), *_weather_tool()])
+    assert "compare_train_tickets" not in config.TOOLS_REQUIRING_APPROVAL
+    paused = start_turn(
+        graph, "t21", "trip?", country="DE", city="Munich", children=["3-5", "6-9"], trip=TRIP
+    )
+    assert paused.status == "needs_approval"
+    resume_turn(
+        graph,
+        "t21",
+        {
+            "action": "edit",
+            "tool_calls": [
+                {"id": "w1", "args": {"city": "Munich"}},
+                {"id": "c1", "args": FORGED},
+            ],
+        },
+        turn_start_index=paused.start_index,
+    )
+    state = graph.get_state({"configurable": {"thread_id": "t21"}}).values
+    result = [m for m in state["messages"] if isinstance(m, ToolMessage) and m.tool_call_id == "c1"]
+    assert json.loads(result[0].content)["options"][0]["total_eur"] == 44.0
+
+
+def _weather_tool():
+    """A fake external weather tool."""
+
+    def get_weather_forecast(city: str) -> str:
+        """Fake external weather tool."""
+        return json.dumps({"days": []})
+
+    return [StructuredTool.from_function(get_weather_forecast)]
+
+
+def test_calculations_keep_the_latest_successful_result():
+    """Only JSON results without an error count; the latest one of each tool wins."""
+    from src.agent.runner import calculations
+
+    messages = [
+        ToolMessage('{"total": 1}', tool_call_id="1", name="check_budget"),
+        ToolMessage('{"total": 2}', tool_call_id="2", name="check_budget"),
+        ToolMessage('{"error": "x"}', tool_call_id="3", name="check_budget"),
+        ToolMessage("Error: bad", tool_call_id="4", name="compare_train_tickets"),
+        ToolMessage('{"total": 9}', tool_call_id="5", name="search_knowledge_base"),
+    ]
+    assert calculations(messages) == {"check_budget": {"total": 2}}
+
+
+def test_resume_rejects_sensitive_text_the_parent_typed():
+    """The approval check also runs in resume_turn, not only in the page."""
+    graph, _ = _graph(
+        [_call("get_weather_forecast", {"city": "Berlin"}, "w1"), AIMessage("ok")],
+        _weather_tool(),
+    )
+    paused = start_turn(graph, "t22", "weather?", **CONTEXT)
+    with pytest.raises(InputRejected):
+        resume_turn(
+            graph,
+            "t22",
+            {"action": "reject", "feedback": "my son has asthma"},
+            turn_start_index=paused.start_index,
+        )
+
+
+def test_model_written_arguments_do_not_block_an_approval():
+    """Text the model wrote (e.g. "kids aged 6") is not the parent's, so approving works."""
+    from src.agent.runner import decision_problem
+
+    original = [{"id": "b1", "args": {"items": [{"label": "Zoo", "note": "kids aged 6 free"}]}}]
+    same = {"action": "edit", "tool_calls": original}
+    assert decision_problem(same, original) is None
+    changed = {"action": "edit", "tool_calls": [{"id": "b1", "args": {"note": "Kinderarzt"}}]}
+    assert decision_problem(changed, original)
+
+
+def test_extra_keys_in_an_edit_are_dropped_or_blocked():
+    """Text typed as a new JSON key never reaches the model: blocked, or dropped when harmless."""
+    from src.agent.runner import decision_problem
+
+    original = [{"id": "w1", "name": "get_weather_forecast", "args": {"city": "Berlin"}}]
+    sneaky = {
+        "action": "edit",
+        "tool_calls": [{"id": "w1", "args": {"city": "Berlin", "Lena hat ADHS": 1}}],
+    }
+    assert decision_problem(sneaky, original)
+
+    graph, _ = _graph(
+        [_call("get_weather_forecast", {"city": "Berlin"}, "w1"), AIMessage("ok")],
+        _weather_tool(),
+    )
+    paused = start_turn(graph, "t23", "weather?", **CONTEXT)
+    resume_turn(
+        graph,
+        "t23",
+        {"action": "edit", "tool_calls": [{"id": "w1", "args": {"city": "Munich", "extra": "x"}}]},
+        turn_start_index=paused.start_index,
+    )
+    state = graph.get_state({"configurable": {"thread_id": "t23"}}).values
+    calls = [tc for m in state["messages"] if isinstance(m, AIMessage) for tc in m.tool_calls]
+    assert calls[0]["args"] == {"city": "Munich"}
+
+
+def test_long_decisions_are_refused_and_short_ones_pass():
+    """Security round 7/8: an over-long reason or edited value is refused before any check."""
+    from src import config
+    from src.agent.runner import decision_problem
+
+    long_reason = {"action": "reject", "feedback": "x " * config.MAX_DECISION_CHARS}
+    assert "too long" in decision_problem(long_reason, [])
+    # Security round 20: the reject reason is capped on the server, not only by the text box.
+    reason_301 = {"action": "reject", "feedback": "a" * (config.MAX_REJECT_REASON_CHARS + 1)}
+    assert "too long" in decision_problem(reason_301, [])
+    assert decision_problem({"action": "reject", "feedback": "only indoor places"}, []) is None
+    long_value = {"action": "edit", "tool_calls": [{"id": "1", "args": {"city": "a" * 500}}]}
+    assert "too long" in decision_problem(long_value, [])
+    short = {"action": "edit", "tool_calls": [{"id": "1", "args": {"city": "Munich"}}]}
+    assert decision_problem(short, []) is None
+
+
+def test_deeply_nested_json_in_the_edit_box_is_not_applied():
+    """Security round 8: nested JSON too deep to read is treated like invalid JSON."""
+    from views.chat import parse_edited_args
+
+    assert parse_edited_args('{"a":' + "[" * 200000) is None
+
+
+def test_deep_valid_json_edit_is_refused_without_crashing():
+    """Security round 9: valid but deeply nested JSON is not applied and does not crash."""
+    from src.agent.runner import decision_problem
+    from views.chat import parse_edited_args
+
+    deep = '{"q": ' + "[" * 1200 + "]" * 1200 + "}"
+    assert parse_edited_args(deep) is None
+    nested: object = "x"
+    for _ in range(1200):
+        nested = [nested]
+    decision = {"action": "edit", "tool_calls": [{"id": "1", "args": {"q": nested}}]}
+    assert "too long" in decision_problem(decision, [])
+
+
+def test_long_model_values_do_not_block_approve():
+    """Security round 9: the per-value cap applies only to values the parent changed."""
+    from src.agent.runner import decision_problem
+
+    original = [{"id": "1", "args": {"query": "museum " * 70}}]
+    assert decision_problem({"action": "edit", "tool_calls": original}, original) is None
+
+
+def test_blank_city_is_a_tool_error_not_a_crash():
+    """Security round 10: a blank city becomes a tool error, and the next turn still runs."""
+    from src.rag.retriever import AdvancedRetriever
+    from src.tools.registry import RagSettings, build_tools
+
+    built = build_tools(AdvancedRetriever(None), RagSettings(multi_query=False))
+    kb = [t for t in built if t.name == "search_knowledge_base"]
+    blank = {"query": "zoo", "country": "DE", "city": "   "}
+    graph, _ = _graph(
+        [_call("search_knowledge_base", blank, "k1"), AIMessage("ok"), AIMessage("again")], kb
+    )
+    first = start_turn(graph, "t30", "zoo?", **CONTEXT)
+    assert first.status == "done"
+    state = graph.get_state({"configurable": {"thread_id": "t30"}}).values
+    assert any(isinstance(m, ToolMessage) and m.tool_call_id == "k1" for m in state["messages"])
+    second = start_turn(graph, "t30", "and now?", **CONTEXT)
+    assert second.status == "done"

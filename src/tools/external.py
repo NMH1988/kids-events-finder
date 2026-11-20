@@ -18,6 +18,7 @@ from src.grounding import is_strict_url
 ATTRIBUTION_OSM = "Data © OpenStreetMap contributors, ODbL (openstreetmap.org/copyright)"
 ATTRIBUTION_TICKETMASTER = "Event data from Ticketmaster Discovery API"
 ATTRIBUTION_WEATHER = "Weather data by Open-Meteo.com (CC BY 4.0)"
+ATTRIBUTION_GEOCODING = "Town lookup by Open-Meteo.com geocoding, GeoNames data (CC BY 4.0)"
 TRANSITOUS_SOURCES_URL = "https://transitous.org/sources/"
 ATTRIBUTION_TRANSITOUS = (
     "Journeys by Transitous (https://transitous.org/sources/); timetables by DELFI e.V. and "
@@ -215,6 +216,9 @@ def search_family_events(
             "Use the knowledge base and nearby places instead.",
             "results": [],
         }
+    # Ticketmaster gets the geocoder's name for the town, never the model's text: a value that
+    # is not a real town stops here.
+    city = _locate(city, country).name
     response = requests.get(
         config.TICKETMASTER_URL,
         params={

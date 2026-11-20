@@ -28,6 +28,8 @@ After each review check with `gh pr view <n> --json comments` that the report is
 - Chroma runs embedded only, with embeddings from OpenRouter (never Chroma's built-in embedding functions).
 - Map, event, weather and transit services receive only town or city names (or their coordinates), country, dates, times and category; never the question, the children's age groups, the budget or the family size. The AI model via OpenRouter receives the question, the age groups and the trip settings, as disclosed on the About page.
 - Children are only "Child 1", "Child 2" with an age group (`src/family.py`); never names or exact ages.
+- Every free-text field the parent fills passes `src/privacy_check.py` before it is sent; tool fields that hold a town or city use `PlaceName`. Tool values the app already knows (the family for the ticket comparison) are injected from the graph state, never written by the model.
+- No tracing or observability services (LangSmith etc.); logs hold event names and error types only.
 - Money is calculated in code, never by the model: ticket rules in `data/fares.json` + `src/fares.py`, totals in `src/budget.py`. Every fare entry keeps its bahn.de `source_url` and `checked_on` date. Unknown prices stay `null` for the parent to fill in.
 - Transitous (train journeys) is free only for open-source, non-commercial use; keep `TRANSITOUS_USER_AGENT` with the repository as the contact.
 - The system prompt and the evaluation questions are drafts for the owner to review.
@@ -39,4 +41,4 @@ After each review check with `gh pr view <n> --json comments` that the report is
 - Build index (needs key): `.venv/Scripts/python.exe -m scripts.build_index`
 - Test / lint: `.venv/Scripts/python.exe -m pytest -q`, `.venv/Scripts/ruff.exe check .`
 - CI (`.github/workflows/ci.yml`) runs `ruff check`, `ruff format --check` and pytest on every push to `main` and every PR.
-- Evaluation (needs key + index): `python -m scripts.evaluate_retrieval`, `python -m scripts.evaluate_agent --judge`; link check: `python -m scripts.check_links`
+- Evaluation (needs key + index): `python -m scripts.evaluate_retrieval`, `python -m scripts.evaluate_agent --judge`, `python -m scripts.evaluate_agent --red-team`; link check: `python -m scripts.check_links`. After a knowledge base change, rebuild the index.

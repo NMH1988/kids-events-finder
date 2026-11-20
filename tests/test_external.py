@@ -96,8 +96,8 @@ def test_events_without_key_explain_instead_of_calling():
     assert result["results"] == [] and "not configured" in result["error"]
 
 
-def test_events_parse_ticketmaster_response(monkeypatch):
-    """Events keep name, date, venue, link and a directions link to the venue."""
+def test_events_parse_ticketmaster_response(monkeypatch, at_berlin):
+    """Events keep name, venue, links; Ticketmaster gets the geocoder's town name."""
     seen = {}
 
     def fake_get(url, params, **kwargs):
@@ -127,6 +127,15 @@ def test_events_parse_ticketmaster_response(monkeypatch):
     assert event["website"] == "https://tm.example/e/1" and event["venue"] == "Hall"
     assert "Hall" in event["maps_url"].replace("+", " ")
     assert seen["classificationName"] == "family" and seen["countryCode"] == "DE"
+    assert seen["city"] == BERLIN.name
+
+
+def test_events_stop_when_the_town_is_not_found(monkeypatch):
+    """A city value that is not a real town never reaches Ticketmaster."""
+    monkeypatch.setattr(geo, "geocode_city", lambda city, country: None)
+    monkeypatch.setattr(requests, "get", lambda *a, **k: pytest.fail("Ticketmaster was called"))
+    with pytest.raises(external.ToolInputError):
+        external.search_family_events("Familie Mustermann", "DE", TODAY, TODAY, api_key="k")
 
 
 def test_dates_are_checked():

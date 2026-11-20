@@ -151,10 +151,21 @@ class AdvancedRetriever:
         """Rank candidate ids by BM25 score; places sharing no word with the query are dropped."""
         if not candidates:
             return []
-        bm25 = BM25Okapi([tokenize(p.to_text()) for p in candidates])
-        scores = bm25.get_scores(tokenize(query))
-        ranked = sorted(zip(candidates, scores, strict=True), key=lambda x: x[1], reverse=True)
-        return [p.id for p, s in ranked if s > 0][: config.RETRIEVAL_CANDIDATES]
+        docs = [tokenize(p.to_text()) for p in candidates]
+        terms = tokenize(query)
+        scores = BM25Okapi(docs).get_scores(terms)
+        # Filter on shared words, not on the score: with very few candidates (e.g. two places in
+        # a city) BM25's idf of a word found in half of them is 0, which would drop a real match.
+        ranked = sorted(
+            (
+                (p, s)
+                for p, s, d in zip(candidates, scores, docs, strict=True)
+                if set(terms) & set(d)
+            ),
+            key=lambda x: x[1],
+            reverse=True,
+        )
+        return [p.id for p, _ in ranked][: config.RETRIEVAL_CANDIDATES]
 
     def rerank(self, question: str, found: list[RetrievedPlace]) -> list[RetrievedPlace]:
         """Reorder places by an LLM's relevance score; ties keep their fused order."""

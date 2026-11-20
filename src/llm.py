@@ -1,8 +1,29 @@
-"""Builds the chat and embedding clients for OpenRouter; the only place that creates them."""
+"""Builds the chat and embedding clients for the AI provider; the only place that creates them."""
 
+import logging
+import os
+
+import langsmith.run_trees
+import langsmith.utils
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 
 from src import config
+
+
+def disable_tracing() -> None:
+    """Force LangSmith tracing off, whatever the environment or an earlier cached read says."""
+    # LangSmith would receive every message, the children's age groups and the trip settings
+    # (LEGAL_COMPLIANCE 2.10).
+    for name in config.TRACING_ENV_OFF:
+        os.environ[name] = "false"
+    langsmith.utils.get_env_var.cache_clear()
+    langsmith.run_trees.configure(enabled=False)
+
+
+disable_tracing()
+# At DEBUG these libraries log request bodies (the parent's message); cap them at LOG_LEVEL.
+for _name in config.QUIET_LOGGERS:
+    logging.getLogger(_name).setLevel(config.LOG_LEVEL)
 
 
 class MissingAPIKeyError(RuntimeError):
@@ -30,7 +51,7 @@ def build_chat_model(model: str | None = None, *, api_key: str | None = None) ->
         raise ValueError(f"Model not allowed: {model}")
     return ChatOpenAI(
         model=model,
-        base_url=config.OPENROUTER_BASE_URL,
+        base_url=config.AI_BASE_URL,
         api_key=_require_key(api_key),
         max_tokens=config.MAX_TOKENS,
         reasoning_effort=config.REASONING_EFFORT,
@@ -45,7 +66,7 @@ def build_embeddings(*, api_key: str | None = None) -> OpenAIEmbeddings:
     """Build the embeddings client for the configured embedding model on OpenRouter."""
     return OpenAIEmbeddings(
         model=config.EMBEDDING_MODEL,
-        base_url=config.OPENROUTER_BASE_URL,
+        base_url=config.EMBEDDING_BASE_URL,
         api_key=_require_key(api_key),
         # Send raw text: by default the client sends token arrays, which OpenRouter may reject.
         check_embedding_ctx_length=False,

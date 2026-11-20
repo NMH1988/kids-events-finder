@@ -41,8 +41,9 @@ _INLINE = re.compile(
 )
 _AUTOLINK = re.compile(r"<([a-zA-Z][a-zA-Z0-9+.-]*:[^\s<>]*|www\.[^\s<>]*)>")
 # A URL-like run up to the next space or "<": a scheme, a protocol-relative host or "www.".
+# "www." after a letter or digit ("Awww.") is not an autolink for the renderer, so it is left alone.
 _BARE = re.compile(
-    r"(?:https?:|(?<![\w:/])//(?=[\w-]+\.)|www\.)[^\s<]*",
+    r"(?:https?:|(?<![\w:/])//(?=[\w-]+\.)|(?<![^\W_])www\.)[^\s<]*",
     re.IGNORECASE,
 )
 # Trailing characters the renderer's autolink rule leaves out of a link.
@@ -59,15 +60,52 @@ _WORD_ESCAPE = re.compile(r"(?<=[\w@.+\-])\\([.\-_+])(?=[\w@.+\-\\])")
 # Escapes resolved before the URL passes; every other escape (e.g. \| or \#) is kept as written.
 _URL_ESCAPES = frozenset("\\[]<>$`~@&:/")
 _SPECIAL = re.compile(r"([\\\[\]<>$`~@&])")
-_EMAIL = re.compile(r"([\w.+-]+)@([\w-]+(?:\.[\w-]+)+)")
+# The lookbehind anchors the start, so long runs of letters are not re-scanned (no slow-down).
+_EMAIL = re.compile(r"(?<![\w.+-])([\w.+-]+)@([\w-]+(?:\.[\w-]+)+)")
 # A domain-like word (paypal.com, zoo．de) or a scheme; abbreviations like "z.B." or "St. Pauli"
 # are not addresses.
 _ADDRESS = re.compile(
-    r"[\w-]+[.．。｡﹒․·⸱]+[^\W\d_]{2,}|\d{1,3}(?:[.．。｡﹒․·⸱]\d{1,3}){3}|://", re.IGNORECASE
+    # The lookbehinds anchor the start, so long runs of letters are not re-scanned (no slow-down).
+    r"(?<![\w-])[\w-]+[.．。｡﹒․‧·⸱]+[^\W\d_]{2,}|(?<!\d)\d{1,3}(?:[.．。｡﹒․‧·⸱]\d{1,3}){3}|://",
+    re.IGNORECASE,
 )
 # Zero-width joiner stays (it builds emoji such as family emoji); every other invisible format
 # character (zero-width space, soft hyphen, word joiner, BOM ...) is removed before matching.
 _KEEP_FORMAT = frozenset("‍")
+# Tag characters build subdivision flags (England, Scotland, Wales): the black flag U+1F3F4, 2-6
+# tag letters or digits, then the cancel tag U+E007F. They are kept only in that exact form, so no
+# invisible text can hide behind a flag.
+_TAG_CHARS = range(0xE0020, 0xE0080)
+_FLAG = re.compile(
+    "\U0001f3f4(?:"
+    + "|".join("".join(chr(0xE0000 + ord(c)) for c in code) for code in ("gbeng", "gbsct", "gbwls"))
+    + ")\U000e007f"
+)
+# Link text keeps only these characters; anything else (letter-like dots from other scripts,
+# odd punctuation) could disguise it, so the link's host is shown instead.
+_LABEL_PUNCTUATION = frozenset(" .,-'&:;()?!/+’‘“”„–—· ")
+# Emoji outside the main emoji blocks that link text may use.
+_LABEL_SYMBOLS = frozenset("⭐⭕⬛⬜⬅⬆⬇®™©")
+# A domain spelled out in link text ("paypal .com", "PayPal .COM/login", "paypal dot com",
+# "paypal(.)com"): a common top-level domain after a dot, comma or the word "dot".
+_SPACED_DOMAIN = re.compile(
+    # A common top-level domain in any case after a dot, "(.)", "dot" or "punkt".
+    r"(?i:\S\s*(?:\.|\(\.\)|\(dot\)|[\"']dot[\"']|-dot-|\bdot\b|\bpunkt\b)\s*"
+    r"(?:c\s*[o0]\s*m|org|net|de|uk|co|io|eu|at|ch|us|biz|fr|nl|me|info|shop|app|xyz|online)"
+    r"(?![a-z]))"
+    # .com, .org or .net after any other separator ("paypal, com", "paypal / com").
+    r"|(?i:\S\s*(?:[,:;/·]|\s[–-])\s*(?:com|org|net)(?![a-z]))"
+    # Any lower-case ending right after a dot ("evil .xyz"), or one in capitals ("EVIL .TOP");
+    # "St. Pauli", "ca. ein Tag", "Kids vs. adults" and "z.B. hier" are no domain.
+    r"|[a-z0-9]\s*\.[a-z]{2,6}(?![A-Za-z])"
+    r"|[A-Za-z0-9]\s*\.\s*[A-Z]{2,6}(?![A-Za-z])"
+    # A short lower-case ending after a dot with spaces, at the end of the label ("evil . top");
+    # not after abbreviations ("incl. tax", "vs. kids").
+    r"|(?<![\w.])(?!(?i:incl|inkl|ca|vs|bzw|nr|ggf|evtl|etc)\b)[A-Za-z0-9]+\s*\.\s+[a-z]{2,4}"
+    r"(?=[\s.!?)]*+(?:$|/))"
+)
+# An e-mail-like "@" (a word character on both sides) once escapes are resolved.
+_MAIL_AT = re.compile(r"[\w.+-]@[\w-]")
 _PLACEHOLDER = "\x00{}\x00"
 _KEPT_ESCAPE = "\x01{}\x01"
 
@@ -129,9 +167,40 @@ def _normalise(url: str) -> str:
 
 
 def _strip_invisible(text: str) -> str:
-    """Remove control characters and invisible format characters (except the emoji joiner)."""
+    """Remove control characters and invisible format characters (except emoji building blocks)."""
     text = _CONTROL.sub("", text)
-    return "".join(ch for ch in text if ch in _KEEP_FORMAT or unicodedata.category(ch) != "Cf")
+    out: list[str] = []
+    last = 0
+    for match in [*_FLAG.finditer(text), None]:
+        segment = text[last : match.start() if match else len(text)]
+        out.extend(
+            ch
+            for ch in segment
+            if ch in _KEEP_FORMAT
+            or (ord(ch) not in _TAG_CHARS and unicodedata.category(ch) != "Cf")
+        )
+        if match:
+            out.append(match.group(0))
+            last = match.end()
+    return "".join(out)
+
+
+def _label_char(ch: str) -> bool:
+    """Return True for a character link text may show: Latin letters, digits, emoji, punctuation."""
+    if ch.isascii():
+        return ch.isalnum() or ch in _LABEL_PUNCTUATION
+    if ch in _LABEL_PUNCTUATION or ch in _LABEL_SYMBOLS:
+        return True
+    code = ord(ch)
+    latin = 0xC0 <= code <= 0x24F or 0x1E00 <= code <= 0x1EFF
+    symbol = unicodedata.category(ch) == "So"
+    emoji = symbol and (
+        (0x1F300 <= code < 0x1FB00)
+        or 0x1F1E6 <= code <= 0x1F1FF  # regional indicators: country flags such as 🇩🇪
+        or 0x2600 <= code <= 0x26FF
+        or 0x2700 <= code <= 0x27BF
+    )
+    return (latin and ch.isalpha()) or emoji
 
 
 def _decode(text: str, kept_escapes: list[str] | None = None) -> str:
@@ -169,7 +238,19 @@ def _escape(text: str) -> str:
 def _label(text: str, url: str) -> str:
     """Return safe link text; text that looks like an address is replaced by the link's host."""
     text = _SPECIAL.sub("", _ESCAPED.sub(r"\1", _strip_invisible(text))).replace("!", "").strip()
-    if not text or _BARE.search(text) or _ADDRESS.search(text):
+    # Link text needs no joiners, tag characters or combining marks: they can only disguise it.
+    text = "".join(
+        ch
+        for ch in text
+        if ch not in _KEEP_FORMAT and ord(ch) not in _TAG_CHARS and unicodedata.category(ch) != "Mn"
+    ).strip()
+    if (
+        not text
+        or not all(_label_char(ch) for ch in text)
+        or _SPACED_DOMAIN.search(text)
+        or _BARE.search(text)
+        or _ADDRESS.search(text)
+    ):
         return urlsplit(url).netloc.lower().removeprefix("www.") or "link"
     return text
 
@@ -200,7 +281,7 @@ def enforce_grounding(answer: str, allowed: set[str]) -> tuple[str, GroundingRep
 def _leftover_address(text: str) -> bool:
     """Return True when text (verified links already hidden) still reads as an address."""
     plain = _strip_invisible(_ESCAPED.sub(r"\1", text))
-    return bool(_BARE.search(plain) or "@" in plain)
+    return bool(_BARE.search(plain) or _MAIL_AT.search(plain))
 
 
 def _clean(
@@ -253,7 +334,12 @@ def _clean(
     cleaned = _AUTOLINK.sub(replace_autolink, cleaned)
     cleaned = _BARE.sub(replace_bare, cleaned)
     # The renderer turns name@host into a mail link even when "@" is escaped, so it is reworded.
-    cleaned = _EMAIL.sub(r"\1 (at) \2", cleaned)
+    # Repeated until stable: overlapping addresses (a@b.de@c.de) leave a new one after one pass.
+    for _ in range(10):
+        reworded = _EMAIL.sub(r"\1 (at) \2", cleaned)
+        if reworded == cleaned:
+            break
+        cleaned = reworded
     cleaned = _escape(cleaned)
     for i, escape in enumerate(kept_escapes):
         cleaned = cleaned.replace(_KEPT_ESCAPE.format(i), escape)

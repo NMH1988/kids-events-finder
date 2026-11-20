@@ -11,8 +11,9 @@ st.set_page_config(page_title="Kids Outing Finder", page_icon="🎈", layout="wi
 start_cleaner()  # enforces the retention limits in the background (LEGAL_COMPLIANCE 2.7)
 st.title("🎈 Kids Outing Finder")
 st.caption(
-    "Events and places for children in Germany, the UK and the USA, with links and directions. "
-    "AI-generated suggestions: always check the official website before you go."
+    "For parents and carers aged 18+. Events and places for children in Germany, the UK and the "
+    "USA, with links and directions. AI-generated suggestions: always check the official website "
+    "before you go."
 )
 
 settings = render_sidebar()

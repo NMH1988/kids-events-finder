@@ -2,6 +2,7 @@
 
 import json
 import logging
+import re
 import threading
 import time
 import uuid
@@ -10,10 +11,24 @@ import streamlit as st
 from langgraph.checkpoint.memory import InMemorySaver
 
 from src import config, services
-from src.agent.runner import InputRejected, TurnResult, resume_turn, start_turn
+from src.agent.runner import (
+    InputRejected,
+    TurnResult,
+    check_input,
+    decision_problem,
+    resume_turn,
+    start_turn,
+)
 from src.feedback import delete_shared_feedback, purge_old_feedback, save_feedback
 from src.llm import MissingAPIKeyError
-from src.tools.external import TRANSITOUS_SOURCES_URL
+from src.privacy_check import json_depth
+from src.tools.external import (
+    ATTRIBUTION_GEOCODING,
+    ATTRIBUTION_OSM,
+    ATTRIBUTION_TICKETMASTER,
+    ATTRIBUTION_WEATHER,
+    TRANSITOUS_SOURCES_URL,
+)
 from src.tools.registry import RagSettings
 from views.sidebar import Settings
 
@@ -22,7 +37,8 @@ logger = logging.getLogger(__name__)
 TOOL_EXPLANATIONS = {
     "search_knowledge_base": "Searches the app's own curated list. Nothing leaves the app.",
     "find_nearby_places": "Sends the city and a place category to OpenStreetMap (Overpass API).",
-    "search_family_events": "Sends the city, country and dates to Ticketmaster's event search.",
+    "search_family_events": "Looks up the city with Open-Meteo, then sends the town name, country "
+    "and dates to Ticketmaster's event search.",
     "get_weather_forecast": "Sends the city, country and dates to Open-Meteo's weather service.",
     "find_train_connection": "Looks up the two towns with Open-Meteo, then sends their "
     "coordinates and the date and time to Transitous (journey planner, regional trains only).",
@@ -31,6 +47,34 @@ TOOL_EXPLANATIONS = {
     "check_budget": "Adds up the costs inside the app. Fill in the amounts you know (entry fees, "
     "food); leave a cell empty if you don't know it yet.",
 }
+# Data source credits shown under an answer by the app whenever the tool was used (licence duty,
+# LEGAL_COMPLIANCE 6.3), so they never depend on the model mentioning them.
+ATTRIBUTIONS = {
+    "find_nearby_places": ATTRIBUTION_OSM,
+    "search_family_events": ATTRIBUTION_TICKETMASTER,
+    "get_weather_forecast": ATTRIBUTION_WEATHER,
+    "find_train_connection": f"Journeys by [Transitous]({TRANSITOUS_SOURCES_URL}) and its data "
+    "sources; street data © OpenStreetMap contributors (ODbL)",
+}
+# Tools that look up a town with the Open-Meteo geocoder (GeoNames data).
+GEOCODING_TOOLS = frozenset(
+    {"find_nearby_places", "search_family_events", "get_weather_forecast", "find_train_connection"}
+)
+# A money amount in an answer's text: "44 EUR", "EUR44", "€44", "£12", "$15", "12 GBP", "44,-".
+_MONEY = re.compile(
+    r"[€£$￡＄﹩₤¥￥]|(?<![A-Za-z])(?:EUR|GBP|USD|CHF)(?![A-Za-z])"
+    r"|\b(?:euros?|pounds?|dollars?|pfund|pfd)\b|\d\s*(?:franken|ct|cents?|yen|rappen)\b"
+    r"|[₹₩]|\b\d{1,3}p\b"
+    r"|\d[,.][-–—](?!\s*\d)|\b\d+,\d{2}\b",
+    re.IGNORECASE,
+)
+# Shown with every answer (AI Act Art. 50, LEGAL_COMPLIANCE 4.1). The hidden element is the
+# machine-readable marker: fixed text, no user or model content.
+AI_LABEL = "🤖 AI-generated answer: it can be wrong; check the official websites."
+AI_MARKER_HTML = (
+    '<span hidden data-ai-generated="true" data-generator="kids-events-finder" '
+    'data-disclosure="EU AI Act Art. 50"></span>'
+)
 EXAMPLES = (
     "Rainy-day ideas for this weekend?",
     "Free things to do with a toddler",
@@ -146,11 +190,76 @@ def _store_result(result: TurnResult, question: str, model: str) -> None:
             "question": question,
             "model": model,
             "tools": result.tools_used,
+            "calculations": result.calculations,
             "grounding": result.grounding,
             "tokens": (result.input_tokens, result.output_tokens),
             "seconds": result.seconds,
         }
     )
+
+
+def _render_calculations(message: dict) -> None:
+    """Show the app's own ticket and budget figures from the tool results, not the model's text."""
+    calc = message.get("calculations") or {}
+    tickets, budget = calc.get("compare_train_tickets"), calc.get("check_budget")
+    if not tickets and not budget:
+        if _MONEY.search(message.get("content") or ""):
+            st.caption(
+                "⚠️ Amounts in this answer were not calculated by the app in this step. Check "
+                "bahn.de and the official websites."
+            )
+        return
+    with st.container(border=True):
+        st.markdown("**🧮 Calculated by the app** (from its fare table and your amounts)")
+        if tickets and tickets.get("options"):
+            st.dataframe(
+                [
+                    {
+                        "Option": o["label"],
+                        "Total (EUR)": o["total_eur"],
+                        "Checked": o["checked_on"],
+                    }
+                    for o in tickets["options"]
+                ],
+                hide_index=True,
+                use_container_width=True,
+            )
+            for warning in tickets.get("warnings") or []:
+                st.caption(f"⚠️ {warning}")
+        if budget:
+            st.dataframe(
+                [
+                    {"Cost": i.get("label", ""), "Amount (EUR)": i.get("amount_eur")}
+                    for i in budget.get("items", [])
+                ],
+                hide_index=True,
+                use_container_width=True,
+            )
+            unknown = ", ".join(budget.get("unknown_items") or []) or "none"
+            remaining = budget["remaining_eur"]
+            left = (
+                f"{remaining:.2f} EUR left"
+                if remaining >= 0
+                else f"{-remaining:.2f} EUR over budget"
+            )
+            st.text(
+                f"Known total {budget['known_total_eur']:.2f} EUR of {budget['budget_eur']:.2f} "
+                f"EUR · {left} · still unknown: {unknown}"
+            )
+        st.caption(
+            "If a figure in the AI's text differs from this box, this box is right. Prices can "
+            "change: check bahn.de and the official websites before you buy."
+        )
+
+
+def _render_attributions(message: dict) -> None:
+    """Name the data sources of the live tools this answer used (set by the app, not the model)."""
+    used = {t["name"] for t in message.get("tools") or []}
+    lines = [text for name, text in ATTRIBUTIONS.items() if name in used]
+    if used & GEOCODING_TOOLS:
+        lines.append(ATTRIBUTION_GEOCODING)
+    if lines:
+        st.caption(" · ".join(lines))
 
 
 def _render_details(message: dict) -> None:
@@ -176,8 +285,6 @@ def _render_details(message: dict) -> None:
                 )
         else:
             st.markdown("- No tools were called.")
-        if any(t["name"] == "find_train_connection" for t in tools):
-            st.caption(f"Journeys by [Transitous]({TRANSITOUS_SOURCES_URL}) and its data sources.")
         tin, tout = message.get("tokens", (0, 0))
         st.caption(
             f"{message.get('model')} · {tin} input / {tout} output tokens · "
@@ -191,7 +298,8 @@ def _render_feedback(index: int, message: dict, settings: Settings) -> None:
     share = st.checkbox(
         "Also share my question and this answer: stored on this app's server only to improve "
         f"the answers, deleted after {config.FEEDBACK_RETENTION_DAYS} days. You can delete it "
-        "again with the button at the end of the chat while this page is open.",
+        "again with the button at the end of the chat while this page is open. Only tick this if "
+        "the question holds no personal details about your family.",
         value=False,
         key=f"fb_share_{key}",
     )
@@ -215,14 +323,17 @@ def _render_feedback(index: int, message: dict, settings: Settings) -> None:
         st.toast("Thanks for the feedback!")
 
 
-def _budget_editor(call: dict) -> dict:
+def _budget_editor(call: dict, settings: Settings) -> dict:
     """Let the parent fill in or correct the budget items; return the edited arguments."""
     args = call["args"]
+    # The budget comes from the sidebar's trip settings, not from the model's argument.
+    start = (settings.trip or {}).get("budget_eur", args.get("budget_eur"))
+    low, high = config.BUDGET_RANGE_EUR
     budget = st.number_input(
         "Budget (EUR)",
-        min_value=float(config.BUDGET_RANGE_EUR[0]),
-        max_value=float(config.BUDGET_RANGE_EUR[1]),
-        value=float(args.get("budget_eur") or 0),
+        min_value=float(low),
+        max_value=float(high),
+        value=min(max(float(start or 0), float(low)), float(high)),
         key=f"budget_{call['id']}",
     )
     rows = [
@@ -262,6 +373,17 @@ def _budget_editor(call: dict) -> dict:
     return {"budget_eur": float(budget), "items": items}
 
 
+def parse_edited_args(text: str) -> dict | None:
+    """Return the edited arguments when the text is a JSON object; anything else is not applied."""
+    try:
+        parsed = json.loads(text)
+    except ValueError, RecursionError:  # bad JSON, or nested too deep to read
+        return None
+    if not isinstance(parsed, dict) or json_depth(parsed) > config.MAX_EDIT_DEPTH:
+        return None
+    return parsed
+
+
 def _render_approval(settings: Settings) -> None:
     """Show the planned tool calls and let the parent approve, edit or reject them."""
     pending = st.session_state.pending
@@ -280,7 +402,7 @@ def _render_approval(settings: Settings) -> None:
                 st.caption(TOOL_EXPLANATIONS.get(call["name"], ""))
                 if call["name"] == "check_budget":
                     has_budget = True
-                    budget_args = {"id": call["id"], "args": _budget_editor(call)}
+                    budget_args = {"id": call["id"], "args": _budget_editor(call, settings)}
                     edited.append(budget_args)
                     approved.append(budget_args)
                     continue
@@ -290,17 +412,22 @@ def _render_approval(settings: Settings) -> None:
                     json.dumps(call["args"], indent=2, ensure_ascii=False),
                     key=f"args_{call['id']}",
                     height=130,
+                    max_chars=config.MAX_DECISION_CHARS,
                 )
-                try:
-                    edited.append({"id": call["id"], "args": json.loads(text)})
-                except json.JSONDecodeError:
+                parsed = parse_edited_args(text)
+                if parsed is not None:
+                    edited.append({"id": call["id"], "args": parsed})
+                else:
                     bad_json = True
                     edited.append({"id": call["id"], "args": call["args"]})
-                    st.error("This is not valid JSON. Approve will send the original arguments.")
+                    st.error(
+                        "This is not a valid JSON object. Approve will send the original arguments."
+                    )
         feedback = st.text_input(
             "Reason if you reject (optional)",
             key="reject_reason",
             placeholder="e.g. only indoor places, please",
+            max_chars=config.MAX_REJECT_REASON_CHARS,
         )
         c1, c2, c3 = st.columns(3)
         decision = None
@@ -314,6 +441,11 @@ def _render_approval(settings: Settings) -> None:
             decision = {"action": "edit", "tool_calls": edited}
         if c3.button("❌ Reject", use_container_width=True):
             decision = {"action": "reject", "feedback": feedback}
+        # The parent's own text in this panel goes to the model too, so it gets the same check.
+        problem = decision and decision_problem(decision, result.pending_tool_calls)
+        if problem:
+            st.warning(problem)
+            decision = None
     if decision:
         _run(
             lambda graph: resume_turn(
@@ -358,6 +490,10 @@ def render_chat(settings: Settings) -> None:
         )
         return
 
+    st.info(
+        "🤖 You are chatting with an AI assistant, not a person. Its answers are AI-generated and "
+        "can be wrong. Please don't type names, exact ages, health information or contact details."
+    )
     if not ss.history and not ss.pending:
         st.markdown("Ask about outings for your child. Try one of these:")
         examples = TRIP_EXAMPLES + EXAMPLES[:2] if settings.trip else EXAMPLES
@@ -370,11 +506,15 @@ def render_chat(settings: Settings) -> None:
     for i, message in enumerate(ss.history):
         with st.chat_message(message["role"]):
             if message["role"] == "assistant":
+                st.caption(AI_LABEL)
+                st.html(AI_MARKER_HTML)
                 # Answers passed the grounding check; the parent's own text is shown as plain text.
                 st.markdown(message["content"])
             else:
                 st.text(message["content"])
             if message["role"] == "assistant":
+                _render_calculations(message)
+                _render_attributions(message)
                 _render_details(message)
                 _render_feedback(i, message, settings)
 
@@ -390,6 +530,12 @@ def render_chat(settings: Settings) -> None:
     typed = st.chat_input("Ask about events and places for kids…", disabled=bool(ss.pending))
     question = typed or ss.pop("queued_question", None)
     if question and not ss.pending:
+        try:
+            # Checked before the message is even shown or kept: rejected text is not stored.
+            question = check_input(question)
+        except InputRejected as exc:
+            st.warning(str(exc))
+            return
         ss.history.append({"role": "user", "content": question})
         _run(
             lambda graph: start_turn(

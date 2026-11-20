@@ -14,6 +14,8 @@ dependencies = [
     "langchain-chroma==1.1.0",
     "langchain-core==1.8.3",
     "langchain-openai==1.7.2",
+    # Imported directly to force tracing off (LEGAL_COMPLIANCE 2.10); MIT.
+    "langsmith==0.15.0",
     "langgraph==1.2.17",
     "langgraph-checkpoint==4.3.0",
     "langgraph-prebuilt==1.1.1",

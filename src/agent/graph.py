@@ -85,9 +85,22 @@ def always_reviewed(message: AIMessage) -> bool:
     return any(tc["name"] in config.TOOLS_ALWAYS_REVIEWED for tc in message.tool_calls)
 
 
+def _edited_args(call: dict, edits: dict[str, dict], fields: dict[str, set[str]]) -> dict:
+    """Return a call's arguments after the parent's edit, keeping only the tool's own fields."""
+    # Extra keys typed into the JSON editor would stay in the history the model reads, so only
+    # fields the tool schema knows (or the original call had) are kept.
+    edit = edits.get(call["id"])
+    if not isinstance(edit, dict):
+        return call["args"]
+    allowed = set(call["args"]) | fields.get(call["name"], set())
+    return {k: v for k, v in edit.items() if k in allowed}
+
+
 def build_graph(llm: BaseChatModel, tools: list[BaseTool], checkpointer: BaseCheckpointSaver):
     """Compile the agent graph with its tools and a checkpointer (needed for interrupts)."""
     model = llm.bind_tools(tools)
+    # The argument names the model may use for each tool (injected fields are not among them).
+    fields = {t.name: set(getattr(t.tool_call_schema, "model_fields", {}) or {}) for t in tools}
 
     def agent(state: AgentState) -> dict:
         """Ask the model for the next step: tool calls or the final answer."""
@@ -120,7 +133,7 @@ def build_graph(llm: BaseChatModel, tools: list[BaseTool], checkpointer: BaseChe
             return Command(goto="tools")
         if action == "edit":
             edits = {e["id"]: e["args"] for e in decision.get("tool_calls", [])}
-            calls = [{**tc, "args": edits.get(tc["id"], tc["args"])} for tc in last.tool_calls]
+            calls = [{**tc, "args": _edited_args(tc, edits, fields)} for tc in last.tool_calls]
             edited = AIMessage(content=last.content, tool_calls=calls, id=last.id)
             return Command(goto="tools", update={"messages": [edited]})
         feedback = (decision.get("feedback") or "").strip() or "No reason given."

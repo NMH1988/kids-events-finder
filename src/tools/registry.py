@@ -4,13 +4,14 @@ import json
 import logging
 from dataclasses import dataclass
 from datetime import date, time
-from typing import Literal
+from typing import Annotated, Literal
 
 import requests
 from langchain_core.tools import BaseTool, StructuredTool
-from pydantic import BaseModel, Field
+from langgraph.prebuilt import InjectedState
+from pydantic import AfterValidator, BaseModel, Field
 
-from src import budget, config, family, fares
+from src import budget, config, family, fares, privacy_check
 from src.family import AgeBand
 from src.rag.retriever import AdvancedRetriever
 from src.tools import external
@@ -20,6 +21,10 @@ logger = logging.getLogger(__name__)
 Country = Literal["DE", "GB", "US"]
 Category = Literal[
     "museum", "science_centre", "zoo", "aquarium", "theme_park", "park", "playground"
+]
+# A town or city name only: no free text reaches the geocoder or other outside services.
+PlaceName = Annotated[
+    str, Field(min_length=2, max_length=60), AfterValidator(privacy_check.check_place_name)
 ]
 
 
@@ -36,7 +41,7 @@ class KnowledgeBaseArgs(BaseModel):
 
     query: str = Field(min_length=2, max_length=300, description="What the family is looking for.")
     country: Country = Field(description="ISO country code: DE, GB or US.")
-    city: str | None = Field(default=None, max_length=60, description="City, or null for all.")
+    city: PlaceName | None = Field(default=None, description="City, or null for all.")
     age_bands: list[AgeBand] = Field(
         default_factory=list,
         max_length=family.MAX_CHILDREN,
@@ -48,7 +53,7 @@ class KnowledgeBaseArgs(BaseModel):
 class PlacesArgs(BaseModel):
     """Arguments of the OpenStreetMap nearby places search."""
 
-    city: str = Field(min_length=2, max_length=60)
+    city: PlaceName
     country: Country
     category: Category
 
@@ -56,7 +61,7 @@ class PlacesArgs(BaseModel):
 class EventsArgs(BaseModel):
     """Arguments of the Ticketmaster family events search."""
 
-    city: str = Field(min_length=2, max_length=60)
+    city: PlaceName
     country: Country
     start_date: date = Field(description="First day, YYYY-MM-DD, today or later.")
     end_date: date = Field(description="Last day, YYYY-MM-DD.")
@@ -65,7 +70,7 @@ class EventsArgs(BaseModel):
 class WeatherArgs(BaseModel):
     """Arguments of the weather forecast."""
 
-    city: str = Field(min_length=2, max_length=60)
+    city: PlaceName
     country: Country
     start_date: date
     end_date: date
@@ -74,8 +79,8 @@ class WeatherArgs(BaseModel):
 class TrainArgs(BaseModel):
     """Arguments of the regional train journey search (Germany only)."""
 
-    from_city: str = Field(min_length=2, max_length=60, description="Where the family starts.")
-    to_town: str = Field(min_length=2, max_length=60, description="Town of the destination.")
+    from_city: PlaceName = Field(description="Where the family starts.")
+    to_town: PlaceName = Field(description="Town of the destination.")
     travel_date: date = Field(description="Day of the trip, YYYY-MM-DD.")
     depart_after: time = Field(default=time(9, 0), description="Earliest departure, HH:MM.")
 
@@ -87,13 +92,10 @@ class TicketArgs(BaseModel):
     to_state: str = Field(min_length=2, max_length=40, description="State code, e.g. BY.")
     travel_date: date
     departure: time | None = Field(default=None, description="Departure time, HH:MM.")
-    adults: int = Field(ge=1, le=5, description="Adults travelling.")
-    children_age_bands: list[AgeBand] = Field(
-        default_factory=list, max_length=family.MAX_CHILDREN, description="Children's age groups."
-    )
-    deutschlandticket_holders: int = Field(
-        default=0, ge=0, le=10, description="Travellers aged 15+ who hold a Deutschlandticket."
-    )
+    # Injected by the graph from the sidebar settings, never written by the model, so a cheaper
+    # party cannot be made up (security review R1-4). They are not in the model's tool schema.
+    trip: Annotated[dict | None, InjectedState("trip")] = None
+    children: Annotated[list[str] | None, InjectedState("children")] = None
 
 
 class BudgetArgs(BaseModel):
@@ -222,19 +224,24 @@ def build_tools(
         from_state: str,
         to_state: str,
         travel_date: date,
-        adults: int,
-        children_age_bands: list[str] | None = None,
-        deutschlandticket_holders: int = 0,
         departure: time | None = None,
+        trip: dict | None = None,
+        children: list[str] | None = None,
     ) -> str:
-        """Compare regional day tickets for the family (Länder-Tickets, Deutschlandticket)."""
+        """Compare regional day tickets for the family set in the app's trip settings."""
 
         def run() -> dict:
-            """Build the party and compare the tickets."""
+            """Build the party from the trip settings and compare the tickets."""
+            if not trip:
+                raise ValueError(
+                    "Ask the parent to switch on budget day trip planning in the sidebar; the "
+                    "ticket comparison uses the number of adults and Deutschlandticket holders set "
+                    "there."
+                )
             party = fares.Party(
-                adults=adults,
-                children_bands=tuple(children_age_bands or ()),
-                deutschlandticket_holders=deutschlandticket_holders,
+                adults=int(trip["adults"]),
+                children_bands=tuple(children or ()),
+                deutschlandticket_holders=int(trip["deutschlandticket_holders"]),
             )
             return fares.compare_tickets(party, from_state, to_state, travel_date, departure)
 
