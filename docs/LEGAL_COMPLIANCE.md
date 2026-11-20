@@ -142,8 +142,10 @@ The users are parents, but the app handles data about children, who are speciall
   has cold", owner decision 2026-11-20, so that "have cold drinks" passes); "was/were/been/got/get
   gifted" followed by "a", "an", "two", "three", "some", "my", "our", a digit, "tickets" or
   "vouchers" ("She was gifted a teacher said"), so that "We were gifted a zoo membership" passes;
-  a name with "s" and no apostrophe ("Bens knee injury"); more than four words between the verb and
-  "injury". The link target itself is always a verified tool URL.
+  a name with "s" and no apostrophe ("Bens knee injury"), with a space or a double quote ("Ben s",
+  'Ben"s') or with a rare apostrophe-like mark that is not mapped (U+02ED, U+055B, U+0313,
+  U+0315); more than six words between the verb and "injury", or more than five between
+  "is/was/seems/looks/appears/became" and "gifted"; "loading poorly" about a child. The link target itself is always a verified tool URL.
   Accepted false alarms (the parent rephrases once): slang ("That's sick!"), rare uses of health
   words ("rash decision", "Der Stau ist übel", "Corona beer garden", "his shots at goal",
   "Stitches and craft workshop", "MMR museum", "Zelt aufgeschlagen"), and a German noun before
@@ -165,7 +167,13 @@ The users are parents, but the app handles data about children, who are speciall
   grandma". Review round 17: "Is there a children's injury clinic?", "Does the park have injury
   insurance?", "What are the kids' injury risks?", "the zoo's injury prevention tips", "the
   boys' injury rate", "Grandma's gifted us tickets", "Which toys are best gifted to toddlers?",
-  "We were very kindly gifted two tickets".
+  "We were very kindly gifted two tickets". Review round 18: "Does the zoo have a minor injury
+  unit?", "We were happy, grandma gifted us tickets", "The zoo is nice. Grandma gifted us
+  tickets", "He got injuryfree last season".
+  Before review round 19 every change was also run against all sentences the reviewers used in
+  rounds 1-18 at every commit of the branch; a sentence an earlier commit blocked that now
+  passes is either one of the safety questions or pram/booster-seat questions the reviewers
+  asked to pass before the block-only rule, a look-alike case under 1.4, or a residual above.
 - **2.7 Retention.** Conversations are deleted from the server when the parent starts a new one and
   automatically after 2 hours without use (`CONVERSATION_RETENTION_SECONDS`, enforced by a
   background cleaner every `CLEANUP_INTERVAL_SECONDS`, also when nobody uses the app); feedback

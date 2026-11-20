@@ -394,11 +394,14 @@ _HEALTH_EXTRA = (
     # An injury of someone ("his injury", "a knee injury", "my son's injury", "got an injury"),
     # not "injuries at trampoline parks", "in case of an injury", "a minor injury unit" or "an
     # injury risk".
-    # Possessive: "his injury", "my son's bad left knee injury", "Max's injury clinic" (not
-    # "What's the injury risk").
-    r"(?:(?<!\w)(?:his|her|their|my)|(?<!\bwhat)(?<!\bthat)(?<!\bit)(?<!\bthere)(?<!\bwhere)"
-    r"(?<!\bhere)(?<!\bwho)(?<!\bhow)'s|(?<=\ws)')\s+"
-    r"(?!an?\s)(?:\w+\s+){0,3}?injur(?:y|ies)(?!\w)",
+    # Possessive: "his injury", "my son's bad left knee injury", "Max's injury clinic", "His knee
+    # injurys"; "What's/That's/It's …" only before "the" ("What's the injury risk" passes, "It's
+    # knee injury season for him" does not).
+    r"(?:(?<!\w)(?:his|her|their|my)|(?:(?<!\bwhat)(?<!\bthat)(?<!\bit)(?<!\bthere)(?<!\bwhere)"
+    r"(?<!\bhere)(?<!\bwho)(?<!\bhow)|(?!'s\s+the\s))'s|(?<=\ws)')\s+"
+    r"(?!an?\s)(?:\w+\s+){0,3}?injur(?:y|ies)",
+    # "the injury he has".
+    r"injur(?:y|ies)\s+(?:he|she|they)\s+(?:has|had|got|suffered)(?!\w)",
     # "a/an … injury" is generic in a safety question ("in case of a minor injury", "a typical
     # injury", "a minor injury unit"), so only without such a qualifier or context.
     r"(?<!\w)(?<!case of )(?<!event of )(?<!if there is )(?<!if there's )(?<!if )an?\s+"
@@ -408,7 +411,7 @@ _HEALTH_EXTRA = (
     # injury", "has knee injury", "sustained injuries"); not "Have there been injuries at this
     # park?".
     r"(?<!\w)(?:has|have|had|got|gets|suffered|sustained|picked\s+up)\s+(?!there\b)"
-    r"(?:\w+\s+){0,4}?injur(?:y|ies)(?!\w)",
+    r"(?:\w+\s+){0,6}?injur(?:y|ies)",
     r"(?<!\w)(?:he|she|they|son|daughter|kid|kids|child|children|twins|boys|girls|baby|toddler|"
     r"both)\s+(?:has|have|had|got|suffered)\s+(?:\w+\s+){0,2}?injuries",
     r"'s\s+hurt(?!\w)",
@@ -428,8 +431,9 @@ _HEALTH_EXTRA = (
     r"(?<!\w)(?<!were )(?<!was )(?<!been )(?<!got )(?<!get )gifted(?!\s+(?:us|them|me)\b)(?!\w)",
     # "is gifted" is the child, whatever follows ("My son is gifted us teachers say", "He seems
     # really gifted", "is, like, gifted"); "was always gifted" needs a word between.
-    r"(?:(?<!\w)(?:is|are|seems?|looks?)|'s)\W+(?:\w+\W+){0,3}?gifted(?!\w)",
-    r"(?<!\w)(?:was|were)\W+(?:\w+\W+){1,3}?gifted(?!\w)",
+    r"(?:(?<!\w)(?:is|are|seem(?:s|ed)?|look(?:s|ed)?|appear(?:s|ed)?|became|becomes?)|'s)\W+"
+    r"(?:\w+\W+){0,5}?gifted(?!\w)",
+    r"(?<!\w)(?:was|were)\W+(?:\w+\W+){1,5}?gifted(?!\w)",
     # Passive with a thing as object; not "was gifted the teacher thinks".
     r"(?<!\w)(?:were|was|been|got|get)\s+gifted(?!\s+(?:tickets?|vouchers?|a|an|two|three|"
     r"some|our|my|\d+)\b)(?!\w)",

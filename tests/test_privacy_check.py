@@ -494,6 +494,24 @@ from src.privacy_check import check_place_name, explain, find_sensitive
         ("Max has an injury risk from his fall", "health"),
         ("Ben῾s knee injury is healing", "health"),
         ("Benʽs knee injury is healing", "health"),
+        # round 18: legal C41, C43; code Must 1-2; security Medium
+        ("He has injurys on both knees", "health"),
+        ("She has injuryprone knees", "health"),
+        ("He has a knee injury2 weeks ago", "health"),
+        ("He seemed gifted us teachers say", "health"),
+        ("She looked so gifted to us all", "health"),
+        ("He appears to be gifted us teachers say", "health"),
+        ("My son is so very very very gifted", "health"),
+        # U+02EE is named "modifier letter double apostrophe", so it stays mapped (1.4).
+        ("Benˮs knee injury is healing", "health"),
+        # self-check before round 19: every sentence an earlier commit blocked
+        ("It's knee injury season for him", "health"),
+        ("That's knee injury from football, any calm museums?", "health"),
+        ("Who's injury is worse", "health"),
+        ("the injury he has", "health"),
+        ("He got a really bad left knee injury", "health"),
+        ("Max had a very bad and painful knee injury last week", "health"),
+        ("Max was really really really really gifted us", "health"),
     ],
 )
 def test_sensitive_text_is_found(text, kind):
@@ -819,6 +837,9 @@ def test_ordinary_questions_pass(text):
         "What are the kids' injury risks?",
         "the zoo's injury prevention tips",
         "Which toys are best gifted to toddlers?",
+        "Does the zoo have a minor injury unit?",
+        "We were happy, grandma gifted us tickets",
+        "The zoo is nice. Grandma gifted us tickets",
     ],
 )
 def test_accepted_false_alarms_stay_blocked(text):

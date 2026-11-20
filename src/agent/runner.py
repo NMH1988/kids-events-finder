@@ -43,12 +43,14 @@ def check_input(text: str) -> str:
         raise InputRejected("Please type a question.")
     # Unicode folding can make text much longer (one ligature becomes 18 letters), so the folded
     # length is capped too.
-    if (
-        len(text) > config.MAX_USER_MESSAGE_CHARS
-        or privacy_check.folded_length(text) > 2 * config.MAX_USER_MESSAGE_CHARS
-    ):
+    if len(text) > config.MAX_USER_MESSAGE_CHARS:
         raise InputRejected(
             f"Please keep questions under {config.MAX_USER_MESSAGE_CHARS} characters."
+        )
+    if privacy_check.folded_length(text) > 2 * config.MAX_USER_MESSAGE_CHARS:
+        raise InputRejected(
+            "This message is too long once its special characters are spelled out. "
+            "Please use plain letters."
         )
     findings = privacy_check.find_sensitive(text)
     if findings:
