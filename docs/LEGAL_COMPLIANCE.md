@@ -71,7 +71,8 @@ The users are parents, but the app handles data about children, who are speciall
     keyword check only add blocks. A newly found false alarm (a harmless question that is
     blocked) is recorded in 2.6 as an accepted false alarm instead of loosening a pattern, because
     every loosening so far let real data through; the parent rephrases once. Mapping a look-alike
-    character to its plain form (such as "´" to "'") is not a loosening: the variant then gets
+    character to its plain form (such as "´" to "'") is not a loosening (owner decision
+    2026-11-20, review round 17): the variant then gets
     exactly the result of the plain wording, even where it was blocked by accident before;
   - the system prompt forbids asking about, repeating or inferring health information;
   - medical and therapy places (paediatricians, Ergotherapie, Logopädie, Frühförderung) are not in
