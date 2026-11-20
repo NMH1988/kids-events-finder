@@ -430,6 +430,16 @@ from src.privacy_check import check_place_name, explain, find_sensitive
         ("accessible for kids; she uses a Rollator", "health"),
         ("after his booster yesterday", "health"),
         ("He got his booster in the morning", "health"),
+        # round 13: legal C30-C34, security 1-4
+        ("after the booster he is tired", "health"),
+        ("He needs a booster", "health"),
+        ("She needs a booster next week", "health"),
+        ("My son is doing poorly", "health"),
+        ("She is performing poorly in class", "health"),
+        ("My son was gifted the teacher thinks", "health"),
+        ("my son's bad left knee injury", "health"),
+        ("he has a really bad knee injury", "health"),
+        ("My son uses a walker. Is the zoo accessible for kids?", "health"),
     ],
 )
 def test_sensitive_text_is_found(text, kind):
@@ -715,6 +725,17 @@ def test_sensitive_text_is_found(text, kind):
         "We were gifted two tickets",
         "We've been gifted vouchers",
         "My mum gifted us a voucher",
+        # round 13: code Must 1 and nits
+        "Have there been injuries at this trampoline park?",
+        "Which trampoline parks have the fewest injuries?",
+        "Do they have injury insurance?",
+        "What's the injury risk at trampoline parks?",
+        "What's the typical injury at trampoline parks?",
+        "Wo können meine Kinder Judo und Kampfsport machen?",
+        "Wo können meine Kinder Schach und Brettspiel spielen?",
+        "Should we bring his booster for the taxi?",
+        "Grandma gifted the kids tickets to the zoo",
+        "the app is loading poorly",
     ],
 )
 def test_ordinary_questions_pass(text):
