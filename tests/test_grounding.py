@@ -485,3 +485,32 @@ def test_ordinary_typography_in_link_text_is_kept(text):
     """Curly quotes, dashes and a star stay in link text."""
     cleaned, _ = enforce_grounding(f"[{text}](https://a.org)", ALLOWED)
     assert cleaned == f"[{text}](https://a.org)"
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "PayPal .COM",
+        "paypal .com.",
+        "paypal .com/login",
+        "paypal .com (official)",
+        "paypal . c o m",
+        "paypal dot com",
+        "paypal(.)com",
+        "paypal – com",
+        "paypal : com",
+    ],
+)
+def test_spelled_domains_in_link_text_show_the_host(text):
+    """Security round 3: a domain spelled in any case or followed by text shows the host."""
+    cleaned, _ = enforce_grounding(f"[{text}](https://a.org)", ALLOWED)
+    assert cleaned == "[a.org](https://a.org)"
+
+
+@pytest.mark.parametrize(
+    "text", ["🇩🇪 Zoo Berlin", "LEGOLAND® Windsor", "Tickets, prices", "Opening hours, prices"]
+)
+def test_flags_trademarks_and_lists_in_link_text_are_kept(text):
+    """Country flags, ® and ordinary lists stay as link text."""
+    cleaned, _ = enforce_grounding(f"[{text}](https://a.org)", ALLOWED)
+    assert cleaned == f"[{text}](https://a.org)"

@@ -61,7 +61,9 @@ GEOCODING_TOOLS = frozenset(
 )
 # A money amount in an answer's text: "44 EUR", "EUR44", "€44", "£12", "$15", "12 GBP", "44,-".
 _MONEY = re.compile(
-    r"[€£$]|(?<![A-Za-z])(?:EUR|GBP|USD)(?![A-Za-z])|\beuros?\b|\d,-", re.IGNORECASE
+    r"[€£$￡＄]|(?<![A-Za-z])(?:EUR|GBP|USD|CHF)(?![A-Za-z])|\b(?:euros?|pounds?|dollars?|pfund)\b"
+    r"|\d[,.]-",
+    re.IGNORECASE,
 )
 # Shown with every answer (AI Act Art. 50, LEGAL_COMPLIANCE 4.1). The hidden element is the
 # machine-readable marker: fixed text, no user or model content.
@@ -398,11 +400,18 @@ def _render_approval(settings: Settings) -> None:
                     height=130,
                 )
                 try:
-                    edited.append({"id": call["id"], "args": json.loads(text)})
+                    parsed = json.loads(text)
                 except json.JSONDecodeError:
+                    parsed = None
+                # Only a JSON object can replace the arguments; anything else is not applied.
+                if isinstance(parsed, dict):
+                    edited.append({"id": call["id"], "args": parsed})
+                else:
                     bad_json = True
                     edited.append({"id": call["id"], "args": call["args"]})
-                    st.error("This is not valid JSON. Approve will send the original arguments.")
+                    st.error(
+                        "This is not a valid JSON object. Approve will send the original arguments."
+                    )
         feedback = st.text_input(
             "Reason if you reject (optional)",
             key="reject_reason",

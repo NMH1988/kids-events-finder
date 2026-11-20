@@ -259,7 +259,22 @@ def _money_page(text: str):
 
 
 @pytest.mark.parametrize(
-    "text", ["EUR44", "44EUR", "£12", "$15", "12 GBP", "15 USD", "kostet 44,-"]
+    "text",
+    [
+        "EUR44",
+        "44EUR",
+        "£12",
+        "$15",
+        "12 GBP",
+        "15 USD",
+        "kostet 44,-",
+        "12 pounds",
+        "15 dollars",
+        "44 Pfund",
+        "CHF 20",
+        "44.- pro Person",
+        "￡12",
+    ],
 )
 def test_every_currency_spelling_gets_the_warning(text):
     """Security round 2: any money spelling without a calculation gets the caption."""
@@ -270,23 +285,26 @@ def test_every_currency_spelling_gets_the_warning(text):
 def _chat_page():
     """Render the chat with a fake key, so the input box is shown without any model."""
     from src import config
-
-    config.get_api_key = lambda: "test-key"
     from views.chat import render_chat
     from views.sidebar import Settings
 
-    render_chat(
-        Settings(
-            country="DE",
-            city="Berlin",
-            children=("3-5",),
-            model="openai/gpt-5-mini",
-            multi_query=False,
-            rerank=False,
-            auto_approve=False,
-            trip=None,
+    original = config.get_api_key
+    config.get_api_key = lambda: "test-key"
+    try:
+        render_chat(
+            Settings(
+                country="DE",
+                city="Berlin",
+                children=("3-5",),
+                model="openai/gpt-5-mini",
+                multi_query=False,
+                rerank=False,
+                auto_approve=False,
+                trip=None,
+            )
         )
-    )
+    finally:
+        config.get_api_key = original
 
 
 def test_blocked_chat_message_is_never_stored():

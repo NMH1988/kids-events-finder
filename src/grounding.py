@@ -82,9 +82,14 @@ _FLAG = re.compile(
 # odd punctuation) could disguise it, so the link's host is shown instead.
 _LABEL_PUNCTUATION = frozenset(" .,-'&:;()?!/+’‘“”„–—· ")
 # Emoji outside the main emoji blocks that link text may use.
-_LABEL_SYMBOLS = frozenset("⭐⭕⬛⬜⬅⬆⬇")
-# A domain split by spaces at the end of link text ("paypal .com", "paypal, com").
-_SPACED_DOMAIN = re.compile(r"[a-z0-9-]\s*[.,·]\s*[a-z]{2,6}$")
+_LABEL_SYMBOLS = frozenset("⭐⭕⬛⬜⬅⬆⬇®™©")
+# A domain spelled out in link text ("paypal .com", "PayPal .COM/login", "paypal dot com",
+# "paypal(.)com"): a common top-level domain after a dot, comma or the word "dot".
+_SPACED_DOMAIN = re.compile(
+    r"[a-z0-9-]\s*(?:[.,·:]|\s[–-]\s|\(\.\)|\bdot\b)\s*"
+    r"(?:c\s*o\s*m|org|net|de|uk|co|io|eu|at|ch|us|biz)(?![a-z])",
+    re.IGNORECASE,
+)
 # An e-mail-like "@" (a word character on both sides) once escapes are resolved.
 _MAIL_AT = re.compile(r"[\w.+-]@[\w-]")
 _PLACEHOLDER = "\x00{}\x00"
@@ -176,7 +181,10 @@ def _label_char(ch: str) -> bool:
     latin = 0xC0 <= code <= 0x24F or 0x1E00 <= code <= 0x1EFF
     symbol = unicodedata.category(ch) == "So"
     emoji = symbol and (
-        (0x1F300 <= code < 0x1FB00) or 0x2600 <= code <= 0x26FF or 0x2700 <= code <= 0x27BF
+        (0x1F300 <= code < 0x1FB00)
+        or 0x1F1E6 <= code <= 0x1F1FF  # regional indicators: country flags such as 🇩🇪
+        or 0x2600 <= code <= 0x26FF
+        or 0x2700 <= code <= 0x27BF
     )
     return (latin and ch.isalpha()) or emoji
 
