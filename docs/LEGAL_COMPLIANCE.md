@@ -53,7 +53,8 @@ The users are parents, but the app handles data about children, who are speciall
     about the equipment, so such a word anywhere in the message turns off the accessibility
     check for that message (a residual, 2.6). "Is it accessible by train / on foot / in winter?"
     (getting there) and, by owner decision of 2026-11-20, "Is the playground accessible for
-    toddlers?" (suitability by age, only when the message ends after the age word) pass; "accessible for kids with a walker" is blocked. Generic
+    toddlers?" (suitability by age, only when the message ends after the age word) pass;
+    "accessible for kids with a walker" is blocked. Generic
     accessibility questions ("Is the museum accessible?", "What accessibility does the zoo
     offer?") are blocked too. Giftedness ("gifted", "hochbegabt", "advanced for his age") counts
     as a development statement and is blocked; only the verb with an object ("we were gifted
@@ -78,7 +79,8 @@ The users are parents, but the app handles data about children, who are speciall
   mostly of one kind (e.g. brain games, music, crafts), it suggests an outing of another kind
   (e.g. active, outdoors), and the other way round. It is about variety of outings, not about the
   child. It never assesses, scores or describes a child's development, abilities or behaviour;
-  software that does could count as a medical device. Nudges use fixed templates, e.g. "The last 4 weeks had a lot of 🎵 Music and
+  software that does could count as a medical device. Nudges use fixed templates, e.g. "The last
+  4 weeks had a lot of 🎵 Music and
   🎨 Crafts. Would you like to try a 🧗 Active outing this week?" Words such as "lacks", "behind",
   "delayed", "needs", "should", "good for development" are forbidden in nudges; a test enforces this.
 - **1.6 Activity history stays on the phone.** The "visited" log is off by default, switched on by
@@ -134,9 +136,11 @@ The users are parents, but the app handles data about children, who are speciall
   generic accessibility check for that message ("Is the museum accessible? We come with a
   stroller."); German children's names before a clause-final verb when the last name ends in
   -e, -n or -s ("Meine Kinder Max und Jonas tanzen."); "has cold" without the article ("my son
-  has cold", owner decision 2026-11-20, so that "have cold drinks" passes); "was/were/been gifted"
-  followed by "a", "an", "my" or "our" ("She was gifted a teacher said"), so that "We were gifted
-  a zoo membership" passes. The link target itself is always a verified tool URL.
+  has cold", owner decision 2026-11-20, so that "have cold drinks" passes); "was/were/been/got/get
+  gifted" followed by "a", "an", "two", "three", "some", "my", "our", a digit, "tickets" or
+  "vouchers" ("She was gifted a teacher said"), so that "We were gifted a zoo membership" passes;
+  a name with "s" and no apostrophe ("Bens knee injury"); more than four words between the verb and
+  "injury". The link target itself is always a verified tool URL.
   Accepted false alarms (the parent rephrases once): slang ("That's sick!"), rare uses of health
   words ("rash decision", "Der Stau ist übel", "Corona beer garden", "his shots at goal",
   "Stitches and craft workshop", "MMR museum", "Zelt aufgeschlagen"), and a German noun before
@@ -147,10 +151,15 @@ The users are parents, but the app handles data about children, who are speciall
   parks"); "need a booster" and "her booster at home" (could be the car seat); "accessible for
   toddlers?" followed by another sentence; "doing poorly" about a place ("The museum is doing
   poorly financially"); "walker" as a hiker or a name next to an accessibility question ("keen
-  walkers", "Walker Art museum").
+  walkers", "Walker Art museum"). Review round 15: injury statistics or policies ("Which park
+  has the fewest injuries?", "Which parks have more injuries?", "the park's injury record",
+  "Today's injury report", "Do they have injury cover?", "What happens with a serious injury?",
+  "Let's avoid any injury"); "his booster for the plane"; "cannot walk" about the way, not the
+  child ("You cannot walk there from the station, is it accessible by train?").
 - **2.7 Retention.** Conversations are deleted from the server when the parent starts a new one and
   automatically after 2 hours without use (`CONVERSATION_RETENTION_SECONDS`, enforced by a
-  background cleaner every `CLEANUP_INTERVAL_SECONDS`, also when nobody uses the app); feedback is deleted after 90 days and stores the question text
+  background cleaner every `CLEANUP_INTERVAL_SECONDS`, also when nobody uses the app); feedback
+  is deleted after 90 days and stores the question text
   only with the parent's consent; push subscriptions are deleted after the trip date; logs never
   contain message content, ages, budgets or keys.
 - **2.8 Data subject rights.** Parents can delete their data (and export it where stored on the

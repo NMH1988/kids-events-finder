@@ -459,6 +459,19 @@ from src.privacy_check import check_place_name, explain, find_sensitive
         ("Meine Kinder Lena und Ingolf tanzen.", "name"),
         ("My son cannot walk far, is the zoo accessible for kids?", "health"),
         ("She has weak legs, is the park accessible for kids?", "health"),
+        # round 15: legal C36, C37, C40, C41; code Must 1-5; security 1-2
+        ("Lena has more injuries than other kids", "health"),
+        ("Max has the most injuries in his team", "health"),
+        ("Max had less injury this season", "health"),
+        ("She got her booster in the car park clinic", "health"),
+        ("after his booster in the car he felt sick", "health"),
+        ("She has an injury prevention brace for her knee", "health"),
+        ("My son is gifted us teachers say", "health"),
+        ("My son is gifted me and my wife think", "health"),
+        ("My son can not walk far, is the zoo accessible for kids?", "health"),
+        ("Ben´s knee injury is healing", "health"),
+        ("Ben`s knee injury is healing", "health"),
+        ("Jonas' knee injury", "health"),
     ],
 )
 def test_sensitive_text_is_found(text, kind):
@@ -772,6 +785,10 @@ def test_ordinary_questions_pass(text):
         "Has anyone had injuries on the trampoline?",
         "My worry is injuries at trampoline parks",
         "Do I need a booster?",
+        "Which park has the fewest injuries?",
+        "Which parks have more injuries?",
+        "Do we need his booster for the plane?",
+        "You cannot walk there from the station, is it accessible by train?",
     ],
 )
 def test_accepted_false_alarms_stay_blocked(text):
