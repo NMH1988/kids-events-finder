@@ -1,0 +1,2 @@
+# Parallel PRs all add a line at the top of the progress index; keep both lines on a merge.
+docs/PROGRESS.md merge=union

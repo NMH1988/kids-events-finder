@@ -24,7 +24,7 @@ Deadline: **2026-12-16**. Case 2 (AI agent for task automation) with an advanced
 2. Review and edit the drafts: the system prompt and `data/eval_questions.json`.
 3. Check the curated entries in `data/knowledge_base.json`; run `python -m scripts.check_links`. Re-check the ticket prices in `data/fares.json` on bahn.de.
 4. Run both evaluation scripts and fill the tables in `docs/EVALUATION.md`.
-5. Do 3-5 user tests and record them.
+5. Do 3-5 user tests with made-up questions and adult testers who agreed beforehand, and write down the results (no screen or voice recordings, no testers' names with their feedback; `docs/LEGAL_COMPLIANCE.md` 8).
 6. Put the project in a GitHub repository, upload it to showcase.turingcollege.com and add the link to the README.
 7. Record a short demo and prepare the 10-minute talk (`docs/PRESENTATION.md`).
 
