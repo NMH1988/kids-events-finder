@@ -34,9 +34,9 @@ The owner does these (from `docs/CAPSTONE_CHECKLIST.md`, "Owner's to-do before t
 
 | ID | Task | Needed by | Status |
 |---|---|---|---|
-| O1 | Add `OPENROUTER_API_KEY` (optionally `TICKETMASTER_API_KEY`) to `.streamlit/secrets.toml`, then `python -m scripts.build_index` | O4, live checks | todo |
-| O2 | Review and edit the drafts: the system prompt (`src/prompts/agent_system.md`) and `data/eval_questions.json`; the owner writes, Claude reviews | O4 | todo |
-| O3 | Check the curated entries in `data/knowledge_base.json`, run `python -m scripts.check_links`, re-check the prices in `data/fares.json` on bahn.de | O4 | todo |
+| O1 | Add `OPENROUTER_API_KEY` (optionally `TICKETMASTER_API_KEY`) to `.streamlit/secrets.toml`, then `python -m scripts.build_index` | O4, live checks | done (2026-11-23: index built, 49 places; no Ticketmaster key) |
+| O2 | Review and edit the drafts: the system prompt (`src/prompts/agent_system.md`) and `data/eval_questions.json`; the owner writes, Claude reviews | O4 | done (2026-11-23, T1.5: written by Claude at the owner's request, approved by the owner) |
+| O3 | Check the curated entries in `data/knowledge_base.json`, run `python -m scripts.check_links`, re-check the prices in `data/fares.json` on bahn.de | O4 | done (2026-11-23, T1.5: 11 entries fixed, prices unchanged) |
 | O4 | Run both evaluation scripts and fill the tables in `docs/EVALUATION.md` | Capstone review | todo |
 | O5 | 3-5 user tests with made-up questions, adult testers who agreed beforehand; results written down, no screen or voice recordings, no testers' names with their feedback (`docs/LEGAL_COMPLIANCE.md` 8) | Capstone review | todo |
 | O6 | Upload to showcase.turingcollege.com and add the link near the top of the README (the GitHub repository exists) | Capstone review | todo |
@@ -53,6 +53,7 @@ Deadline: **2026-12-16** (Capstone review). The owner tasks O1-O7 come first for
 | [T1.3](tickets/T1.3.md) | Budget day trips, age groups and legal compliance rules | L | T1.2 | done |
 | [T2.1](tickets/T2.1.md) | Legal hardening group 1: privacy check, AI disclosure, money from code | L | T1.3 | done |
 | [T1.4](tickets/T1.4.md) | Docs: ticket files, plan index and progress log | M | none | done |
+| [T1.5](tickets/T1.5.md) | Owner review O1-O3: knowledge base, fares, prompt and evaluation questions | M | O1 | in review |
 | [T3.1](tickets/T3.1.md) | Before a public deployment: AI provider with a DPA | M | none | todo |
 | [T3.2](tickets/T3.2.md) | Datenschutzerklärung and Impressum | M | T3.1 | todo |
 | [T3.3](tickets/T3.3.md) | Invite codes and rate limits | M | none | todo |
@@ -69,6 +70,7 @@ The app, CI and the project's working rules.
 - [T1.2 CI: GitHub Actions for ruff and pytest (S)](tickets/T1.2.md)
 - [T1.3 Budget day trips, age groups and legal compliance rules (L)](tickets/T1.3.md)
 - [T1.4 Docs: ticket files, plan index and progress log (M)](tickets/T1.4.md)
+- [T1.5 Owner review O1-O3: knowledge base, fares, prompt and evaluation questions (M)](tickets/T1.5.md)
 
 ## Epic 2: Legal hardening
 

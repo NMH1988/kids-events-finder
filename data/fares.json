@@ -3,9 +3,9 @@
   "deutschlandticket": {
     "name": "Deutschlandticket",
     "monthly_price": 63.0,
-    "notes": "Personal monthly subscription for all regional transport in Germany. It does not include children aged 6-14, who need their own ticket.",
+    "notes": "Personal monthly subscription for all regional transport in Germany. It does not include children aged 6-14, who need their own ticket. The price rises to 66.80 EUR per month from 2027-01-01; monthly_price is not used in any calculation.",
     "source_url": "https://www.bahn.de/faq/pk/angebot/regionale-angebote/deutschland-ticket",
-    "checked_on": "2026-11-19"
+    "checked_on": "2026-11-23"
   },
   "day_tickets": [
     {
@@ -19,7 +19,7 @@
       "weekday_valid_from": "09:00",
       "notes": "Valid in regional trains in all of Germany.",
       "source_url": "https://www.bahn.de/faq/pk/angebot/regionale-angebote/qdl",
-      "checked_on": "2026-11-19"
+      "checked_on": "2026-11-23"
     },
     {
       "id": "bayern",
@@ -32,7 +32,7 @@
       "weekday_valid_from": "09:00",
       "notes": "Also covers some routes just outside Bavaria; check the area on bahn.de.",
       "source_url": "https://www.bahn.de/faq/pk/angebot/regionale-angebote/laender-tickets",
-      "checked_on": "2026-11-19"
+      "checked_on": "2026-11-23"
     },
     {
       "id": "brandenburg_berlin",
@@ -45,7 +45,7 @@
       "weekday_valid_from": "09:00",
       "notes": "One price for up to 5 people.",
       "source_url": "https://www.bahn.de/faq/pk/angebot/regionale-angebote/laender-tickets",
-      "checked_on": "2026-11-19"
+      "checked_on": "2026-11-23"
     },
     {
       "id": "hessen",
@@ -58,7 +58,7 @@
       "weekday_valid_from": "09:00",
       "notes": "One price for up to 5 people. Children aged 6-14 count as people and must be written on the ticket.",
       "source_url": "https://www.bahn.de/faq/pk/angebot/regionale-angebote/laender-tickets",
-      "checked_on": "2026-11-19"
+      "checked_on": "2026-11-23"
     },
     {
       "id": "schleswig_holstein",
@@ -71,7 +71,7 @@
       "weekday_valid_from": "09:00",
       "notes": "Includes Hamburg.",
       "source_url": "https://www.bahn.de/faq/pk/angebot/regionale-angebote/laender-tickets",
-      "checked_on": "2026-11-19"
+      "checked_on": "2026-11-23"
     },
     {
       "id": "niedersachsen",
@@ -84,7 +84,7 @@
       "weekday_valid_from": null,
       "notes": "Valid all day, also before 9:00 on weekdays. Includes Bremen and Hamburg.",
       "source_url": "https://www.bahn.de/faq/pk/angebot/regionale-angebote/laender-tickets",
-      "checked_on": "2026-11-19"
+      "checked_on": "2026-11-23"
     },
     {
       "id": "nrw_24h_5",
@@ -97,7 +97,7 @@
       "weekday_valid_from": null,
       "notes": "Valid for 24 hours. The person named on the ticket may also take their own children or grandchildren up to 14 free; this app counts at most 3 to stay on the safe side.",
       "source_url": "https://www.bahn.de/faq/pk/angebot/regionale-angebote/laender-tickets",
-      "checked_on": "2026-11-19"
+      "checked_on": "2026-11-23"
     },
     {
       "id": "baden_wuerttemberg",
@@ -110,7 +110,7 @@
       "weekday_valid_from": null,
       "notes": "Valid all day.",
       "source_url": "https://www.bahn.de/faq/pk/angebot/regionale-angebote/laender-tickets",
-      "checked_on": "2026-11-19"
+      "checked_on": "2026-11-23"
     },
     {
       "id": "rheinland_pfalz_saarland",
@@ -123,7 +123,7 @@
       "weekday_valid_from": "09:00",
       "notes": "Check on bahn.de which of the two tickets fits the route.",
       "source_url": "https://www.bahn.de/faq/pk/angebot/regionale-angebote/laender-tickets",
-      "checked_on": "2026-11-19"
+      "checked_on": "2026-11-23"
     },
     {
       "id": "sachsen_mitteldeutschland",
@@ -136,7 +136,7 @@
       "weekday_valid_from": "09:00",
       "notes": "The three tickets cost the same and are valid across Saxony, Saxony-Anhalt and Thuringia.",
       "source_url": "https://www.bahn.de/faq/pk/angebot/regionale-angebote/laender-tickets",
-      "checked_on": "2026-11-19"
+      "checked_on": "2026-11-23"
     }
   ]
 }
