@@ -8,11 +8,8 @@ from streamlit.testing.v1 import AppTest
 APP = str(Path(__file__).resolve().parent.parent / "app.py")
 
 
-def test_app_runs_without_key_and_browse_shows_places(monkeypatch):
+def test_app_runs_without_key_and_browse_shows_places():
     """Without a key the page renders, the chat explains what is missing, Browse has cards."""
-    from src import config
-
-    monkeypatch.setattr(config, "get_api_key", lambda: None)  # also on a machine with a key
     at = AppTest.from_file(APP, default_timeout=30).run()
     assert not at.exception
     assert any("OPENROUTER_API_KEY" in i.value for i in at.info)

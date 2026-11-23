@@ -14,6 +14,7 @@ from pathlib import Path
 from pydantic import BaseModel, Field
 
 from src import config, family
+from src.errors import AppInputError
 
 
 class DayTicket(BaseModel):
@@ -184,7 +185,7 @@ def compare_tickets(
     fares = fares or load_fares()
     states = [state_code(from_state), state_code(to_state)]
     if None in states:
-        raise ValueError("Unknown German state; use a code such as BY, BE or NW.")
+        raise AppInputError("Unknown German state; use a code such as BY, BE or NW.")
     kids = party.school_age_children
     holders = party.deutschlandticket_holders
     paying = party.adult_fare_travellers

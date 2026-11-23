@@ -13,6 +13,7 @@ from zoneinfo import ZoneInfo
 import requests
 
 from src import config, fares, geo
+from src.errors import AppInputError
 from src.grounding import is_strict_url
 
 ATTRIBUTION_OSM = "Data © OpenStreetMap contributors, ODbL (openstreetmap.org/copyright)"
@@ -53,7 +54,7 @@ _WEATHER_CODES: dict[range, str] = {
 }
 
 
-class ToolInputError(ValueError):
+class ToolInputError(AppInputError):
     """A tool argument is outside what the tool accepts."""
 
 

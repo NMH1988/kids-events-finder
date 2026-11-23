@@ -3,6 +3,8 @@
 import pytest
 import requests
 
+from src import config
+
 
 class NetworkBlocked(requests.ConnectionError):
     """Raised when a test tries to make a real HTTP request."""
@@ -20,6 +22,8 @@ def _no_network_no_keys(monkeypatch):
     monkeypatch.setattr(requests, "post", blocked)
     monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
     monkeypatch.delenv("TICKETMASTER_API_KEY", raising=False)
+    # A developer's .streamlit/secrets.toml must not reach the tests either.
+    monkeypatch.setattr(config, "get_secret", lambda name: None)
 
 
 class FakeResponse:

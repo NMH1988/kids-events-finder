@@ -41,7 +41,7 @@ After each review check with `gh pr view <n> --json comments` that the report is
 - No tracing or observability services (LangSmith etc.); logs hold event names and error types only.
 - Money is calculated in code, never by the model: ticket rules in `data/fares.json` + `src/fares.py`, totals in `src/budget.py`. Every fare entry keeps its bahn.de `source_url` and `checked_on` date. Unknown prices stay `null` for the parent to fill in.
 - Transitous (train journeys) is free only for open-source, non-commercial use; keep `TRANSITOUS_USER_AGENT` with the repository as the contact.
-- The system prompt and the evaluation questions are drafts for the owner to review.
+- The system prompt and the evaluation questions were reviewed for O2 (T1.5); changes to them need the owner's approval.
 - Tests mock every LLM and network call (`tests/conftest.py` blocks `requests`).
 
 ## Commands (from this folder, Python 3.14 venv)

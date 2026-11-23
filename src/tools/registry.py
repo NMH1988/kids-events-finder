@@ -9,9 +9,10 @@ from typing import Annotated, Literal
 import requests
 from langchain_core.tools import BaseTool, StructuredTool
 from langgraph.prebuilt import InjectedState
-from pydantic import AfterValidator, BaseModel, Field
+from pydantic import AfterValidator, BaseModel, Field, ValidationError
 
 from src import budget, config, family, fares, privacy_check
+from src.errors import AppInputError
 from src.family import AgeBand
 from src.rag.retriever import AdvancedRetriever
 from src.tools import external
@@ -109,8 +110,19 @@ def _safe(tool_name: str, func, **kwargs) -> str:
     """Run a tool function and return JSON; failures become an error message, not an exception."""
     try:
         return json.dumps(func(**kwargs), ensure_ascii=False, default=str)
-    except (external.ToolInputError, ValueError) as exc:
+    except AppInputError as exc:
+        # The app wrote this message, so the model may see it.
         return json.dumps({"error": str(exc), "results": []})
+    except ValidationError as exc:
+        # Only the messages of the app's own models; pydantic messages hold no input values.
+        messages = "; ".join(e["msg"].removeprefix("Value error, ") for e in exc.errors())
+        return json.dumps({"error": messages[: config.MAX_TOOL_ERROR_CHARS], "results": []})
+    except ValueError as exc:
+        # Usually a service value that could not be parsed: never echo the service's text.
+        logger.warning("tool_bad_value", extra={"tool": tool_name, "type": type(exc).__name__})
+        return json.dumps(
+            {"error": "The tool got data it could not read. Try again later.", "results": []}
+        )
     except requests.RequestException as exc:
         logger.warning("tool_http_error", extra={"tool": tool_name, "type": type(exc).__name__})
         return json.dumps(
@@ -233,7 +245,7 @@ def build_tools(
         def run() -> dict:
             """Build the party from the trip settings and compare the tickets."""
             if not trip:
-                raise ValueError(
+                raise AppInputError(
                     "Ask the parent to switch on budget day trip planning in the sidebar; the "
                     "ticket comparison uses the number of adults and Deutschlandticket holders set "
                     "there."

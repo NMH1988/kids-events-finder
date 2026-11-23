@@ -14,7 +14,7 @@ Deadline: **2026-12-16**. Case 2 (AI agent for task automation) with an advanced
 | Function calling / tool integration with external APIs | `src/tools/` (7 tools, 4 external APIs: OSM, Ticketmaster, Open-Meteo, Transitous) | Done |
 | Multi-step reasoning, memory | LangGraph loop with checkpointer (conversation memory per thread) | Done |
 | Interactive prototype ("Streamlit or another interface" for Case 2) | `app.py`, `views/` (Streamlit) | Done |
-| Prompt engineering best practices | `src/prompts/agent_system.md` (role, process, rules, format, injection rule) | Draft: **owner reviews** |
+| Prompt engineering best practices | `src/prompts/agent_system.md` (role, process, rules, format, injection rule) | Done (reviewed for O2, T1.5) |
 | Evaluation: accuracy and responsiveness, user testing | `scripts/evaluate_*.py`, `docs/EVALUATION.md` | Scripts done; **owner runs and fills the tables** |
 | Ethical considerations documented | `docs/ETHICS.md` | Done |
 | Presentation using SCR or SMART | README SCR section, `docs/PRESENTATION.md` | Outline done |
