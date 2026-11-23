@@ -1,8 +1,22 @@
+Closes #<!-- issue number -->
+
+## Ticket
+- **T<!-- x.y -->** <!-- title --> (`docs/tickets/T<x.y>.md`)
+- Serves: <!-- Capstone requirement (docs/CAPSTONE_CHECKLIST.md) and legal sections, or "beyond the brief (owner's request)" -->
+
 ## Summary
 <!-- What changes and why. -->
 
+## Acceptance criteria
+<!-- Each criterion from the ticket, with the test or check that proves it. -->
+- [ ] <!-- criterion --> - <!-- test or check -->
+
 ## Tests
 <!-- What was run (pytest, ruff, browser check) and what was not checked. -->
+
+## Docs
+- [ ] Progress entry added: `docs/progress/<date>-T<x.y>.md` and its line at the top of `docs/PROGRESS.md`.
+- [ ] Ticket status updated in `docs/tickets/T<x.y>.md` and in the order table of `docs/IMPLEMENTATION_PLAN.md`; the last commit before merge sets it to `done`, ticks the met criteria and puts this PR's number in the progress heading and index line.
 
 ## Reviews
 - `code-reviewer`: <!-- last round number and verdict, link to its PR comment -->

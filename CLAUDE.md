@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-Kids Outing Finder: Turing College AI Engineering capstone (deadline 2026-12-16). A Streamlit app with a LangGraph agent (human-in-the-loop approval of outside tool calls), budget day trips by regional train in Germany (Transitous journeys, ticket comparison, budget check), advanced RAG over a curated knowledge base (Chroma + BM25, multi-query, RRF, rerank) and a grounding check on links. Requirements map: `docs/CAPSTONE_CHECKLIST.md`.
+Kids Outing Finder: Turing College AI Engineering capstone (deadline 2026-12-16). A Streamlit app with a LangGraph agent (human-in-the-loop approval of outside tool calls), budget day trips by regional train in Germany (Transitous journeys, ticket comparison, budget check), advanced RAG over a curated knowledge base (Chroma + BM25, multi-query, RRF, rerank) and a grounding check on links. Requirements map: `docs/CAPSTONE_CHECKLIST.md`. Plan and tickets: `docs/IMPLEMENTATION_PLAN.md`, `docs/tickets/`; what each PR did: `docs/PROGRESS.md`, `docs/progress/`.
 
 The owner writes in Vietnamese: reply in Vietnamese. Everything in the repo is in English.
 
@@ -12,6 +12,15 @@ The owner writes in Vietnamese: reply in Vietnamese. Everything in the repo is i
 - A new data source, service, data flow or legally relevant feature updates `docs/LEGAL_COMPLIANCE.md` (rules and registers) in the same PR.
 - These rules are not legal advice; tell the owner when something needs a lawyer or Datenschutzberater.
 - **Synthetic data only for now:** the project uses the school's OpenRouter account (no DPA, no zero data retention). Whenever deployment, hosting, real users or income come up, remind the owner of the "Before a public deployment" checklist in `docs/LEGAL_COMPLIANCE.md` first.
+
+## Tickets, plan and progress log (mandatory)
+- **Before starting a ticket**, also read its file in `docs/tickets/`, `docs/PROGRESS.md` and the entries in `docs/progress/` of the tickets it builds on, changes or names as a follow-up, and run `gh pr list --state open`.
+- Every new ticket is a GitHub issue (only the work from before the plan has none), planned in `docs/tickets/T<x.y>.md` (one file per ticket) and listed in `docs/IMPLEMENTATION_PLAN.md` (owner tasks, order table with each ticket's status, each epic's list). **Every ticket has testable acceptance criteria**; a ticket is not started until the owner has approved them (a planned ticket far ahead may list only its scope until then). A new ticket follows the format and the three steps at the top of the plan.
+- The repo will be copied to the course repository without its issues and PRs, so the plan, the progress log and the commit messages carry the record: name the ticket ID (e.g. `T1.4`) in branch names (`feature/t1.4-short-name`), PR titles, commit messages and progress entries, not only the issue number.
+- One ticket per PR, on its own branch from `main`. The PR description follows `.github/pull_request_template.md`: `Closes #<issue>` on the first line, the ticket and what it serves, **each acceptance criterion with the test or check that proves it**.
+- **Every PR adds its own progress entry** (a file in `docs/progress/` and its line at the top of `docs/PROGRESS.md`; Dependabot exempt) and updates its ticket's status in its file and in the plan's order table (`tests/test_docs_layout.py` checks that they agree). The PR's last commit before merge sets the status to `done`, ticks the met criteria, and puts the PR number in the progress entry's heading and index line.
+- Every ticket ends with a report to the owner: which acceptance criteria are met (with the test or check for each), what was verified and what was not, then what changed in each file and why.
+- Commit, push, open PRs or merge only when the owner asks.
 
 ## Reviews after every ticket (mandatory)
 Run these subagents (`.claude/agents/`) on the branch before opening or merging its PR:
