@@ -70,10 +70,10 @@ class Party:
         """Reject a party the fare rules cannot describe."""
         low, high = config.TRIP_TRAVELLERS_RANGE
         if not low <= self.adults <= high:
-            raise ValueError(f"adults must be between {low} and {high}.")
+            raise AppInputError(f"adults must be between {low} and {high}.")
         family.check_bands(self.children_bands)
         if not 0 <= self.deutschlandticket_holders <= self.adult_fare_travellers:
-            raise ValueError(
+            raise AppInputError(
                 "deutschlandticket_holders must be between 0 and the number of travellers aged 15+."
             )
 

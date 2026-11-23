@@ -114,9 +114,16 @@ def _safe(tool_name: str, func, **kwargs) -> str:
         # The app wrote this message, so the model may see it.
         return json.dumps({"error": str(exc), "results": []})
     except ValidationError as exc:
-        # Only the messages of the app's own models; pydantic messages hold no input values.
-        messages = "; ".join(e["msg"].removeprefix("Value error, ") for e in exc.errors())
-        return json.dumps({"error": messages[: config.MAX_TOOL_ERROR_CHARS], "results": []})
+        # Pass the messages on only when the app's own validators wrote all of them; a validator
+        # message may quote its input, which could be a service's text.
+        errors = exc.errors()
+        if errors and all(isinstance(e.get("ctx", {}).get("error"), AppInputError) for e in errors):
+            messages = "; ".join(e["msg"].removeprefix("Value error, ") for e in errors)
+            return json.dumps({"error": messages[: config.MAX_TOOL_ERROR_CHARS], "results": []})
+        logger.warning("tool_bad_value", extra={"tool": tool_name, "type": type(exc).__name__})
+        return json.dumps(
+            {"error": "The tool got data it could not read. Try again later.", "results": []}
+        )
     except ValueError as exc:
         # Usually a service value that could not be parsed: never echo the service's text.
         logger.warning("tool_bad_value", extra={"tool": tool_name, "type": type(exc).__name__})
@@ -128,7 +135,7 @@ def _safe(tool_name: str, func, **kwargs) -> str:
         return json.dumps(
             {"error": "The external service did not answer. Try again later.", "results": []}
         )
-    except (KeyError, TypeError, AttributeError) as exc:
+    except (LookupError, TypeError, AttributeError, ArithmeticError, RecursionError) as exc:
         # A malformed answer from an outside service must not end the whole turn.
         logger.warning("tool_bad_data", extra={"tool": tool_name, "type": type(exc).__name__})
         return json.dumps(

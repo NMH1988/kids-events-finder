@@ -20,9 +20,9 @@ Deadline: **2026-12-16**. Case 2 (AI agent for task automation) with an advanced
 | Presentation using SCR or SMART | README SCR section, `docs/PRESENTATION.md` | Outline done |
 
 ## Owner's to-do before the review
-1. Add `OPENROUTER_API_KEY` (and optionally `TICKETMASTER_API_KEY`) to `.streamlit/secrets.toml`, then run `python -m scripts.build_index`.
-2. Review and edit the drafts: the system prompt and `data/eval_questions.json`.
-3. Check the curated entries in `data/knowledge_base.json`; run `python -m scripts.check_links`. Re-check the ticket prices in `data/fares.json` on bahn.de.
+1. Done 2026-11-23 (O1): add `OPENROUTER_API_KEY` (and optionally `TICKETMASTER_API_KEY`) to `.streamlit/secrets.toml`, then run `python -m scripts.build_index`.
+2. Done 2026-11-23 (O2, T1.5): review and edit the drafts: the system prompt and `data/eval_questions.json`.
+3. Done 2026-11-23 (O3, T1.5): check the curated entries in `data/knowledge_base.json`; run `python -m scripts.check_links`. Re-check the ticket prices in `data/fares.json` on bahn.de.
 4. Run both evaluation scripts and fill the tables in `docs/EVALUATION.md`.
 5. Do 3-5 user tests with made-up questions and adult testers who agreed beforehand, and write down the results (no screen or voice recordings, no testers' names with their feedback; `docs/LEGAL_COMPLIANCE.md` 8).
 6. Put the project in a GitHub repository, upload it to showcase.turingcollege.com and add the link to the README.

@@ -276,3 +276,56 @@ def test_app_input_errors_keep_their_message(monkeypatch):
     args = {"city": "Berlin", "country": "DE", "start_date": "2099-01-01", "end_date": "2099-01-02"}
     out = json.loads(built["search_family_events"].invoke(args))
     assert out["error"] == "Dates can be at most 30 days ahead."
+
+
+@pytest.mark.parametrize("app_wrote_it", [True, False])
+def test_validation_errors_pass_only_the_app_messages(monkeypatch, app_wrote_it):
+    """A validator's AppInputError message passes (cut, no prefix); a plain ValueError does not."""
+    from typing import Annotated
+
+    from pydantic import AfterValidator, BaseModel
+
+    from src import config
+    from src.errors import AppInputError
+    from src.tools import external
+
+    def rejects(value: str) -> str:
+        """Reject every value, with an app message or with text that could come from a service."""
+        if app_wrote_it:
+            raise AppInputError("msg" * 200)
+        raise ValueError(f"SYSTEM NOTICE {value}")
+
+    class Model(BaseModel):
+        """A model whose only field always fails."""
+
+        field: Annotated[str, AfterValidator(rejects)]
+
+    def fails(**kwargs):
+        """Build the failing model like a tool validating its own data."""
+        Model(field="from the service")
+
+    monkeypatch.setattr(external, "search_family_events", fails)
+    built = {t.name: t for t in build_tools(AdvancedRetriever(None), RagSettings(), "key")}
+    args = {"city": "Berlin", "country": "DE", "start_date": "2099-01-01", "end_date": "2099-01-02"}
+    error = json.loads(built["search_family_events"].invoke(args))["error"]
+    if app_wrote_it:
+        assert error.startswith("msgmsg") and "Value error" not in error
+        assert len(error) <= config.MAX_TOOL_ERROR_CHARS
+    else:
+        assert "could not read" in error and "SYSTEM NOTICE" not in error
+
+
+@pytest.mark.parametrize("exc", [OverflowError("date"), IndexError("list"), ZeroDivisionError()])
+def test_malformed_service_values_do_not_end_the_turn(monkeypatch, exc):
+    """Overflow, index and arithmetic errors from odd service data become the fixed message."""
+    from src.tools import external
+
+    def breaks(**kwargs):
+        """Fail like code reading a far-future time or lists of unequal length."""
+        raise exc
+
+    monkeypatch.setattr(external, "search_family_events", breaks)
+    built = {t.name: t for t in build_tools(AdvancedRetriever(None), RagSettings(), "key")}
+    args = {"city": "Berlin", "country": "DE", "start_date": "2099-01-01", "end_date": "2099-01-02"}
+    out = json.loads(built["search_family_events"].invoke(args))
+    assert out["results"] == [] and "could not read" in out["error"]
