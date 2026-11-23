@@ -9,7 +9,7 @@ Epics, tickets, acceptance criteria, dependencies, order and status. This file a
 
 `tests/test_docs_layout.py` checks that these agree.
 
-**Status of this plan:** set up by T1.4 (issue #12) on 2026-11-23, following the layout of the owner's earlier project. T1.1-T1.3 and T2.1 were done before the plan existed; their tickets were written after the fact from their commits and PR descriptions. The open tickets come from the GitHub issues #4-#10 of 2026-11-20; their acceptance criteria are drafts by Claude until the owner approves them.
+**Status of this plan:** set up by T1.4 (issue #12) on 2026-11-23, following the layout of the owner's earlier project. T1.1-T1.3 and T2.1 were done before the plan existed; their tickets were written after the fact from their commits and PR descriptions. The open tickets come from the GitHub issues #4-#10 of 2026-11-20; their acceptance criteria were drafted by Claude: T3.1-T3.4's approved by the owner on 2026-11-23 (with the layout), T4.1-T4.3's still to be written.
 
 ## Status legend
 
@@ -52,7 +52,7 @@ Deadline: **2026-12-16** (Capstone review). The owner tasks O1-O7 come first for
 | [T1.2](tickets/T1.2.md) | CI: GitHub Actions for ruff and pytest | S | T1.1 | done |
 | [T1.3](tickets/T1.3.md) | Budget day trips, age groups and legal compliance rules | L | T1.2 | done |
 | [T2.1](tickets/T2.1.md) | Legal hardening group 1: privacy check, AI disclosure, money from code | L | T1.3 | done |
-| [T1.4](tickets/T1.4.md) | Docs: ticket files, plan index and progress log | M | none | in progress |
+| [T1.4](tickets/T1.4.md) | Docs: ticket files, plan index and progress log | M | none | done |
 | [T3.1](tickets/T3.1.md) | Before a public deployment: AI provider with a DPA | M | none | todo |
 | [T3.2](tickets/T3.2.md) | Datenschutzerklärung and Impressum | M | T3.1 | todo |
 | [T3.3](tickets/T3.3.md) | Invite codes and rate limits | M | none | todo |
