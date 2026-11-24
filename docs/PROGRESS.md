@@ -24,6 +24,7 @@ Keep the entry short and record what the code does not say: decisions, gotchas, 
 
 ## Entries
 
+- [2026-11-24 · T1.6 QRSPI workflow skill and stronger code and legal reviewers · PR pending (closes #16)](progress/2026-11-24-T1.6.md)
 - [2026-11-23 · T1.5 Owner review O1-O3: knowledge base, fares, prompt and evaluation questions · PR #15 (closes #14)](progress/2026-11-23-T1.5.md)
 - [2026-11-23 · T1.4 Docs: ticket files, plan index and progress log · PR #13 (closes #12)](progress/2026-11-23-T1.4.md)
 - [2026-11-20 · T2.1 Legal hardening group 1: privacy check, AI disclosure, money from code · PR #11 (closes #3)](progress/2026-11-20-T2.1.md)
