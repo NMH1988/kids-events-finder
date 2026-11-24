@@ -73,6 +73,22 @@ TOOLS_ALWAYS_REVIEWED: frozenset[str] = frozenset({"check_budget"})
 # Tools whose results are the app's own money calculations; the UI shows them from the tool
 # results under the answer (never from the model's text).
 CALCULATION_TOOLS: frozenset[str] = frozenset({"compare_train_tickets", "check_budget"})
+# Progress steps shown while the agent works (T5.1). Fixed app text only: never the model's text,
+# tool arguments or tool results, so nothing reaches the page before the grounding check.
+PROGRESS_START = "Thinking about your question"
+PROGRESS_NEXT_STEP = "Thinking about the next step"
+PROGRESS_GROUNDING = "Checking the links in the answer"
+PROGRESS_APPROVAL = "Waiting for your approval"
+PROGRESS_UNKNOWN_TOOL = "Using a tool"
+PROGRESS_TOOL_LABELS: dict[str, str] = {
+    "search_knowledge_base": "Searching the curated places",
+    "find_nearby_places": "Looking for places on OpenStreetMap",
+    "search_family_events": "Looking for family events",
+    "get_weather_forecast": "Checking the weather",
+    "find_train_connection": "Looking for train connections",
+    "compare_train_tickets": "Comparing train tickets",
+    "check_budget": "Adding up the budget",
+}
 MAX_USER_MESSAGE_CHARS = 1000
 # Limit for the parent's reason and edits in the approval panel (keeps every check fast).
 MAX_DECISION_CHARS = 5000

@@ -1,7 +1,9 @@
 """Runs one chat turn of the agent and reports whether it finished or waits for approval."""
 
 import json
+import logging
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
@@ -9,11 +11,25 @@ from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from langgraph.types import Command
 
 from src import config, family, privacy_check
-from src.agent.graph import message_text
+from src.agent.graph import goes_to_review, message_text
+
+logger = logging.getLogger(__name__)
+
+# Receives one fixed progress label at a time (config.PROGRESS_*), never model or tool text.
+ProgressCallback = Callable[[str], None]
 
 
 class InputRejected(ValueError):
     """The user's message was empty, too long or held sensitive data; no model call was made."""
+
+
+class StaleDecision(InputRejected):
+    """The parent decided on a pause the conversation no longer waits on; nothing was run."""
+
+    def __init__(self, message: str, current: TurnResult | None = None) -> None:
+        """Keep the pause the conversation waits on now (None when it waits on none)."""
+        super().__init__(message)
+        self.current = current
 
 
 @dataclass
@@ -26,6 +42,8 @@ class TurnResult:
     answer: str = ""
     pending_tool_calls: list[dict] = field(default_factory=list)
     needs_approval: list[str] = field(default_factory=list)
+    # The id LangGraph gives this pause; unique per pause, unlike the model's tool-call ids.
+    pause_id: str | None = None
     tools_used: list[dict] = field(default_factory=list)
     # The app's own calculations in this turn (latest ticket comparison and budget check), shown
     # by the UI from the tool results, so money never depends on the model's text.
@@ -141,6 +159,7 @@ def _summarise(graph, run_config: dict, start_index: int, started: float) -> Tur
         result.status = "needs_approval"
         result.pending_tool_calls = payload["tool_calls"]
         result.needs_approval = payload["needs_approval"]
+        result.pause_id = interrupts[0].id
         return result
     if messages and isinstance(messages[-1], AIMessage):
         result.answer = message_text(messages[-1])
@@ -148,9 +167,62 @@ def _summarise(graph, run_config: dict, start_index: int, started: float) -> Tur
     return result
 
 
+def waiting_pause(snapshot) -> tuple[str, list[str]] | None:
+    """Return the pause the thread waits on (its id and the call ids), or None if it waits not."""
+    interrupts = [i for task in snapshot.tasks for i in task.interrupts]
+    if not interrupts:
+        return None
+    return interrupts[0].id, [tc["id"] for tc in interrupts[0].value.get("tool_calls", [])]
+
+
 def _message_count(graph, run_config: dict) -> int:
     """Return how many messages the thread holds before this run."""
     return len(graph.get_state(run_config).values.get("messages", []))
+
+
+def tool_label(name: str) -> str:
+    """Return the app's own progress label for a tool; unknown names get a generic label."""
+    return config.PROGRESS_TOOL_LABELS.get(name, config.PROGRESS_UNKNOWN_TOOL)
+
+
+def progress_labels(chunk: dict, auto_approve: bool = False) -> list[str]:
+    """Turn one streamed graph update into fixed progress labels (no model or tool text)."""
+    labels: list[str] = []
+    for node, update in chunk.items():
+        if node == "__interrupt__":
+            labels.append(config.PROGRESS_APPROVAL)
+        elif node == "agent":
+            messages = (update or {}).get("messages") or []
+            last = messages[-1] if messages else None
+            if not isinstance(last, AIMessage) or not last.tool_calls:
+                labels.append(config.PROGRESS_GROUNDING)
+            elif goes_to_review(last, auto_approve):
+                continue  # the graph pauses next; the interrupt reports it
+            else:
+                labels += [tool_label(tc["name"]) for tc in last.tool_calls]
+        elif node == "tools":
+            labels.append(config.PROGRESS_NEXT_STEP)
+    return labels
+
+
+def _execute(
+    graph, graph_input, run_config: dict, progress: ProgressCallback | None, auto: bool
+) -> None:
+    """Run the graph until it ends or pauses, reporting each step's label as it finishes."""
+    for chunk in graph.stream(graph_input, run_config, stream_mode="updates"):
+        if progress and isinstance(chunk, dict):
+            progress = _report(progress, progress_labels(chunk, auto))
+
+
+def _report(progress: ProgressCallback, labels: list[str]) -> ProgressCallback | None:
+    """Pass labels to the callback; a failing callback is dropped so it never cuts a turn."""
+    try:
+        for label in labels:
+            progress(label)
+    except Exception as exc:  # noqa: BLE001 - progress is optional; the graph must finish its run
+        logger.warning("progress_failed", extra={"type": type(exc).__name__})
+        return None
+    return progress
 
 
 def start_turn(
@@ -164,13 +236,17 @@ def start_turn(
     trip: dict | None = None,
     auto_approve: bool = False,
     turn_start_index: int | None = None,
+    progress: ProgressCallback | None = None,
 ) -> TurnResult:
     """Send the parent's message with the chosen context and run until done or a pause."""
     text = check_input(text)
     run_config = _run_config(thread_id, auto_approve)
     start = turn_start_index if turn_start_index is not None else _message_count(graph, run_config)
     started = time.perf_counter()
-    graph.invoke(
+    if progress:
+        progress = _report(progress, [config.PROGRESS_START])
+    _execute(
+        graph,
         {
             "messages": [HumanMessage(text)],
             "country": country,
@@ -180,22 +256,60 @@ def start_turn(
             "grounding": None,
         },
         run_config,
+        progress,
+        auto_approve,
     )
     return _summarise(graph, run_config, start, started)
 
 
 def resume_turn(
-    graph, thread_id: str, decision: dict, *, turn_start_index: int, auto_approve: bool = False
+    graph,
+    thread_id: str,
+    decision: dict,
+    *,
+    turn_start_index: int,
+    auto_approve: bool = False,
+    progress: ProgressCallback | None = None,
+    expected_ids: list[str] | None = None,
+    expected_pause: str | None = None,
 ) -> TurnResult:
     """Resume a paused turn with the parent's decision (approve, edit or reject)."""
     if decision.get("action") not in ("approve", "edit", "reject"):
         raise ValueError("Unknown decision.")
     run_config = _run_config(thread_id, auto_approve)
-    messages = graph.get_state(run_config).values.get("messages", [])
+    snapshot = graph.get_state(run_config)
+    # Resume only a thread that waits for the parent, and (when the page says which pause and
+    # calls it showed) on exactly that pause. Otherwise a stale panel's decision would run what
+    # the thread holds next: a later call the parent never saw, or a call left by a failed run.
+    # The pause id is LangGraph's own; the call ids are the model's and could repeat.
+    waiting = waiting_pause(snapshot)
+    if (
+        waiting is None
+        or (expected_pause is not None and expected_pause != waiting[0])
+        or (expected_ids is not None and list(expected_ids) != waiting[1])
+    ):
+        current = (
+            _summarise(graph, run_config, turn_start_index, time.perf_counter())
+            if waiting
+            else None
+        )
+        raise StaleDecision(
+            "The steps changed or ended while you were deciding. Please check what is shown "
+            "now, or ask again.",
+            current,
+        )
+    messages = snapshot.values.get("messages", [])
     pending = messages[-1].tool_calls if messages and isinstance(messages[-1], AIMessage) else []
     problem = decision_problem(decision, [dict(tc) for tc in pending])
     if problem:
         raise InputRejected(problem)
     started = time.perf_counter()
-    graph.invoke(Command(resume=decision), run_config)
+    if progress:
+        first = (
+            [config.PROGRESS_NEXT_STEP]
+            if decision["action"] == "reject"
+            else [tool_label(tc["name"]) for tc in pending]
+        )
+        progress = _report(progress, first)
+    _execute(graph, Command(resume=decision), run_config, progress, auto_approve)
     return _summarise(graph, run_config, turn_start_index, started)

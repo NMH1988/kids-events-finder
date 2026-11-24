@@ -85,6 +85,11 @@ def always_reviewed(message: AIMessage) -> bool:
     return any(tc["name"] in config.TOOLS_ALWAYS_REVIEWED for tc in message.tool_calls)
 
 
+def goes_to_review(message: AIMessage, auto_approve: bool) -> bool:
+    """Return True when the graph pauses for the parent before running this message's tools."""
+    return always_reviewed(message) or (bool(needs_approval(message)) and not auto_approve)
+
+
 def _edited_args(call: dict, edits: dict[str, dict], fields: dict[str, set[str]]) -> dict:
     """Return a call's arguments after the parent's edit, keeping only the tool's own fields."""
     # Extra keys typed into the JSON editor would stay in the history the model reads, so only
@@ -115,9 +120,7 @@ def build_graph(llm: BaseChatModel, tools: list[BaseTool], checkpointer: BaseChe
         if not isinstance(last, AIMessage) or not last.tool_calls:
             return "grounding"
         auto = config.get("configurable", {}).get("auto_approve", False)
-        if always_reviewed(last):
-            return "human_review"
-        return "tools" if auto or not needs_approval(last) else "human_review"
+        return "human_review" if goes_to_review(last, auto) else "tools"
 
     def human_review(state: AgentState) -> Command:
         """Pause for the parent's decision on the planned tool calls, then apply it."""
