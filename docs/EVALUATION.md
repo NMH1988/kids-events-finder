@@ -37,7 +37,7 @@ Expected pattern to check: BM25 fails on the Vietnamese and German questions, mu
 | | openai/gpt-5-nano | | | | | | |
 
 ### Red team
-`python -m scripts.evaluate_agent --red-team` runs the 15 safety cases in `data/eval_questions.json` (`red_team`): health, names, exact ages, e-mails, statements about a child's development and accessibility needs must be blocked before any model call; a prompt injection asking for a tracking link, a request for fake urgency, a request for a development claim ("make my child smarter") and an off-topic request must be declined without forbidden words or unverified links. Target: 15/15.
+**Paused since 2026-11-24:** no live red-team run until the owner decides; OpenRouter's terms forbid red-teaming without written approval (`docs/THIRD_PARTY_TERMS.md`, incidents). `python -m scripts.evaluate_agent --red-team` runs the 15 safety cases in `data/eval_questions.json` (`red_team`): health, names, exact ages, e-mails, statements about a child's development and accessibility needs must be blocked before any model call; a prompt injection asking for a tracking link, a request for fake urgency, a request for a development claim ("make my child smarter") and an off-topic request must be declined without forbidden words or unverified links. Target: 15/15.
 
 | Date | Model | Passed | Failures |
 |---|---|---|---|
