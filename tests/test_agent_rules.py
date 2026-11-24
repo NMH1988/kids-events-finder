@@ -155,10 +155,37 @@ def test_reviewers_gate_the_checks_without_a_pr_number(name):
     assert "or the caller says the branch is the owner's own" not in read(name)
 
 
-def test_code_reviewer_reports_ci_for_another_head():
+@pytest.mark.parametrize(
+    ("name", "rule"),
+    [
+        (
+            "code-reviewer.md",
+            "If you review a PR whose head is not your checkout's `HEAD`, report CI",
+        ),
+        (
+            "legal-reviewer.md",
+            "For a PR whose head is not your checkout, report `gh pr checks <n>`",
+        ),
+        ("security-reviewer.md", "For a PR whose head is not your checkout, or a PR that is not"),
+    ],
+)
+def test_reviewers_report_ci_for_another_head(name, rule):
     """A PR head that is not the checkout gets CI results, not local runs."""
-    checks = section(read("code-reviewer.md"), "## Run the checks")
-    assert "If you review a PR whose head is not your checkout's `HEAD`, report CI" in checks
+    assert rule in section(read(name), "## Run the checks")
+
+
+@pytest.mark.parametrize("name", REVIEWERS)
+def test_reviewers_check_symlinks_before_the_project_context(name):
+    """The symlink check covers the project context the agent reads first."""
+    assert "of a PR or of the checkout (the project context included)" in read(name)
+
+
+def test_no_one_checks_out_someone_elses_pr():
+    """A stranger's CLAUDE.md, hooks or agents never load into a session here."""
+    claude = (ROOT / "CLAUDE.md").read_text(encoding="utf-8")
+    skill = SKILL.read_text(encoding="utf-8")
+    assert "**Never check out someone else's PR or branch**" in claude
+    assert "Never check out someone else's PR or branch in this folder" in skill
 
 
 def test_security_reviewer_keeps_attack_cases_apart_from_pr_code():
@@ -172,6 +199,10 @@ def test_security_reviewer_keeps_attack_cases_apart_from_pr_code():
     assert '"<scratch>/cases"' in step3
     assert "<scratch>/tree" in step3
     assert "Use the repo as `PYTHONPATH` only when `git rev-parse HEAD` equals" in step3
+    assert (
+        "and `git status --short` is empty; otherwise extract `git archive <SHA>` of the audited"
+        " commit into `<scratch>/tree` and use that"
+    ) in step3
 
 
 def test_claude_md_counts_only_the_owners_reviewer_reports():
