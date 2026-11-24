@@ -1,15 +1,18 @@
 """Tests for the agent graph: human-in-the-loop approve, edit, reject, auto-approve, grounding."""
 
 import json
+import logging
 
 import pytest
-from langchain_core.messages import AIMessage, ToolMessage
+from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from langchain_core.tools import StructuredTool
 from langgraph.checkpoint.memory import InMemorySaver
 
+from src import config
 from src.agent.graph import build_graph, system_prompt
 from src.agent.runner import (
     InputRejected,
+    StaleDecision,
     check_input,
     decision_problem,
     resume_turn,
@@ -436,3 +439,277 @@ def test_blank_city_is_a_tool_error_not_a_crash():
     assert any(isinstance(m, ToolMessage) and m.tool_call_id == "k1" for m in state["messages"])
     second = start_turn(graph, "t30", "and now?", **CONTEXT)
     assert second.status == "done"
+
+
+# T5.1: live progress while the agent works.
+START, NEXT = config.PROGRESS_START, config.PROGRESS_NEXT_STEP
+GROUNDING, APPROVAL = config.PROGRESS_GROUNDING, config.PROGRESS_APPROVAL
+ALLOWED_LABELS = {
+    START,
+    NEXT,
+    GROUNDING,
+    APPROVAL,
+    config.PROGRESS_UNKNOWN_TOOL,
+    *config.PROGRESS_TOOL_LABELS.values(),
+}
+
+
+def test_progress_reports_each_step_in_order(tools):
+    """An internal tool turn reports: start, the tool, the next step, the link check."""
+    graph, _ = _graph(
+        [_call("search_knowledge_base", {"query": "zoo"}, "c1"), AIMessage("Zoo Berlin")], tools
+    )
+    events: list[str] = []
+    result = start_turn(graph, "p1", "zoo?", progress=events.append, **CONTEXT)
+    assert result.status == "done"
+    assert events == [START, "Searching the curated places", NEXT, GROUNDING]
+
+
+def test_progress_waits_for_approval_and_continues_after_it(tools):
+    """A paused turn reports the wait; approving reports the tool, then the rest."""
+    graph, _ = _graph(
+        [_call("get_weather_forecast", {"city": "Berlin"}, "w1"), AIMessage("Rain.")], tools
+    )
+    events: list[str] = []
+    paused = start_turn(graph, "p2", "weather?", progress=events.append, **CONTEXT)
+    assert paused.status == "needs_approval"
+    # The weather label is not shown before the parent approves: the tool has not run.
+    assert events == [START, APPROVAL]
+    events.clear()
+    resume_turn(
+        graph,
+        "p2",
+        {"action": "approve"},
+        turn_start_index=paused.start_index,
+        progress=events.append,
+    )
+    assert events == ["Checking the weather", NEXT, GROUNDING]
+
+
+def test_progress_after_a_reject_skips_the_tool(tools, calls):
+    """A rejected call never shows a tool label; the agent goes on to its next step."""
+    graph, _ = _graph(
+        [_call("get_weather_forecast", {"city": "Berlin"}, "w1"), AIMessage("Okay.")], tools
+    )
+    paused = start_turn(graph, "p3", "weather?", **CONTEXT)
+    events: list[str] = []
+    resume_turn(
+        graph,
+        "p3",
+        {"action": "reject", "feedback": "no weather"},
+        turn_start_index=paused.start_index,
+        progress=events.append,
+    )
+    assert events == [NEXT, GROUNDING]
+    assert calls == []
+
+
+def test_progress_with_auto_approve_shows_the_outside_tool(tools):
+    """With auto-approve on, the outside tool runs at once and is reported."""
+    graph, _ = _graph(
+        [_call("get_weather_forecast", {"city": "Berlin"}, "w1"), AIMessage("Rain.")], tools
+    )
+    events: list[str] = []
+    start_turn(graph, "p4", "weather?", auto_approve=True, progress=events.append, **CONTEXT)
+    assert events == [START, "Checking the weather", NEXT, GROUNDING]
+
+
+def test_progress_never_carries_model_or_tool_text(caplog):
+    """Only fixed labels reach the page: not the answer, the arguments or the tool result."""
+    marker = "MARKER-7731"
+
+    def search_knowledge_base(query: str) -> str:
+        """Fake internal search whose result carries the marker."""
+        return json.dumps({"results": [{"name": marker, "website": "https://zoo.example"}]})
+
+    graph, _ = _graph(
+        [
+            _call("search_knowledge_base", {"query": marker}, "c1"),
+            _call("made_up_tool_" + marker, {"x": marker}, "c2"),
+            AIMessage(f"{marker} [Zoo](https://zoo.example)"),
+        ],
+        [StructuredTool.from_function(search_knowledge_base)],
+    )
+    events: list[str] = []
+    with caplog.at_level(logging.DEBUG):
+        start_turn(graph, "p5", "zoo?", auto_approve=True, progress=events.append, **CONTEXT)
+    assert config.PROGRESS_UNKNOWN_TOOL in events
+    assert set(events) <= ALLOWED_LABELS
+    assert not any(marker in e for e in events)
+    # Progress events are not logged.
+    logged = " ".join(r.getMessage() for r in caplog.records)
+    assert not any(label in logged for label in ALLOWED_LABELS)
+
+
+@pytest.mark.parametrize("auto", [False, True])
+def test_budget_check_is_reported_as_a_wait_even_with_auto_approve(auto):
+    """check_budget always pauses, so its label never shows before the parent's amounts."""
+    from src.agent.runner import progress_labels
+
+    budget = _call("check_budget", {"budget_eur": 50, "items": []}, "b1")
+    labels = progress_labels({"agent": {"messages": [budget]}}, auto)
+    labels += progress_labels({"__interrupt__": ()}, auto)
+    assert labels == [APPROVAL]
+
+
+def test_progress_labels_ignore_other_nodes_and_empty_updates():
+    """Updates without messages, from review or grounding, add no label of their own."""
+    from src.agent.runner import progress_labels
+
+    assert progress_labels({"human_review": None}) == []
+    assert progress_labels({"grounding": {"messages": []}}) == []
+    assert progress_labels({"agent": None}) == [GROUNDING]
+
+
+@pytest.mark.parametrize("failing_label", [START, "Checking the weather", NEXT, GROUNDING])
+def test_a_failing_progress_callback_never_cuts_the_turn(tools, calls, caplog, failing_label):
+    """Security round 1 (Low): a callback error drops progress; the graph still finishes."""
+    graph, _ = _graph(
+        [_call("get_weather_forecast", {"city": "Berlin"}, "w1"), AIMessage("Rain.")], tools
+    )
+
+    def progress(label: str) -> None:
+        """Fail on one label, as a broken page element would."""
+        if label == failing_label:
+            raise RuntimeError("page element failed")
+
+    with caplog.at_level(logging.WARNING):
+        result = start_turn(
+            graph, "p6", "weather?", auto_approve=True, progress=progress, **CONTEXT
+        )
+    assert result.status == "done" and result.answer == "Rain."
+    assert result.grounding is not None
+    assert calls == [("get_weather_forecast", {"city": "Berlin"})]
+    state = graph.get_state({"configurable": {"thread_id": "p6"}}).values["messages"]
+    answered = {m.tool_call_id for m in state if isinstance(m, ToolMessage)}
+    assert answered == {"w1"}
+    assert [r.getMessage() for r in caplog.records if r.name == "src.agent.runner"] == [
+        "progress_failed"
+    ]
+
+
+# Security round 1 (High, Medium): a decision runs only the calls the parent saw.
+def _two_pauses(tools):
+    """A graph that pauses on the weather, then on an events search after approval."""
+
+    def search_family_events(city: str) -> str:
+        """Fake outside event search."""
+        tools_calls.append(("search_family_events", {"city": city}))
+        return json.dumps({"results": []})
+
+    tools_calls: list = []
+    graph, _ = _graph(
+        [
+            _call("get_weather_forecast", {"city": "Berlin"}, "w1"),
+            _call("search_family_events", {"city": "Hamburg"}, "e1"),
+            AIMessage("Done."),
+        ],
+        [*tools, StructuredTool.from_function(search_family_events)],
+    )
+    return graph, tools_calls
+
+
+@pytest.mark.parametrize(
+    "decision",
+    [
+        {"action": "approve"},
+        {"action": "reject", "feedback": "no"},
+        {"action": "edit", "tool_calls": [{"id": "w1", "args": {"city": "Potsdam"}}]},
+    ],
+)
+def test_resume_refuses_a_decision_for_other_calls(tools, calls, decision):
+    """A decision made on panel w1 never runs e1, which the parent has not seen."""
+    graph, event_calls = _two_pauses(tools)
+    first = start_turn(graph, "s1", "weather?", **CONTEXT)
+    second = resume_turn(
+        graph, "s1", {"action": "approve"}, turn_start_index=first.start_index, expected_ids=["w1"]
+    )
+    assert second.status == "needs_approval" and second.needs_approval == ["e1"]
+    with pytest.raises(StaleDecision):
+        resume_turn(graph, "s1", decision, turn_start_index=first.start_index, expected_ids=["w1"])
+    assert event_calls == []
+    # The panel the parent sees now still works.
+    done = resume_turn(
+        graph, "s1", {"action": "approve"}, turn_start_index=first.start_index, expected_ids=["e1"]
+    )
+    assert done.status == "done" and event_calls == [("search_family_events", {"city": "Hamburg"})]
+
+
+@pytest.mark.parametrize("action", [{"action": "approve"}, {"action": "reject", "feedback": "no"}])
+def test_a_thread_that_does_not_wait_runs_nothing_on_resume(tools, calls, action):
+    """A run left before its tools step (no pause) is never resumed by an old panel's click."""
+    graph, _ = _graph(
+        [_call("get_weather_forecast", {"city": "Berlin"}, "w1"), AIMessage("Rain.")], tools
+    )
+    run_config = {"configurable": {"thread_id": "s2", "auto_approve": True}}
+    stream = graph.stream(
+        {"messages": [HumanMessage("weather?")], **CONTEXT, "trip": None, "grounding": None},
+        run_config,
+        stream_mode="updates",
+    )
+    next(stream)  # the agent step plans the call; the run then stops before the tools step
+    stream.close()
+    assert graph.get_state(run_config).next == ("tools",)
+    with pytest.raises(StaleDecision):
+        resume_turn(graph, "s2", action, turn_start_index=0, expected_ids=["w1"])
+    assert calls == []
+
+
+def test_a_finished_turn_is_not_resumed(tools, calls):
+    """Once a turn has its answer, a decision from an old panel is refused."""
+    graph, _ = _graph([AIMessage("Hello.")], tools)
+    start_turn(graph, "s3", "hi", **CONTEXT)
+    with pytest.raises(StaleDecision):
+        resume_turn(graph, "s3", {"action": "approve"}, turn_start_index=0)
+    assert calls == []
+
+
+def test_a_reused_call_id_does_not_pass_as_the_same_pause(tools, calls):
+    """Security round 2 (Low): the pause id, not the model's call id, ties a decision to a panel."""
+
+    def search_family_events(city: str) -> str:
+        """Fake outside event search."""
+        event_calls.append(city)
+        return json.dumps({"results": []})
+
+    event_calls: list[str] = []
+    graph, _ = _graph(
+        [
+            _call("get_weather_forecast", {"city": "Berlin"}, "call_0"),
+            _call("search_family_events", {"city": "Hamburg"}, "call_0"),
+            AIMessage("Done."),
+        ],
+        [*tools, StructuredTool.from_function(search_family_events)],
+    )
+    first = start_turn(graph, "s4", "weather?", **CONTEXT)
+    second = resume_turn(
+        graph,
+        "s4",
+        {"action": "approve"},
+        turn_start_index=first.start_index,
+        expected_ids=["call_0"],
+        expected_pause=first.pause_id,
+    )
+    assert second.status == "needs_approval"
+    assert first.pause_id and second.pause_id and first.pause_id != second.pause_id
+    with pytest.raises(StaleDecision) as stale:
+        resume_turn(
+            graph,
+            "s4",
+            {"action": "approve"},
+            turn_start_index=first.start_index,
+            expected_ids=["call_0"],
+            expected_pause=first.pause_id,
+        )
+    assert event_calls == []
+    # The refusal carries the pause the conversation waits on now, for the page to show.
+    assert stale.value.current.pause_id == second.pause_id
+
+
+def test_a_stale_decision_on_a_finished_turn_carries_no_pause(tools):
+    """With nothing waiting, the refusal has no current pause, so the page clears the panel."""
+    graph, _ = _graph([AIMessage("Hello.")], tools)
+    start_turn(graph, "s5", "hi", **CONTEXT)
+    with pytest.raises(StaleDecision) as stale:
+        resume_turn(graph, "s5", {"action": "reject"}, turn_start_index=0, expected_pause="p1")
+    assert stale.value.current is None

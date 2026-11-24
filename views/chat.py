@@ -1,18 +1,22 @@
 """The Chat tab: the agent conversation, the human-in-the-loop approval panel and feedback."""
 
+import hashlib
 import json
 import logging
 import re
 import threading
 import time
 import uuid
+from collections.abc import Callable
 
 import streamlit as st
 from langgraph.checkpoint.memory import InMemorySaver
+from streamlit.runtime.scriptrunner_utils.exceptions import ScriptControlException
 
 from src import config, services
 from src.agent.runner import (
     InputRejected,
+    StaleDecision,
     TurnResult,
     check_input,
     decision_problem,
@@ -85,6 +89,8 @@ TRIP_EXAMPLES = (
     "Day trip by regional train this Saturday?",
     "Chuyến đi trong ngày bằng tàu, không quá ngân sách",
 )
+PROGRESS_TITLE = "Working on your question…"
+PROGRESS_DONE = "Done"
 
 
 @st.cache_resource
@@ -323,7 +329,7 @@ def _render_feedback(index: int, message: dict, settings: Settings) -> None:
         st.toast("Thanks for the feedback!")
 
 
-def _budget_editor(call: dict, settings: Settings) -> dict:
+def _budget_editor(call: dict, settings: Settings, panel: str = "") -> dict:
     """Let the parent fill in or correct the budget items; return the edited arguments."""
     args = call["args"]
     # The budget comes from the sidebar's trip settings, not from the model's argument.
@@ -334,7 +340,7 @@ def _budget_editor(call: dict, settings: Settings) -> dict:
         min_value=float(low),
         max_value=float(high),
         value=min(max(float(start or 0), float(low)), float(high)),
-        key=f"budget_{call['id']}",
+        key=f"budget_{panel}_{call['id']}",
     )
     rows = [
         {
@@ -347,7 +353,7 @@ def _budget_editor(call: dict, settings: Settings) -> dict:
     table = st.data_editor(
         rows,
         num_rows="dynamic",
-        key=f"items_{call['id']}",
+        key=f"items_{panel}_{call['id']}",
         column_config={
             "label": st.column_config.TextColumn("Cost", required=True, max_chars=80),
             "amount_eur": st.column_config.NumberColumn(
@@ -388,6 +394,10 @@ def _render_approval(settings: Settings) -> None:
     """Show the planned tool calls and let the parent approve, edit or reject them."""
     pending = st.session_state.pending
     result: TurnResult = pending["result"]
+    expected_ids = [call["id"] for call in result.pending_tool_calls]
+    # Keys tied to this pause: a click or an edit on one panel (e.g. a double-click while the
+    # turn runs) can never act on the next panel, which the parent has not seen yet.
+    panel = approval_panel_key(result.pause_id, expected_ids)
     with st.chat_message("assistant", avatar="🛑"):
         st.markdown("**The agent is waiting for you. Do you approve these steps?**")
         edited: list[dict] = []
@@ -402,7 +412,10 @@ def _render_approval(settings: Settings) -> None:
                 st.caption(TOOL_EXPLANATIONS.get(call["name"], ""))
                 if call["name"] == "check_budget":
                     has_budget = True
-                    budget_args = {"id": call["id"], "args": _budget_editor(call, settings)}
+                    budget_args = {
+                        "id": call["id"],
+                        "args": _budget_editor(call, settings, panel),
+                    }
                     edited.append(budget_args)
                     approved.append(budget_args)
                     continue
@@ -410,7 +423,7 @@ def _render_approval(settings: Settings) -> None:
                 text = st.text_area(
                     "Arguments (you can edit them)",
                     json.dumps(call["args"], indent=2, ensure_ascii=False),
-                    key=f"args_{call['id']}",
+                    key=f"args_{panel}_{call['id']}",
                     height=130,
                     max_chars=config.MAX_DECISION_CHARS,
                 )
@@ -425,21 +438,28 @@ def _render_approval(settings: Settings) -> None:
                     )
         feedback = st.text_input(
             "Reason if you reject (optional)",
-            key="reject_reason",
+            key=f"reject_reason_{panel}",
             placeholder="e.g. only indoor places, please",
             max_chars=config.MAX_REJECT_REASON_CHARS,
         )
         c1, c2, c3 = st.columns(3)
         decision = None
-        if c1.button("✅ Approve", type="primary", use_container_width=True):
+        if c1.button(
+            "✅ Approve", key=f"approve_{panel}", type="primary", use_container_width=True
+        ):
             # Approve runs the original arguments; with a budget call, the parent's table is part
             # of approving, so their amounts always replace the model's.
             decision = (
                 {"action": "edit", "tool_calls": approved} if has_budget else {"action": "approve"}
             )
-        if c2.button("✏️ Run with my edits", disabled=bad_json, use_container_width=True):
+        if c2.button(
+            "✏️ Run with my edits",
+            key=f"edit_{panel}",
+            disabled=bad_json,
+            use_container_width=True,
+        ):
             decision = {"action": "edit", "tool_calls": edited}
-        if c3.button("❌ Reject", use_container_width=True):
+        if c3.button("❌ Reject", key=f"reject_{panel}", use_container_width=True):
             decision = {"action": "reject", "feedback": feedback}
         # The parent's own text in this panel goes to the model too, so it gets the same check.
         problem = decision and decision_problem(decision, result.pending_tool_calls)
@@ -448,25 +468,79 @@ def _render_approval(settings: Settings) -> None:
             decision = None
     if decision:
         _run(
-            lambda graph: resume_turn(
+            lambda graph, progress: resume_turn(
                 graph,
                 st.session_state.thread_id,
                 decision,
                 turn_start_index=result.start_index,
                 auto_approve=settings.auto_approve,
+                progress=progress,
+                expected_ids=expected_ids,
+                expected_pause=result.pause_id,
             ),
             pending["question"],
             settings,
         )
 
 
+def approval_panel_key(pause_id: str | None, call_ids: list[str]) -> str:
+    """Return a widget key part unique to one pause and the tool calls its panel shows."""
+    # LangGraph's pause id is unique per pause; the model's call ids could repeat. A hash keeps
+    # the key short whatever the ids look like.
+    parts = [str(pause_id or ""), *map(str, call_ids)]
+    return hashlib.sha256(json.dumps(parts).encode("utf-8")).hexdigest()[:16]
+
+
+class ProgressWriter:
+    """Writes fixed progress labels; a page rerun or stop asked for meanwhile never cuts a turn."""
+
+    def __init__(self, write: Callable[[str], None]) -> None:
+        """Keep the function that writes one label (e.g. the status box's `text`)."""
+        self.write = write
+        self.shown: list[str] = []
+        # Every Streamlit call can raise the page's rerun or stop request. Raised inside the
+        # graph run, it would stop the graph between two steps and leave a tool call without
+        # its result, so it is kept here and raised by `_run` once the turn is stored.
+        self.deferred: ScriptControlException | None = None
+
+    def __call__(self, label: str) -> None:
+        """Write one label unless it repeats the last one or a rerun is already waiting."""
+        if self.deferred is not None or (self.shown and self.shown[-1] == label):
+            return
+        try:
+            self.write(label)
+        except ScriptControlException as exc:
+            self.deferred = exc
+            return
+        self.shown.append(label)
+
+
 def _run(step, question: str, settings: Settings) -> None:
-    """Run a graph step with a spinner, store its result and redraw the page."""
+    """Run a graph step with a live progress box, store its result and redraw the page."""
     try:
         graph = _graph(settings.model, settings.multi_query, settings.rerank)
-        with st.spinner("Searching for ideas…"):
-            result = step(graph)
+        with st.status(PROGRESS_TITLE, expanded=True) as status:
+            # The labels are the app's own fixed text, shown as plain text (T5.1).
+            writer = ProgressWriter(status.text)
+            result = step(graph, writer)
+            # Stored before any further page call, so a waiting rerun cannot lose the turn.
+            _store_result(result, question, settings.model)
+            if writer.deferred is not None:
+                raise writer.deferred
+            status.update(label=PROGRESS_DONE, state="complete", expanded=False)
     except InputRejected as exc:
+        if isinstance(exc, StaleDecision):
+            # Show the pause the conversation really waits on, or none: a cleared panel on a
+            # waiting thread would let a new question drop that pause half-done.
+            current = exc.current
+            st.session_state.pending = (
+                {"result": current, "question": question}
+                if current and current.status == "needs_approval"
+                else None
+            )
+            # Redraw at once so the old panel disappears; the warning is shown after the rerun.
+            st.session_state.stale_warning = str(exc)
+            st.rerun()
         st.warning(str(exc))
         return
     except MissingAPIKeyError as exc:
@@ -476,7 +550,6 @@ def _run(step, question: str, settings: Settings) -> None:
         logger.warning("turn_failed", extra={"type": type(exc).__name__})
         st.error("Something went wrong while calling the model service. Please try again.")
         return
-    _store_result(result, question, settings.model)
     st.rerun()
 
 
@@ -494,6 +567,9 @@ def render_chat(settings: Settings) -> None:
         "🤖 You are chatting with an AI assistant, not a person. Its answers are AI-generated and "
         "can be wrong. Please don't type names, exact ages, health information or contact details."
     )
+    stale = ss.pop("stale_warning", None)
+    if stale:
+        st.warning(stale)
     if not ss.history and not ss.pending:
         st.markdown("Ask about outings for your child. Try one of these:")
         examples = TRIP_EXAMPLES + EXAMPLES[:2] if settings.trip else EXAMPLES
@@ -538,7 +614,7 @@ def render_chat(settings: Settings) -> None:
             return
         ss.history.append({"role": "user", "content": question})
         _run(
-            lambda graph: start_turn(
+            lambda graph, progress: start_turn(
                 graph,
                 ss.thread_id,
                 question,
@@ -547,6 +623,7 @@ def render_chat(settings: Settings) -> None:
                 children=settings.children,
                 trip=settings.trip,
                 auto_approve=settings.auto_approve,
+                progress=progress,
             ),
             question,
             settings,

@@ -26,7 +26,7 @@ Deadline: **2026-12-16**. Case 2 (AI agent for task automation) with an advanced
 3. Done 2026-11-23 (O3, T1.5): check the curated entries in `data/knowledge_base.json`; run `python -m scripts.check_links`. Re-check the ticket prices in `data/fares.json` on bahn.de.
 4. Run both evaluation scripts and fill the tables in `docs/EVALUATION.md`.
 5. Do 3-5 user tests with made-up questions and adult testers who agreed beforehand, and write down the results (no screen or voice recordings, no testers' names with their feedback; `docs/LEGAL_COMPLIANCE.md` 8).
-6. Put the project in a GitHub repository, upload it to showcase.turingcollege.com and add the link to the README.
+6. After Epic 5 and before booking the review, upload the project to showcase.turingcollege.com and add the link near the top of the README (the GitHub repository exists); update the entry after any later change. Use screenshots or a recorded demo with made-up questions: a publicly reachable copy of the app would be a public deployment (`docs/LEGAL_COMPLIANCE.md` 8).
 7. Record a short demo and prepare the 10-minute talk (`docs/PRESENTATION.md`).
 
 ## SMART goal for the project
