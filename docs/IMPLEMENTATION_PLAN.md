@@ -53,7 +53,7 @@ Deadline: **2026-12-16** (Capstone review). The owner tasks O1-O7 come first for
 | [T1.3](tickets/T1.3.md) | Budget day trips, age groups and legal compliance rules | L | T1.2 | done |
 | [T2.1](tickets/T2.1.md) | Legal hardening group 1: privacy check, AI disclosure, money from code | L | T1.3 | done |
 | [T1.4](tickets/T1.4.md) | Docs: ticket files, plan index and progress log | M | none | done |
-| [T1.5](tickets/T1.5.md) | Owner review O1-O3: knowledge base, fares, prompt and evaluation questions | M | O1 | in review |
+| [T1.5](tickets/T1.5.md) | Owner review O1-O3: knowledge base, fares, prompt and evaluation questions | M | O1 | done |
 | [T3.1](tickets/T3.1.md) | Before a public deployment: AI provider with a DPA | M | none | todo |
 | [T3.2](tickets/T3.2.md) | Datenschutzerklärung and Impressum | M | T3.1 | todo |
 | [T3.3](tickets/T3.3.md) | Invite codes and rate limits | M | none | todo |
