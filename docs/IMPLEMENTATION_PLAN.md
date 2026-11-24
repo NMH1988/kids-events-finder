@@ -37,7 +37,7 @@ The owner does these (from `docs/CAPSTONE_CHECKLIST.md`, "Owner's to-do before t
 | O1 | Add `OPENROUTER_API_KEY` (optionally `TICKETMASTER_API_KEY`) to `.streamlit/secrets.toml`, then `python -m scripts.build_index` | O4, live checks | done (2026-11-23: index built, 49 places; no Ticketmaster key) |
 | O2 | Review and edit the drafts: the system prompt (`src/prompts/agent_system.md`) and `data/eval_questions.json`; the owner writes, Claude reviews | O4 | done (2026-11-23, T1.5: written by Claude at the owner's request, approved by the owner) |
 | O3 | Check the curated entries in `data/knowledge_base.json`, run `python -m scripts.check_links`, re-check the prices in `data/fares.json` on bahn.de | O4 | done (2026-11-23, T1.5: 11 entries fixed, prices unchanged) |
-| O4 | Run both evaluation scripts and fill the tables in `docs/EVALUATION.md` | Capstone review | todo |
+| O4 | Run both evaluation scripts and fill the tables in `docs/EVALUATION.md` | Capstone review | done (2026-11-24, T1.8: run by Claude at the owner's request) |
 | O5 | 3-5 user tests with made-up questions, adult testers who agreed beforehand; results written down, no screen or voice recordings, no testers' names with their feedback (`docs/LEGAL_COMPLIANCE.md` 8) | Capstone review | todo |
 | O6 | Upload to showcase.turingcollege.com after Epic 5 and before booking the review, and add the link near the top of the README (the GitHub repository exists); update the entry after any later change. Screenshots or a recorded demo only: a publicly reachable copy of the app is a public deployment (`docs/LEGAL_COMPLIANCE.md` 8) | Capstone review | todo |
 | O7 | Record a short demo and prepare the 10-minute talk (`docs/PRESENTATION.md`) | Capstone review (2026-12-16) | todo |
@@ -56,6 +56,7 @@ Deadline: **2026-12-16** (Capstone review). The owner tasks O1-O7 come first for
 | [T1.5](tickets/T1.5.md) | Owner review O1-O3: knowledge base, fares, prompt and evaluation questions | M | O1 | done |
 | [T1.6](tickets/T1.6.md) | QRSPI workflow skill and stronger code and legal reviewers | S | none | done |
 | [T1.7](tickets/T1.7.md) | Enforce the reviewers' never-open and allowlist rules with deny rules and hooks | S | T1.6 | todo |
+| [T1.8](tickets/T1.8.md) | Owner task O4: run the evaluations and fill docs/EVALUATION.md | S | T1.5 | in progress |
 | [T1.9](tickets/T1.9.md) | Third-party terms file and the owner's rules on outside services and keys | S | none | done |
 | [T5.1](tickets/T5.1.md) | Live progress while the agent works | M | none | done |
 | [T5.2](tickets/T5.2.md) | Parent-friendly approval form instead of raw JSON | M | T5.1 | todo |
@@ -82,6 +83,7 @@ The app, CI and the project's working rules.
 - [T1.5 Owner review O1-O3: knowledge base, fares, prompt and evaluation questions (M)](tickets/T1.5.md)
 - [T1.6 QRSPI workflow skill and stronger code and legal reviewers (S)](tickets/T1.6.md)
 - [T1.7 Enforce the reviewers' never-open and allowlist rules with deny rules and hooks (S)](tickets/T1.7.md)
+- [T1.8 Owner task O4: run the evaluations and fill docs/EVALUATION.md (S)](tickets/T1.8.md)
 - [T1.9 Third-party terms file and the owner's rules on outside services and keys (S)](tickets/T1.9.md)
 
 ## Epic 2: Legal hardening
