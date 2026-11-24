@@ -344,6 +344,8 @@ Capstone demo with synthetic data.
 
 ## Register: data sources
 
+The terms, limits and attribution rules of each outside service, with the dates they were read, are in `docs/THIRD_PARTY_TERMS.md`.
+
 | Source | Used for | Licence / terms | Commercial use | Notes |
 |---|---|---|---|---|
 | Own knowledge base | Places | Project's own text | Yes | No copied text or images |
@@ -372,6 +374,8 @@ Capstone demo with synthetic data.
 | Invite code, request counts (planned) | Access control, cost limits | Legitimate interest (Art. 6(1)(f)) | Server | While the code is active |
 
 ## Register: processors and affiliate programmes
+
+OpenRouter's and the model providers' terms (red-teaming, data use) are summarised in `docs/THIRD_PARTY_TERMS.md`.
 
 | Name | Role | Location | DPA / terms checked |
 |---|---|---|---|

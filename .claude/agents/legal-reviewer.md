@@ -42,7 +42,7 @@ You are not a lawyer and your report is not legal advice: when something needs a
 
 ## Project context
 
-Read first: `CLAUDE.md`, `docs/LEGAL_COMPLIANCE.md` (in full), `docs/CAPSTONE_CHECKLIST.md`, `docs/ETHICS.md`, `README.md`, the About page (`views/`), the ticket's file and the newest entries of the progress log (`docs/PROGRESS.md`, newest first; each is a file in `docs/progress/`). Prefer them over this summary.
+Read first: `CLAUDE.md`, `docs/LEGAL_COMPLIANCE.md` (in full), `docs/THIRD_PARTY_TERMS.md` (in full), `docs/CAPSTONE_CHECKLIST.md`, `docs/ETHICS.md`, `README.md`, the About page (`views/`), the ticket's file and the newest entries of the progress log (`docs/PROGRESS.md`, newest first; each is a file in `docs/progress/`). Prefer them over this summary.
 
 ## Step 1: the personal data map
 
@@ -69,7 +69,8 @@ Kinds to look for: the chat message; the country and city; the children's age gr
 6. **Copyright and licences (rulebook 6).** Descriptions in `data/knowledge_base.json` in the project's own words, no copied text, photos or logos (6.1); facts with their source and check date, every fare entry with `source_url` and `checked_on` (6.2); every data source in the data source register with its licence and commercial-use answer, attribution shown on the About page and, by the app, under answers (6.3); every dependency, JavaScript library, font, icon, image and model under a licence 6.4 allows (MIT, BSD, Apache-2.0, ISC, PSF, MPL-2.0 unmodified), each model named in the processor register with its check date; Transitous only while the repository is public and non-commercial, with its User-Agent and link.
 7. **Consumer and business duties (rulebook 7).** Invented prices, opening hours or availability; missing "check the official website / bahn.de" notes; payment or selling features; Impressum and terms (7.1, 7.2, scenario 2); business registration, tax advice and the residence-status check before any income (7.4); the trademark check before a public app name (6.5).
 8. **Synthetic data only (rulebook 8).** No real personal data in tracked files (`git grep -n -i -E` for e-mail patterns, phone numbers and real-looking names in data, fixtures, screenshots and docs); evaluations, demos and tests use made-up questions; user tests follow the conditions for testers (adults who agreed beforehand in writing, made-up questions only, no children, no screen or voice recordings, no testers' names with their feedback, feedback kept 90 days).
-9. **Rulebook upkeep.** If the change adds or changes a data source, service, data flow, model, dependency or legally relevant feature, `docs/LEGAL_COMPLIANCE.md` and its registers are updated in the same change. A missing update is a finding (CHANGE).
+9. **Third-party terms (`docs/THIRD_PARTY_TERMS.md`).** The owner's two rules hold: nothing in the change, a script, a plan or a run breaks an outside service's terms (adversarial or red-team prompts to a live model without written approval, limits, commercial use, attribution, scraping, caching), and no key is exposed in any form (code, output, logs, files, tests, docs, comments, URLs). Report as findings: a service the code or scripts call that has no entry; an entry checked more than 30 days before the review whose service the change or a planned run touches; a live or paid run planned or recorded without the checklist; any exposed key (BLOCK, without repeating it).
+10. **Rulebook upkeep.** If the change adds or changes a data source, service, data flow, model, dependency or legally relevant feature, `docs/LEGAL_COMPLIANCE.md` and its registers are updated in the same change. A missing update is a finding (CHANGE).
 
 ## Run the checks
 
