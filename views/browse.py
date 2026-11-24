@@ -17,7 +17,7 @@ _ICONS = {
 }
 
 
-def _label(category: str) -> str:
+def category_label(category: str) -> str:
     """Return a category's icon and readable name."""
     return f"{_ICONS.get(category, '📍')} {category.replace('_', ' ').capitalize()}"
 
@@ -44,7 +44,7 @@ def render_browse(settings: Settings) -> None:
     category = left.selectbox(
         "Type of place",
         [None, *config.CATEGORIES],
-        format_func=lambda c: "All" if c is None else _label(c),
+        format_func=lambda c: "All" if c is None else category_label(c),
     )
     setting = right.selectbox(
         "Indoor or outdoor", [None, "indoor", "outdoor"], format_func=lambda s: s or "Both"

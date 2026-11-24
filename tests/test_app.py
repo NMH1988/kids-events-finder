@@ -1,5 +1,6 @@
 """Smoke tests of the Streamlit page with AppTest (no API key, no network)."""
 
+from datetime import date, time, timedelta
 from pathlib import Path
 
 import pytest
@@ -532,8 +533,9 @@ def _approval_page():
 
 
 def _panel_keys(at) -> set[str]:
-    """Return the keys of the panel's buttons and text fields."""
-    return {w.key for w in [*at.button, *at.text_area, *at.text_input]}
+    """Return the keys of the panel's buttons and form fields."""
+    widgets = [*at.button, *at.text_area, *at.text_input, *at.selectbox, *at.date_input]
+    return {w.key for w in [*widgets, *at.time_input]}
 
 
 def test_approval_widgets_are_keyed_by_the_pause():
@@ -545,7 +547,9 @@ def test_approval_widgets_are_keyed_by_the_pause():
     first = _panel_keys(at)
     panel = approval_panel_key("p1", ["w1"])
     assert {f"{kind}_{panel}" for kind in ("approve", "edit", "reject", "reject_reason")} <= first
-    assert f"args_{panel}_w1" in first
+    # T5.2: every field of the form is keyed by the pause too.
+    fields = ("city", "country", "start_date", "end_date")
+    assert {f"{name}_{panel}_w1" for name in fields} <= first
     # The next pause reuses the model's call id (round 2, Low): the pause id still tells it apart.
     at.session_state["pause_id"] = "p2"
     at.run()
@@ -634,3 +638,396 @@ def test_the_chat_shows_a_kept_stale_warning_once():
     ) == 1
     at.run()
     assert not any("changed or ended" in w.value for w in at.warning)
+
+
+# --- T5.2: the approval form ---
+
+_SOON = date.today() + timedelta(days=3)
+_FORM_CALLS = {
+    "find_nearby_places": {"city": "Berlin", "country": "DE", "category": "science_centre"},
+    "search_family_events": {
+        "city": "Hamburg",
+        "country": "DE",
+        "start_date": _SOON.isoformat(),
+        "end_date": (_SOON + timedelta(days=2)).isoformat(),
+    },
+    "get_weather_forecast": {
+        "city": "London",
+        "country": "GB",
+        "start_date": _SOON.isoformat(),
+        "end_date": _SOON.isoformat(),
+    },
+    "find_train_connection": {
+        "from_city": "Halle (Saale)",
+        "to_town": "Leipzig",
+        "travel_date": _SOON.isoformat(),
+        "depart_after": "08:30",
+    },
+}
+
+
+def _form_page():
+    """Render the approval panel for the calls in the session; record the decision it sends."""
+    import streamlit as st
+
+    from src.agent.runner import TurnResult
+    from views import chat
+    from views.sidebar import Settings
+
+    ss = st.session_state
+    ss.setdefault("thread_id", "t-form")
+    ss.setdefault("sent", None)
+    calls = ss.form_calls
+    ss.pending = {
+        "result": TurnResult(
+            status="needs_approval",
+            pending_tool_calls=calls,
+            needs_approval=[c["id"] for c in calls],
+            pause_id="p1",
+        ),
+        "question": "trip?",
+    }
+
+    def fake_resume(graph, thread_id, decision, **kwargs):
+        """Keep what the panel would send instead of running the graph."""
+        ss.sent = {
+            "decision": decision,
+            "expected_ids": kwargs["expected_ids"],
+            "expected_pause": kwargs["expected_pause"],
+        }
+
+    original = chat.resume_turn, chat._run
+    chat.resume_turn = fake_resume
+    chat._run = lambda step, question, settings: step("fake-graph", None)
+    try:
+        chat._render_approval(
+            Settings(
+                country="DE",
+                city="Berlin",
+                model="openai/gpt-5-mini",
+                auto_approve=False,
+                multi_query=False,
+                rerank=False,
+            )
+        )
+    finally:
+        chat.resume_turn, chat._run = original
+
+
+def _form_test(*calls: tuple[str, dict]) -> tuple[AppTest, str]:
+    """Run the form page for (tool, args) calls with ids c0, c1, ...; return it and its panel."""
+    from views.chat import approval_panel_key
+
+    at = AppTest.from_function(_form_page, default_timeout=30)
+    at.session_state["form_calls"] = [
+        {"id": f"c{i}", "name": name, "args": args} for i, (name, args) in enumerate(calls)
+    ]
+    at.run()
+    assert not at.exception
+    return at, approval_panel_key("p1", [f"c{i}" for i in range(len(calls))])
+
+
+def _form_fields(at, panel: str, call_id: str) -> dict:
+    """Return the form's widgets for one call, by argument name."""
+    widgets = [*at.text_input, *at.selectbox, *at.date_input, *at.time_input]
+    suffix = f"_{panel}_{call_id}"
+    return {w.key.removesuffix(suffix): w for w in widgets if w.key.endswith(suffix)}
+
+
+def _as_sent(value) -> object:
+    """Return a field's value written the way the form sends it."""
+    if isinstance(value, time):
+        return value.strftime("%H:%M")
+    return value.isoformat() if isinstance(value, date) else value
+
+
+@pytest.mark.parametrize("tool", sorted(_FORM_CALLS))
+def test_the_panel_shows_one_labelled_field_per_argument_filled_with_the_models_values(tool):
+    """AC1 and AC6: labelled fields, the model's values, every argument visible, the caption."""
+    from views.chat import TOOL_EXPLANATIONS
+
+    args = _FORM_CALLS[tool]
+    at, panel = _form_test((tool, args))
+    fields = _form_fields(at, panel, "c0")
+    # Exactly the call's arguments are shown: none hidden, none added.
+    assert set(fields) == set(args)
+    assert all(w.label for w in fields.values())
+    assert {name: _as_sent(w.value) for name, w in fields.items()} == args
+    assert not at.text_area  # no JSON editor for these tools
+    assert TOOL_EXPLANATIONS[tool] in [c.value for c in at.caption]
+
+
+def test_choices_have_readable_names():
+    """The country and place type choices show readable names, not codes only."""
+    at, panel = _form_test(("find_nearby_places", _FORM_CALLS["find_nearby_places"]))
+    fields = _form_fields(at, panel, "c0")
+    assert "Germany (DE)" in fields["country"].options
+    assert any("Science centre" in o for o in fields["category"].options)
+
+
+def test_run_with_my_edits_sends_the_field_values_with_the_pause():
+    """AC2 and AC8: the edited fields are sent, with the pause and call ids the panel showed."""
+    at, panel = _form_test(("get_weather_forecast", _FORM_CALLS["get_weather_forecast"]))
+    fields = _form_fields(at, panel, "c0")
+    fields["city"].set_value("Potsdam")
+    fields["country"].set_value("DE")
+    fields["end_date"].set_value(_SOON + timedelta(days=1))
+    at.run()
+    at.button(key=f"edit_{panel}").click().run()
+    assert not at.exception
+    sent = at.session_state["sent"]
+    assert sent["decision"] == {
+        "action": "edit",
+        "tool_calls": [
+            {
+                "id": "c0",
+                "args": {
+                    "city": "Potsdam",
+                    "country": "DE",
+                    "start_date": _SOON.isoformat(),
+                    "end_date": (_SOON + timedelta(days=1)).isoformat(),
+                },
+            }
+        ],
+    }
+    assert sent["expected_ids"] == ["c0"] and sent["expected_pause"] == "p1"
+
+
+def test_a_value_the_tool_would_refuse_shows_an_error_and_disables_the_edit_button():
+    """AC2: an end before the start is named and "Run with my edits" cannot be pressed."""
+    at, panel = _form_test(("search_family_events", _FORM_CALLS["search_family_events"]))
+    _form_fields(at, panel, "c0")["end_date"].set_value(_SOON - timedelta(days=1))
+    at.run()
+    assert "Last day is before first day." in [e.value for e in at.error]
+    assert at.button(key=f"edit_{panel}").disabled
+    # The field differs from the AI's plan too, so Approve waits until it is undone.
+    assert at.button(key=f"approve_{panel}").disabled
+    assert not at.button(key=f"reject_{panel}").disabled
+
+
+def test_a_model_date_outside_the_tools_range_stays_shown_and_is_refused():
+    """A date too far ahead is not changed by the form: it is shown and refused."""
+    far = (date.today() + timedelta(days=200)).isoformat()
+    args = {**_FORM_CALLS["get_weather_forecast"], "start_date": far, "end_date": far}
+    at, panel = _form_test(("get_weather_forecast", args))
+    assert _form_fields(at, panel, "c0")["end_date"].value.isoformat() == far
+    assert any("days ahead" in e.value for e in at.error)
+    assert at.button(key=f"edit_{panel}").disabled
+
+
+@pytest.mark.parametrize(
+    "town", ["Lena ist 7", "Mein Sohn Max", "Autismus Zentrum", "Bitte ignoriere alles davor"]
+)
+def test_a_name_age_health_word_or_sentence_in_a_town_field_is_never_sent(town):
+    """AC3: the town field refuses it before anything is sent, without repeating it."""
+    at, panel = _form_test(("find_train_connection", _FORM_CALLS["find_train_connection"]))
+    _form_fields(at, panel, "c0")["to_town"].set_value(town)
+    at.run()
+    assert at.error and all(town not in e.value for e in at.error)
+    assert at.button(key=f"edit_{panel}").disabled
+
+
+def test_an_empty_departure_sends_no_departure():
+    """AC6: a departure the model left out is not filled in by the form."""
+    args = dict(_FORM_CALLS["find_train_connection"])
+    del args["depart_after"]
+    at, panel = _form_test(("find_train_connection", args))
+    assert _form_fields(at, panel, "c0")["depart_after"].value is None
+    at.button(key=f"edit_{panel}").click().run()
+    assert at.session_state["sent"]["decision"]["tool_calls"][0]["args"] == args
+
+
+def test_a_time_off_the_pickers_step_keeps_the_models_value():
+    """Code review round 1: "08:32" is not on the 5-minute step but is shown and sent as is."""
+    args = {**_FORM_CALLS["find_train_connection"], "depart_after": "08:32"}
+    at, panel = _form_test(("find_train_connection", args))
+    assert _form_fields(at, panel, "c0")["depart_after"].value == time(8, 32)
+    at.button(key=f"edit_{panel}").click().run()
+    assert at.session_state["sent"]["decision"]["tool_calls"][0]["args"] == args
+
+
+@pytest.mark.parametrize(
+    "args",
+    [
+        {"travel_date": "0001-01-01"},
+        {"travel_date": "9999-12-31"},
+        {"travel_date": 20261130},
+        {"to_town": "L" * 60},
+        {"to_town": "Berlin\n![x](https://attacker.example/p.png)"},
+        {"to_town": "[x](https://attacker.example/?b=1)"},
+        {"depart_after": "23:59:59.999999"},
+    ],
+)
+def test_odd_model_values_never_crash_the_panel_or_reach_markdown(args):
+    """Security review round 1: the panel always draws its buttons; model text is never Markdown."""
+    at, panel = _form_test(
+        ("find_train_connection", {**_FORM_CALLS["find_train_connection"], **args})
+    )
+    for kind in ("approve", "edit", "reject"):
+        assert at.button(key=f"{kind}_{panel}")
+    markdown = [e.value for e in [*at.error, *at.markdown, *at.caption]]
+    assert not any("attacker.example" in text for text in markdown)
+
+
+@pytest.mark.parametrize(
+    ("name", "args"),
+    [
+        ("get_weather_forecast", {"city": "Ber\ud800lin"}),
+        ("search_knowledge_base", {"query": "zoo\ud800", "country": "DE"}),
+        ("search\ud800_knowledge_base", {"query": "zoo"}),
+    ],
+)
+def test_a_lone_surrogate_from_the_model_never_breaks_the_panel(name, args):
+    """Security review round 2 (Low): the panel draws, with the character escaped."""
+    at, panel = _form_test((name, args))
+    for kind in ("approve", "edit", "reject"):
+        assert at.button(key=f"{kind}_{panel}")
+    assert any("\\ud800" in c.value for c in [*at.code, *at.text])
+
+
+def test_overlong_json_arguments_keep_approve_and_hide_the_editor():
+    """Security review round 2 (Low): no false "You changed a field" when the editor would cut."""
+    from views.chat import CHANGED_NOTE, TOO_LONG_TO_EDIT
+
+    args = {"query": "zoo" + "\u200b" * 900, "country": "DE"}
+    at, panel = _form_test(("search_knowledge_base", args))
+    assert not at.text_area
+    assert not at.button(key=f"approve_{panel}").disabled
+    captions = [c.value for c in at.caption]
+    assert TOO_LONG_TO_EDIT in captions and CHANGED_NOTE not in captions
+
+
+def test_a_padded_outside_call_shows_every_argument():
+    """Security review round 3: padding cannot push an argument out of view."""
+    args = {"pad": "a" * 6000, "city": "Berlin", "country": "DE", "category": "zoo"}
+    at, panel = _form_test(("find_nearby_places", args))
+    shown = "".join(c.value for c in at.code)
+    for part in ('"city": "Berlin"', '"country": "DE"', '"category": "zoo"', '"pad"'):
+        assert part in shown
+    at.button(key=f"approve_{panel}").click().run()
+    assert at.session_state["sent"]["decision"] == {"action": "approve"}
+
+
+def test_a_long_call_leaves_run_with_my_edits_for_the_other_calls():
+    """Code review round 3: a call too long to edit does not lock the edits of a form next to it."""
+    long_call = ("search_knowledge_base", {"query": "zoo" + "\u200b" * 900, "country": "DE"})
+    at, panel = _form_test(("get_weather_forecast", _FORM_CALLS["get_weather_forecast"]), long_call)
+    _form_fields(at, panel, "c0")["city"].set_value("Potsdam")
+    at.run()
+    assert not at.button(key=f"edit_{panel}").disabled
+
+
+def test_a_click_on_approve_in_the_rerun_that_changes_a_field_runs_nothing():
+    """Security review round 2: a field change and an Approve click in one rerun send nothing."""
+    # Streamlit drops a click on a button that is disabled in that rerun; this pins that behaviour.
+    at, panel = _form_test(("get_weather_forecast", _FORM_CALLS["get_weather_forecast"]))
+    _form_fields(at, panel, "c0")["city"].set_value("Potsdam")
+    at.button(key=f"approve_{panel}").click()
+    at.run()
+    assert at.session_state["sent"] is None
+
+
+def test_another_tool_keeps_the_json_editor_in_an_advanced_expander():
+    """AC4: a tool without a form shows its arguments and today's JSON editor under Advanced."""
+    args = {"query": "zoo", "country": "DE"}
+    at, panel = _form_test(("search_knowledge_base", args))
+    assert any('"query": "zoo"' in c.value for c in at.code)
+    assert [e.label for e in at.expander] == ["Advanced: edit the arguments as JSON"]
+    assert not at.button(key=f"edit_{panel}").disabled
+    at.text_area(key=f"args_{panel}_c0").set_value("{broken").run()
+    assert at.button(key=f"edit_{panel}").disabled
+    assert any("not a valid JSON object" in e.value for e in at.error)
+    at.text_area(key=f"args_{panel}_c0").set_value('{"query": "aquarium", "country": "DE"}')
+    at.run()
+    at.button(key=f"edit_{panel}").click().run()
+    sent = at.session_state["sent"]["decision"]["tool_calls"]
+    assert sent == [{"id": "c0", "args": {"query": "aquarium", "country": "DE"}}]
+
+
+def test_a_value_the_form_cannot_show_falls_back_to_the_json_editor():
+    """A model value outside the form's choices stays visible in the JSON view."""
+    args = {**_FORM_CALLS["find_nearby_places"], "country": "FR"}
+    at, panel = _form_test(("find_nearby_places", args))
+    assert not _form_fields(at, panel, "c0")
+    assert any('"country": "FR"' in c.value for c in at.code)
+
+
+def test_approve_still_runs_the_models_arguments_and_reject_sends_the_reason():
+    """AC5: Approve and Reject keep their meaning."""
+    at, panel = _form_test(("get_weather_forecast", _FORM_CALLS["get_weather_forecast"]))
+    at.button(key=f"approve_{panel}").click().run()
+    assert at.session_state["sent"]["decision"] == {"action": "approve"}
+    at.text_input(key=f"reject_reason_{panel}").set_value("only indoor places")
+    at.run()
+    at.button(key=f"reject_{panel}").click().run()
+    assert at.session_state["sent"]["decision"] == {
+        "action": "reject",
+        "feedback": "only indoor places",
+    }
+
+
+def test_approve_is_locked_while_a_field_is_changed():
+    """Review round 1 (owner's choice): after an edit, Approve would run values no longer shown."""
+    from views.chat import CHANGED_NOTE
+
+    at, panel = _form_test(("get_weather_forecast", _FORM_CALLS["get_weather_forecast"]))
+    assert CHANGED_NOTE not in [c.value for c in at.caption]
+    _form_fields(at, panel, "c0")["city"].set_value("Potsdam")
+    at.run()
+    assert at.button(key=f"approve_{panel}").disabled
+    assert not at.button(key=f"edit_{panel}").disabled
+    assert CHANGED_NOTE in [c.value for c in at.caption]
+    # Undoing the change gives Approve back.
+    _form_fields(at, panel, "c0")["city"].set_value("London")
+    at.run()
+    assert not at.button(key=f"approve_{panel}").disabled
+    assert CHANGED_NOTE not in [c.value for c in at.caption]
+
+
+def test_approve_is_locked_while_the_json_editor_is_changed():
+    """The same lock for a tool without a form; untouched, Approve stays free."""
+    at, panel = _form_test(("search_knowledge_base", {"query": "zoo", "country": "DE"}))
+    assert not at.button(key=f"approve_{panel}").disabled
+    at.text_area(key=f"args_{panel}_c0").set_value('{"query": "aquarium", "country": "DE"}')
+    at.run()
+    assert at.button(key=f"approve_{panel}").disabled
+
+
+def test_an_empty_field_the_model_left_out_is_no_change():
+    """A town or choice the model left out starts empty, which does not count as an edit."""
+    at, panel = _form_test(("get_weather_forecast", {"city": "Berlin"}))
+    assert not at.button(key=f"approve_{panel}").disabled
+
+
+def test_repeated_call_ids_show_the_calls_and_offer_only_reject():
+    """Security review round 1 (Low): repeated ids no longer break the panel."""
+    from views.chat import REPEATED_IDS_WARNING, approval_panel_key
+
+    at = AppTest.from_function(_form_page, default_timeout=30)
+    at.session_state["form_calls"] = [
+        {"id": "dup", "name": "get_weather_forecast", "args": {"city": "Berlin"}},
+        {"id": "dup", "name": "check_budget", "args": {"budget_eur": 80, "items": []}},
+    ]
+    at.run()
+    assert not at.exception
+    panel = approval_panel_key("p1", ["dup", "dup"])
+    assert REPEATED_IDS_WARNING in [w.value for w in at.warning]
+    assert len(at.code) == 2
+    assert at.button(key=f"approve_{panel}").disabled
+    assert at.button(key=f"edit_{panel}").disabled
+    at.button(key=f"reject_{panel}").click().run()
+    assert at.session_state["sent"]["decision"]["action"] == "reject"
+
+
+def test_a_budget_call_next_to_a_form_keeps_its_table():
+    """AC5: the budget table is unchanged next to a form."""
+    budget = {"budget_eur": 80, "items": [{"label": "Tickets", "amount_eur": 30}]}
+    at, panel = _form_test(
+        ("get_weather_forecast", _FORM_CALLS["get_weather_forecast"]), ("check_budget", budget)
+    )
+    assert _form_fields(at, panel, "c0")
+    assert at.number_input(key=f"budget_{panel}_c1").value == 80
+    at.button(key=f"approve_{panel}").click().run()
+    decision = at.session_state["sent"]["decision"]
+    assert decision["action"] == "edit"
+    assert decision["tool_calls"][0] == {"id": "c0", "args": _FORM_CALLS["get_weather_forecast"]}

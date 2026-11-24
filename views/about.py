@@ -64,7 +64,8 @@ talking to an AI assistant, and every answer is labelled as AI-generated.
 - **AI model ({config.AI_PROVIDER_NAME}; model and embedding providers possibly outside the EU,
   e.g. in the US or Asia):** receives your question, the country and city, the children's age
   groups and, when trip planning is on, the budget, the number of adults, Deutschlandticket
-  holders and the budget items, so it can plan the trip.
+  holders and the budget items, so it can plan the trip; and, from the approval panel, your
+  reason when you reject a step and the values you edit.
 - **Map, event, weather and train services** receive only town or city names (or their
   coordinates), the country, dates, times and place categories; never the age groups, budget or
   family size.
