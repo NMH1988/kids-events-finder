@@ -61,8 +61,8 @@ Deadline: **2026-12-16** (Capstone review). The owner tasks O1-O7 come first for
 | [T5.1](tickets/T5.1.md) | Live progress while the agent works | M | none | done |
 | [T5.2](tickets/T5.2.md) | Parent-friendly approval form instead of raw JSON | M | T5.1 | todo |
 | [T5.6](tickets/T5.6.md) | Offline red-team tests: injection checks, answer checks and the approval gate | L | none | todo |
-| [T5.9](tickets/T5.9.md) | Faster answers: under 30 seconds on average | M | T1.8 | todo |
 | [T5.8](tickets/T5.8.md) | Wrong-country measure by website, and a re-run | S | T1.8 | todo |
+| [T5.9](tickets/T5.9.md) | Faster answers: under 30 seconds on average | M | T1.8 | todo |
 | [T5.10](tickets/T5.10.md) | Harder retrieval evaluation set | M | T1.8 | todo |
 | [T5.4](tickets/T5.4.md) | Clear messages when the agent stops | S | T5.1 | todo |
 | [T5.3](tickets/T5.3.md) | Trip plan box from the tool results | M | none | todo |
