@@ -9,7 +9,7 @@ Epics, tickets, acceptance criteria, dependencies, order and status. This file a
 
 `tests/test_docs_layout.py` checks that these agree.
 
-**Status of this plan:** set up by T1.4 (issue #12) on 2026-11-23, following the layout of the owner's earlier project. T1.1-T1.3 and T2.1 were done before the plan existed; their tickets were written after the fact from their commits and PR descriptions. The open tickets come from the GitHub issues #4-#10 of 2026-11-20; their acceptance criteria were drafted by Claude: T3.1-T3.4's approved by the owner on 2026-11-23 (with the layout), T4.1-T4.3's still to be written. Epic 5 (T5.1-T5.6) was proposed by Claude at the owner's request on 2026-11-24; the owner approved the list and the acceptance criteria that day.
+**Status of this plan:** set up by T1.4 (issue #12) on 2026-11-23, following the layout of the owner's earlier project. T1.1-T1.3 and T2.1 were done before the plan existed; their tickets were written after the fact from their commits and PR descriptions. The open tickets come from the GitHub issues #4-#10 of 2026-11-20; their acceptance criteria were drafted by Claude: T3.1-T3.4's approved by the owner on 2026-11-23 (with the layout), T4.1-T4.3's still to be written. Epic 5 (T5.1-T5.6) was proposed by Claude at the owner's request on 2026-11-24; the owner approved the list and the acceptance criteria that day. T5.7 (issue #30) was added on 2026-11-24 from the T5.2 reviews at the owner's request; its acceptance criteria are still to be approved.
 
 ## Status legend
 
@@ -57,11 +57,12 @@ Deadline: **2026-12-16** (Capstone review). The owner tasks O1-O7 come first for
 | [T1.6](tickets/T1.6.md) | QRSPI workflow skill and stronger code and legal reviewers | S | none | done |
 | [T1.7](tickets/T1.7.md) | Enforce the reviewers' never-open and allowlist rules with deny rules and hooks | S | T1.6 | todo |
 | [T5.1](tickets/T5.1.md) | Live progress while the agent works | M | none | done |
-| [T5.2](tickets/T5.2.md) | Parent-friendly approval form instead of raw JSON | M | T5.1 | todo |
+| [T5.2](tickets/T5.2.md) | Parent-friendly approval form instead of raw JSON | M | T5.1 | in progress |
 | [T5.6](tickets/T5.6.md) | Offline red-team tests: injection through tool data and the approval gate | M | none | todo |
 | [T5.4](tickets/T5.4.md) | Clear messages when the agent stops | S | T5.1 | todo |
 | [T5.3](tickets/T5.3.md) | Trip plan box from the tool results | M | none | todo |
 | [T5.5](tickets/T5.5.md) | Source credits for data from earlier turns | S | none | todo |
+| [T5.7](tickets/T5.7.md) | Hidden characters in model output and the knowledge base caption | S | T5.2 | todo |
 | [T3.1](tickets/T3.1.md) | Before a public deployment: AI provider with a DPA | M | none | todo |
 | [T3.2](tickets/T3.2.md) | Datenschutzerklärung and Impressum | M | T3.1 | todo |
 | [T3.3](tickets/T3.3.md) | Invite codes and rate limits | M | none | todo |
@@ -115,3 +116,4 @@ Interface and agent improvements before the Capstone review (2026-12-16), for th
 - [T5.4 Clear messages when the agent stops (S)](tickets/T5.4.md)
 - [T5.5 Source credits for data from earlier turns (S)](tickets/T5.5.md)
 - [T5.6 Offline red-team tests: injection through tool data and the approval gate (M)](tickets/T5.6.md)
+- [T5.7 Hidden characters in model output and the knowledge base caption (S)](tickets/T5.7.md)
