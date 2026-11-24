@@ -80,7 +80,7 @@ copy .streamlit\secrets.toml.example .streamlit\secrets.toml   # then add your k
 ## Tests and evaluation
 
 ```powershell
-.venv\Scripts\python.exe -m pytest -q          # 1469 offline tests: LLM and network calls are faked
+.venv\Scripts\python.exe -m pytest -q          # 1472 offline tests: LLM and network calls are faked
 .venv\Scripts\ruff.exe check .
 .venv\Scripts\python.exe -m scripts.evaluate_retrieval   # retrieval variants: hit@5, MRR
 .venv\Scripts\python.exe -m scripts.evaluate_agent --judge   # grounded rate, relevance, wrong-country rate, latency, tokens, LLM judge
