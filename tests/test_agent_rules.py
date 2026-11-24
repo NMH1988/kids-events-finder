@@ -252,3 +252,20 @@ def test_legal_reviewer_checks_the_third_party_terms():
     )[0]
     for phrase in ("more than 30 days", "without the checklist", "any exposed key (BLOCK"):
         assert phrase in item
+
+
+def test_live_red_team_runs_are_marked_paused():
+    """The commands list and the docs say the live red-team run is paused (T1.9)."""
+    for path in ("CLAUDE.md", "README.md", "docs/EVALUATION.md", "docs/LEGAL_COMPLIANCE.md"):
+        text = (ROOT / path).read_text(encoding="utf-8")
+        assert re.search(r"[Pp]aused", text), path
+
+
+@pytest.mark.parametrize("name", REVIEWERS)
+def test_reviewers_never_show_a_found_key_even_masked(name):
+    """A key found in a review is reported by its place only, never masked (owner's rule 2)."""
+    text = read(name)
+    assert "sk-or-v1-****" not in text
+    assert (
+        "only its `path:line`, never the value in any form" in text or name == "legal-reviewer.md"
+    )
