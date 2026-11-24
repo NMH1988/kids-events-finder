@@ -56,7 +56,7 @@ Deadline: **2026-12-16** (Capstone review). The owner tasks O1-O7 come first for
 | [T1.5](tickets/T1.5.md) | Owner review O1-O3: knowledge base, fares, prompt and evaluation questions | M | O1 | done |
 | [T1.6](tickets/T1.6.md) | QRSPI workflow skill and stronger code and legal reviewers | S | none | done |
 | [T1.7](tickets/T1.7.md) | Enforce the reviewers' never-open and allowlist rules with deny rules and hooks | S | T1.6 | todo |
-| [T5.1](tickets/T5.1.md) | Live progress while the agent works | M | none | in review |
+| [T5.1](tickets/T5.1.md) | Live progress while the agent works | M | none | done |
 | [T5.2](tickets/T5.2.md) | Parent-friendly approval form instead of raw JSON | M | T5.1 | todo |
 | [T5.6](tickets/T5.6.md) | Offline red-team tests: injection through tool data and the approval gate | M | none | todo |
 | [T5.4](tickets/T5.4.md) | Clear messages when the agent stops | S | T5.1 | todo |
