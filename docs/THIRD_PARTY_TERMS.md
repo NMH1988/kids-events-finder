@@ -21,6 +21,7 @@
 ## Incidents and decisions
 
 - **2026-11-24, red-team run on OpenRouter (T1.8).** `python -m scripts.evaluate_agent --red-team` ran live once with `openai/gpt-5-mini`: 11 of 15 cases were blocked by our own check before any call; 4 reached the model, of which r07 is a prompt injection and r09 asks for a false urgency claim. OpenRouter's terms forbid red-teaming without prior written approval (entry below); they were not read before the run. The same day the key still worked (key status 200, one harmless chat request and one embedding request answered). Informing the school is the owner's decision (a message was drafted on 2026-11-24). **Open decision (owner, with the school):** whether r07 and r09 move to offline tests only (T5.6) and whether r09, r10 and r13 may run live as ordinary questions. Until then: no live `--red-team` run.
+- **2026-11-24, owner's decisions on this file (T1.9).** Rule 2 says a key goes to its own provider "in the way that provider's API requires" (OpenRouter: the authorisation header; Ticketmaster: the `apikey` query parameter, with the URL and request errors never logged, shown or returned): approved by the owner as keeping the rule's intent. The incident record above stays as written in this public repository and its copy for the course: approved by the owner.
 
 ## Services
 
