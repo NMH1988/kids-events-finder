@@ -315,7 +315,47 @@ def test_validation_errors_pass_only_the_app_messages(monkeypatch, app_wrote_it)
         assert "could not read" in error and "SYSTEM NOTICE" not in error
 
 
-@pytest.mark.parametrize("exc", [OverflowError("date"), IndexError("list"), ZeroDivisionError()])
+@pytest.mark.parametrize("mixed", [False, True])
+def test_built_in_validation_errors_give_the_fixed_message(monkeypatch, mixed):
+    """A pydantic constraint error (no app ctx), alone or next to an app error, is not passed on."""
+    from typing import Annotated
+
+    from pydantic import AfterValidator, BaseModel, Field
+
+    from src.errors import AppInputError
+    from src.tools import external
+
+    def app_rejects(value: str) -> str:
+        """Reject every value with an app message."""
+        raise AppInputError("Use YYYY-MM-DD.")
+
+    class Model(BaseModel):
+        """A score like the reranker's, and optionally a field with an app validator."""
+
+        score: int = Field(le=10)
+        day: Annotated[str, AfterValidator(app_rejects)] | None = None
+
+    def fails(**kwargs):
+        """Build the model with a score that breaks the built-in limit."""
+        Model(score=11, day="x" if mixed else None)
+
+    monkeypatch.setattr(external, "search_family_events", fails)
+    built = {t.name: t for t in build_tools(AdvancedRetriever(None), RagSettings(), "key")}
+    args = {"city": "Berlin", "country": "DE", "start_date": "2099-01-01", "end_date": "2099-01-02"}
+    error = json.loads(built["search_family_events"].invoke(args))["error"]
+    assert "could not read" in error and "Use YYYY-MM-DD" not in error
+
+
+@pytest.mark.parametrize(
+    "exc",
+    [
+        OverflowError("date"),
+        IndexError("list"),
+        ZeroDivisionError(),
+        OSError(22, "x"),
+        RuntimeError(),
+    ],
+)
 def test_malformed_service_values_do_not_end_the_turn(monkeypatch, exc):
     """Overflow, index and arithmetic errors from odd service data become the fixed message."""
     from src.tools import external
@@ -329,3 +369,19 @@ def test_malformed_service_values_do_not_end_the_turn(monkeypatch, exc):
     args = {"city": "Berlin", "country": "DE", "start_date": "2099-01-01", "end_date": "2099-01-02"}
     out = json.loads(built["search_family_events"].invoke(args))
     assert out["results"] == [] and "could not read" in out["error"]
+
+
+def test_lone_surrogate_in_service_text_is_replaced(monkeypatch):
+    """A lone surrogate in a service's text is replaced, so the next model request can be sent."""
+    from src.tools import external
+
+    def odd_name(**kwargs):
+        """Return an event whose name holds a lone surrogate."""
+        return {"results": [{"name": "Show " + chr(0xD800)}]}
+
+    monkeypatch.setattr(external, "search_family_events", odd_name)
+    built = {t.name: t for t in build_tools(AdvancedRetriever(None), RagSettings(), "key")}
+    args = {"city": "Berlin", "country": "DE", "start_date": "2099-01-01", "end_date": "2099-01-02"}
+    out = built["search_family_events"].invoke(args)
+    out.encode("utf-8")
+    assert json.loads(out)["results"][0]["name"] == "Show ?"

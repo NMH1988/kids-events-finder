@@ -109,13 +109,16 @@ class BudgetArgs(BaseModel):
 def _safe(tool_name: str, func, **kwargs) -> str:
     """Run a tool function and return JSON; failures become an error message, not an exception."""
     try:
-        return json.dumps(func(**kwargs), ensure_ascii=False, default=str)
+        text = json.dumps(func(**kwargs), ensure_ascii=False, default=str)
+        # A lone surrogate from a service would make the next model request fail: replace it.
+        return text.encode("utf-8", "replace").decode("utf-8")
     except AppInputError as exc:
         # The app wrote this message, so the model may see it.
         return json.dumps({"error": str(exc), "results": []})
     except ValidationError as exc:
         # Pass the messages on only when the app's own validators wrote all of them; a validator
-        # message may quote its input, which could be a service's text.
+        # message may quote its input, which could be a service's text. No tool relies on the
+        # pass-through today: it is a safeguard for app models validated inside a tool.
         errors = exc.errors()
         if errors and all(isinstance(e.get("ctx", {}).get("error"), AppInputError) for e in errors):
             messages = "; ".join(e["msg"].removeprefix("Value error, ") for e in errors)
@@ -138,6 +141,12 @@ def _safe(tool_name: str, func, **kwargs) -> str:
     except (LookupError, TypeError, AttributeError, ArithmeticError, RecursionError) as exc:
         # A malformed answer from an outside service must not end the whole turn.
         logger.warning("tool_bad_data", extra={"tool": tool_name, "type": type(exc).__name__})
+        return json.dumps(
+            {"error": "The tool got data it could not read. Try again later.", "results": []}
+        )
+    except Exception as exc:  # noqa: BLE001 - e.g. OSError from odd dates: never end the turn
+        # An escaping error would leave the tool call unanswered in the conversation.
+        logger.warning("tool_failed", extra={"tool": tool_name, "type": type(exc).__name__})
         return json.dumps(
             {"error": "The tool got data it could not read. Try again later.", "results": []}
         )
