@@ -13,6 +13,7 @@ from zoneinfo import ZoneInfo
 import requests
 
 from src import config, fares, geo
+from src.errors import AppInputError
 from src.grounding import is_strict_url
 
 ATTRIBUTION_OSM = "Data © OpenStreetMap contributors, ODbL (openstreetmap.org/copyright)"
@@ -53,7 +54,7 @@ _WEATHER_CODES: dict[range, str] = {
 }
 
 
-class ToolInputError(ValueError):
+class ToolInputError(AppInputError):
     """A tool argument is outside what the tool accepts."""
 
 
@@ -317,6 +318,10 @@ def get_weather_forecast(city: str, country: str, start_date: date, end_date: da
 def _local_clock(timestamp: str, zone: ZoneInfo) -> str:
     """Turn an ISO UTC timestamp from the journey planner into local HH:MM."""
     moment = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
+    if moment.tzinfo is None:
+        # A time without an offset would be read as the server's local time (and can raise
+        # OSError on Windows for far dates); the planner always sends UTC.
+        raise ValueError("Journey time without a time zone.")
     return moment.astimezone(zone).strftime("%H:%M")
 
 

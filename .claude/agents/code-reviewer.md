@@ -62,7 +62,7 @@ Read `CLAUDE.md`, `docs/LEGAL_COMPLIANCE.md`, `docs/CAPSTONE_CHECKLIST.md` (the 
 - Everything in English. Every function, method and class - tests and helper classes included - has a one-line docstring. No test enforces this, so list each missing or multi-line docstring in the changed files.
 - Business logic lives in `src/`; the UI in `views/`; `app.py` only composes the page. Defaults and limits live in `src/config.py`, not as magic numbers.
 - The PR description follows `.github/pull_request_template.md`, including the **Legal check** with the `legal-reviewer` verdict; a missing or stale verdict (later commits changed data flows after the run) is a **Should fix**.
-- The system prompt and the evaluation questions are the owner's drafts to review: a change to them is listed under "Questions" for the owner.
+- The system prompt and the evaluation questions were reviewed for O2 (T1.5): a change to them needs the owner's approval and is listed under "Questions" for the owner.
 
 ## Run the checks
 

@@ -4,11 +4,11 @@ Three levels, from cheapest to most realistic. Record each run's numbers in the 
 
 ## 1. Offline tests (no key)
 
-`python -m pytest -q` runs 1249 tests with fake models and mocked HTTP. They cover the privacy check (health words, names, exact ages, contact details, place-name fields; every red-team case marked "blocked" is blocked and no normal question is), the knowledge base schema, metadata filters, BM25, hybrid search, RRF, multi-query and reranking, the seven tools (validation, parsing, error handling), the ticket comparison rules (children's free rides, Deutschlandticket holders, the 9:00 weekday start, cross-state trips) and the budget check, the human-in-the-loop flows (approve, edit, reject, auto-approve), the grounding check, the index, feedback storage and an AppTest smoke test of the page.
+`python -m pytest -q` runs 1312 tests with fake models and mocked HTTP. They cover the privacy check (health words, names, exact ages, contact details, place-name fields; every red-team case marked "blocked" is blocked and no normal question is), the knowledge base schema, metadata filters, BM25, hybrid search, RRF, multi-query and reranking, the seven tools (validation, parsing, error handling), the ticket comparison rules (children's free rides, Deutschlandticket holders, the 9:00 weekday start, cross-state trips) and the budget check, the human-in-the-loop flows (approve, edit, reject, auto-approve), the grounding check, the index, feedback storage and an AppTest smoke test of the page.
 
 ## 2. Retrieval comparison (key + index)
 
-`python -m scripts.evaluate_retrieval` runs the 25 questions in `data/eval_questions.json` (DE, GB, US; English, German and Vietnamese; synthetic, with children as age groups like in the app) through five variants and reports:
+`python -m scripts.evaluate_retrieval` runs the 34 questions in `data/eval_questions.json` (DE, GB, US; English, German and Vietnamese; synthetic, with children as age groups like in the app) through five variants and reports:
 - **hit rate@5**: share of questions where an expected place is in the top 5,
 - **MRR**: mean reciprocal rank of the first expected place.
 
@@ -37,11 +37,11 @@ Expected pattern to check: BM25 fails on the Vietnamese and German questions, mu
 | | openai/gpt-5-nano | | | | | | |
 
 ### Red team
-`python -m scripts.evaluate_agent --red-team` runs the 13 safety cases in `data/eval_questions.json` (`red_team`): health, names, exact ages, e-mails, statements about a child's development and accessibility needs must be blocked before any model call; a prompt injection asking for a tracking link, a request for fake urgency, a request for a development claim ("make my child smarter") and an off-topic request must be declined without forbidden words or unverified links. Target: 13/13.
+`python -m scripts.evaluate_agent --red-team` runs the 15 safety cases in `data/eval_questions.json` (`red_team`): health, names, exact ages, e-mails, statements about a child's development and accessibility needs must be blocked before any model call; a prompt injection asking for a tracking link, a request for fake urgency, a request for a development claim ("make my child smarter") and an off-topic request must be declined without forbidden words or unverified links. Target: 15/15.
 
 | Date | Model | Passed | Failures |
 |---|---|---|---|
-| _yyyy-mm-dd_ | openai/gpt-5-mini | /13 | |
+| _yyyy-mm-dd_ | openai/gpt-5-mini | /15 | |
 
 ## 4. Human feedback and user testing
 

@@ -9,9 +9,10 @@ from typing import Annotated, Literal
 import requests
 from langchain_core.tools import BaseTool, StructuredTool
 from langgraph.prebuilt import InjectedState
-from pydantic import AfterValidator, BaseModel, Field
+from pydantic import AfterValidator, BaseModel, Field, ValidationError
 
 from src import budget, config, family, fares, privacy_check
+from src.errors import AppInputError
 from src.family import AgeBand
 from src.rag.retriever import AdvancedRetriever
 from src.tools import external
@@ -108,17 +109,44 @@ class BudgetArgs(BaseModel):
 def _safe(tool_name: str, func, **kwargs) -> str:
     """Run a tool function and return JSON; failures become an error message, not an exception."""
     try:
-        return json.dumps(func(**kwargs), ensure_ascii=False, default=str)
-    except (external.ToolInputError, ValueError) as exc:
+        text = json.dumps(func(**kwargs), ensure_ascii=False, default=str)
+        # A lone surrogate from a service would make the next model request fail: replace it.
+        return text.encode("utf-8", "replace").decode("utf-8")
+    except AppInputError as exc:
+        # The app wrote this message, so the model may see it.
         return json.dumps({"error": str(exc), "results": []})
+    except ValidationError as exc:
+        # Pass the messages on only when the app's own validators wrote all of them; a validator
+        # message may quote its input, which could be a service's text. No tool relies on the
+        # pass-through today: it is a safeguard for app models validated inside a tool.
+        errors = exc.errors()
+        if errors and all(isinstance(e.get("ctx", {}).get("error"), AppInputError) for e in errors):
+            messages = "; ".join(e["msg"].removeprefix("Value error, ") for e in errors)
+            return json.dumps({"error": messages[: config.MAX_TOOL_ERROR_CHARS], "results": []})
+        logger.warning("tool_bad_value", extra={"tool": tool_name, "type": type(exc).__name__})
+        return json.dumps(
+            {"error": "The tool got data it could not read. Try again later.", "results": []}
+        )
+    except ValueError as exc:
+        # Usually a service value that could not be parsed: never echo the service's text.
+        logger.warning("tool_bad_value", extra={"tool": tool_name, "type": type(exc).__name__})
+        return json.dumps(
+            {"error": "The tool got data it could not read. Try again later.", "results": []}
+        )
     except requests.RequestException as exc:
         logger.warning("tool_http_error", extra={"tool": tool_name, "type": type(exc).__name__})
         return json.dumps(
             {"error": "The external service did not answer. Try again later.", "results": []}
         )
-    except (KeyError, TypeError, AttributeError) as exc:
+    except (LookupError, TypeError, AttributeError, ArithmeticError, RecursionError) as exc:
         # A malformed answer from an outside service must not end the whole turn.
         logger.warning("tool_bad_data", extra={"tool": tool_name, "type": type(exc).__name__})
+        return json.dumps(
+            {"error": "The tool got data it could not read. Try again later.", "results": []}
+        )
+    except Exception as exc:  # noqa: BLE001 - e.g. OSError from odd dates: never end the turn
+        # An escaping error would leave the tool call unanswered in the conversation.
+        logger.warning("tool_failed", extra={"tool": tool_name, "type": type(exc).__name__})
         return json.dumps(
             {"error": "The tool got data it could not read. Try again later.", "results": []}
         )
@@ -233,7 +261,7 @@ def build_tools(
         def run() -> dict:
             """Build the party from the trip settings and compare the tickets."""
             if not trip:
-                raise ValueError(
+                raise AppInputError(
                     "Ask the parent to switch on budget day trip planning in the sidebar; the "
                     "ticket comparison uses the number of adults and Deutschlandticket holders set "
                     "there."

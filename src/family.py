@@ -6,6 +6,8 @@ exact, and they are fine enough to match places' age ranges (data minimisation, 
 
 from typing import Literal, get_args
 
+from src.errors import AppInputError
+
 AgeBand = Literal["0-2", "3-5", "6-9", "10-14", "15-17"]
 AGE_BANDS: tuple[str, ...] = get_args(AgeBand)
 _RANGES: dict[str, tuple[int, int]] = {
@@ -31,14 +33,14 @@ ADULT_FARE_BANDS = frozenset({"15-17"})
 def band_range(band: str) -> tuple[int, int]:
     """Return the youngest and oldest age of a band, or raise ValueError for an unknown band."""
     if band not in _RANGES:
-        raise ValueError(f"Unknown age group '{band}'; use one of {', '.join(AGE_BANDS)}.")
+        raise AppInputError(f"Unknown age group '{band}'; use one of {', '.join(AGE_BANDS)}.")
     return _RANGES[band]
 
 
 def check_bands(bands: tuple[str, ...] | list[str]) -> tuple[str, ...]:
     """Validate a list of children's age groups and return it as a tuple."""
     if len(bands) > MAX_CHILDREN:
-        raise ValueError(f"At most {MAX_CHILDREN} children.")
+        raise AppInputError(f"At most {MAX_CHILDREN} children.")
     for band in bands:
         band_range(band)
     return tuple(bands)

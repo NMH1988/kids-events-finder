@@ -233,3 +233,17 @@ def test_train_connection_uses_regional_modes_and_local_times(monkeypatch):
 def test_osm_website_values_are_cleaned_into_strict_urls(raw, expected):
     """Crowd-sourced website tags become encoded http(s) URLs, or None when unusable."""
     assert external.clean_website(raw) == expected
+
+
+@pytest.mark.parametrize(
+    "stamp", ["9999-12-31T23:00:00", "0001-01-01T00:00:00", "2026-05-01T10:00:00"]
+)
+def test_journey_time_without_a_time_zone_is_rejected(stamp):
+    """A planner time without an offset raises ValueError (caught by the tool), never OSError."""
+    from zoneinfo import ZoneInfo
+
+    from src.tools.external import _local_clock
+
+    with pytest.raises(ValueError):
+        _local_clock(stamp, ZoneInfo("Europe/Berlin"))
+    assert _local_clock("2026-05-01T08:00:00Z", ZoneInfo("Europe/Berlin")) == "10:00"

@@ -3,6 +3,7 @@
 from pydantic import BaseModel, Field
 
 from src import config
+from src.errors import AppInputError
 
 
 class BudgetItem(BaseModel):
@@ -17,9 +18,9 @@ def check_budget(budget_eur: float, items: list[BudgetItem]) -> dict:
     """Return the known total, what is left of the budget and which costs are still unknown."""
     low, high = config.BUDGET_RANGE_EUR
     if not low <= budget_eur <= high:
-        raise ValueError(f"The budget must be between {low} and {high} EUR.")
+        raise AppInputError(f"The budget must be between {low} and {high} EUR.")
     if len(items) > config.MAX_BUDGET_ITEMS:
-        raise ValueError(f"At most {config.MAX_BUDGET_ITEMS} budget items.")
+        raise AppInputError(f"At most {config.MAX_BUDGET_ITEMS} budget items.")
     known = [i for i in items if i.amount_eur is not None]
     unknown = [i.label for i in items if i.amount_eur is None]
     total = round(sum(i.amount_eur for i in known), 2)

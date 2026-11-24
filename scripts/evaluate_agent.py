@@ -123,7 +123,12 @@ def main() -> None:
             print(json.dumps({"id": q["id"], "skipped": "blocked by the privacy check"}))
             continue
         answer = result.answer.lower()
-        named_relevant = any(places[pid].name.lower() in answer for pid in q["relevant"])
+        # A hit is the place's name or its website (the link survives translated names).
+        named_relevant = any(
+            places[pid].name.lower() in answer
+            or str(places[pid].website).lower().rstrip("/") in answer
+            for pid in q["relevant"]
+        )
         wrong_country = any(
             p.name.lower() in answer for p in places.values() if p.country != q["country"]
         )

@@ -128,6 +128,7 @@ LOCAL_TIMEZONE = "Europe/Berlin"
 TRIP_TRAVELLERS_RANGE = (1, 5)  # adults per trip; Länder-Tickets cover up to 5 people
 BUDGET_RANGE_EUR = (0, 2000)
 MAX_BUDGET_ITEMS = 12
+MAX_TOOL_ERROR_CHARS = 300  # an error message a tool returns to the model is cut here
 # German states by ISO 3166-2 suffix, with the English names the geocoder returns.
 GERMAN_STATES: dict[str, str] = {
     "BW": "Baden-Württemberg",

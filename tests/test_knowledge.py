@@ -44,3 +44,12 @@ def test_filters_by_age_setting_and_day_trip():
     assert all(p.setting != "outdoor" for p in indoor)
     munich = {p.id for p in filter_places("DE", "Munich")}
     assert "de-legoland-deutschland" in munich
+
+
+def test_check_links_reports_a_move_to_another_host():
+    """A redirect to another host is a move; www. and paths on the same host are not."""
+    from scripts.check_links import same_site
+
+    assert same_site("https://www.zoo-berlin.de", "https://zoo-berlin.de/en/")
+    assert not same_site("https://www.msichicago.org", "https://www.griffinmsi.org/")
+    assert not same_site("https://example.org", "https://parked-domains.example/")

@@ -83,3 +83,27 @@ def test_no_candidates_returns_empty():
     """A filter combination with no places returns nothing without searching."""
     retriever = AdvancedRetriever(None)
     assert retriever.search("anything", "DE", "Atlantis") == []
+
+
+def test_eval_questions_relevant_places_pass_the_filters():
+    """Every eval question's relevant places survive its filters; ids are unique and in order."""
+    import json
+
+    from src import config
+
+    data = json.loads(config.EVAL_QUESTIONS_FILE.read_text(encoding="utf-8"))
+    retriever = AdvancedRetriever(vectorstore=None)
+    for question in data["questions"]:
+        found = {
+            p.id
+            for p in retriever.candidates(
+                question["country"],
+                question.get("city"),
+                question["age_bands"],
+                question.get("indoor_only", False),
+            )
+        }
+        assert set(question["relevant"]) <= found, question["id"]
+    for key, prefix in (("questions", "q"), ("red_team", "r")):
+        ids = [item["id"] for item in data[key]]
+        assert ids == [f"{prefix}{n:02d}" for n in range(1, len(ids) + 1)], key
