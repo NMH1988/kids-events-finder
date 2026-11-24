@@ -254,11 +254,12 @@ def test_legal_reviewer_checks_the_third_party_terms():
         assert phrase in item
 
 
-def test_live_red_team_runs_are_marked_paused():
-    """The commands list and the docs say the live red-team run is paused (T1.9)."""
+def test_live_red_team_runs_are_marked_stopped():
+    """The commands list and the docs say there is no live red-team run (T1.9, T1.8 decision)."""
     for path in ("CLAUDE.md", "README.md", "docs/EVALUATION.md", "docs/LEGAL_COMPLIANCE.md"):
         text = (ROOT / path).read_text(encoding="utf-8")
-        assert re.search(r"[Pp]aused", text), path
+        assert re.search(r"no live red-team run", text, re.IGNORECASE), path
+        assert "owner decision 2026-11-24" in text, path
 
 
 @pytest.mark.parametrize("name", REVIEWERS)

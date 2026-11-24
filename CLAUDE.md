@@ -58,4 +58,4 @@ After each review check with `gh pr view <n> --json comments` that the report is
 - Build index (needs key): `.venv/Scripts/python.exe -m scripts.build_index`
 - Test / lint: `.venv/Scripts/python.exe -m pytest -q`, `.venv/Scripts/ruff.exe check .`
 - CI (`.github/workflows/ci.yml`) runs `ruff check`, `ruff format --check` and pytest on every push to `main` and every PR.
-- Evaluation (needs key + index): `python -m scripts.evaluate_retrieval`, `python -m scripts.evaluate_agent --judge`, `python -m scripts.evaluate_agent --red-team` (**paused**: no live red-team run until the owner decides, `docs/THIRD_PARTY_TERMS.md`, incidents); link check: `python -m scripts.check_links`. After a knowledge base change, rebuild the index.
+- Evaluation (needs key + index): `python -m scripts.evaluate_retrieval`, `python -m scripts.evaluate_agent --judge`, `python -m scripts.evaluate_agent --red-team` (**do not run**: no live red-team run, owner decision 2026-11-24; the cases are tested offline only, T5.6 removes this option, `docs/THIRD_PARTY_TERMS.md`, incidents); link check: `python -m scripts.check_links`. After a knowledge base change, rebuild the index.

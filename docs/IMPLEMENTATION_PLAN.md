@@ -60,7 +60,7 @@ Deadline: **2026-12-16** (Capstone review). The owner tasks O1-O7 come first for
 | [T1.9](tickets/T1.9.md) | Third-party terms file and the owner's rules on outside services and keys | S | none | done |
 | [T5.1](tickets/T5.1.md) | Live progress while the agent works | M | none | done |
 | [T5.2](tickets/T5.2.md) | Parent-friendly approval form instead of raw JSON | M | T5.1 | todo |
-| [T5.6](tickets/T5.6.md) | Offline red-team tests: injection through tool data and the approval gate | M | none | todo |
+| [T5.6](tickets/T5.6.md) | Offline red-team tests: injection through tool data and the approval gate | L | none | todo |
 | [T5.4](tickets/T5.4.md) | Clear messages when the agent stops | S | T5.1 | todo |
 | [T5.3](tickets/T5.3.md) | Trip plan box from the tool results | M | none | todo |
 | [T5.5](tickets/T5.5.md) | Source credits for data from earlier turns | S | none | todo |
@@ -118,4 +118,4 @@ Interface and agent improvements before the Capstone review (2026-12-16), for th
 - [T5.3 Trip plan box from the tool results (M)](tickets/T5.3.md)
 - [T5.4 Clear messages when the agent stops (S)](tickets/T5.4.md)
 - [T5.5 Source credits for data from earlier turns (S)](tickets/T5.5.md)
-- [T5.6 Offline red-team tests: injection through tool data and the approval gate (M)](tickets/T5.6.md)
+- [T5.6 Offline red-team tests: injection through tool data and the approval gate (L)](tickets/T5.6.md)
