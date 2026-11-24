@@ -291,11 +291,19 @@ def test_ticketmaster_key_never_reaches_the_tool_result_or_the_logs(
         assert KEY not in str(record.__dict__)
 
 
-def test_request_loggers_never_log_at_debug_after_the_app_starts():
+def test_request_loggers_never_log_at_debug_after_the_app_starts(caplog):
     """urllib3 logs each URL, with the Ticketmaster key, at DEBUG; the app caps it (T1.9)."""
     import logging
 
     import src.llm  # noqa: F401 - importing it caps the library loggers
+    from src import config
 
+    assert {"urllib3", "httpx", "httpcore", "openai"} <= set(config.QUIET_LOGGERS)
+    # With the root at DEBUG, only the app's own cap keeps these loggers quiet.
+    caplog.set_level(logging.DEBUG)
+    cap = logging.getLevelName(config.LOG_LEVEL)
+    assert cap > logging.DEBUG
+    for name in config.QUIET_LOGGERS:
+        assert logging.getLogger(name).level == cap, name
     for name in ("urllib3", "urllib3.connectionpool", "httpx", "httpcore", "openai"):
         assert logging.getLogger(name).getEffectiveLevel() > logging.DEBUG, name
