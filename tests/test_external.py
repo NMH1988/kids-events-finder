@@ -289,3 +289,13 @@ def test_ticketmaster_key_never_reaches_the_tool_result_or_the_logs(
     for record in caplog.records:
         assert KEY not in record.getMessage()
         assert KEY not in str(record.__dict__)
+
+
+def test_request_loggers_never_log_at_debug_after_the_app_starts():
+    """urllib3 logs each URL, with the Ticketmaster key, at DEBUG; the app caps it (T1.9)."""
+    import logging
+
+    import src.llm  # noqa: F401 - importing it caps the library loggers
+
+    for name in ("urllib3", "urllib3.connectionpool", "httpx", "httpcore", "openai"):
+        assert logging.getLogger(name).getEffectiveLevel() > logging.DEBUG, name
