@@ -196,23 +196,23 @@ def test_disallowed_or_broken_entries_in_the_file_are_dropped(tmp_path):
         ("Ăn trưa trong nhà hàng nhé", "indoor", False),
         ("Bé thích chơi trong nhà", "indoor", True),
         # Any dash or invisible character inside a phrase still makes it the other topic.
-        ("We avoid theme‐parks", "park", False),
-        ("We avoid theme‐parks", "theme_park", True),
-        ("We avoid theme​park", "park", False),
-        ("We avoid theme­park", "park", False),
+        ("We avoid theme\u2010parks", "park", False),
+        ("We avoid theme\u2010parks", "theme_park", True),
+        ("We avoid theme\u200bpark", "park", False),
+        ("We avoid theme\u00adpark", "park", False),
         ("We avoid theme/parks.", "park", False),
         ("We avoid theme/parks.", "theme_park", True),
         ("We avoid theme.parks", "park", False),
-        ("We avoid theme·parks", "park", False),
+        ("We avoid theme\u00b7parks", "park", False),
         ("We love the zoo, really!", "zoo", True),
         # Hyphenated compounds are not counted (fails safe; recorded so a change is deliberate).
         ("Wir lieben Indoor-Spielplätze", "indoor", False),
         ("We love the zoological garden", "park", False),
         # Security round 6: other spaces, dashes, line breaks and decomposed letters.
-        ("We avoid theme parks", "park", False),
-        ("We avoid THEME‑PARKS", "park", False),
+        ("We avoid theme\u00a0parks", "park", False),
+        ("We avoid THEME\u2011PARKS", "park", False),
         ("We avoid theme\n\npark", "park", False),
-        ("Is the Zoologischer　Garten open?", "park", False),
+        ("Is the Zoologischer\u3000Garten open?", "park", False),
         (unicodedata.normalize("NFD", "Đi công viên giải trí nhé"), "park", False),
     ],
 )
@@ -703,16 +703,16 @@ def test_the_pause_rule_holds_for_every_mix_of_calls(names, memory_on, auto_appr
     ("name", "saved"),
     [
         ("remember_preference", True),  # control: the same words save under the real name
-        ("remember_preference​", False),  # zero-width space
-        ("rеmember_preference", False),  # Cyrillic "е"
-        ("remember­preference", False),  # soft hyphen
+        ("remember_preference" + chr(0x200B), False),  # zero-width space
+        ("r" + chr(0x0435) + "member_preference", False),  # Cyrillic "e" (U+0435)
+        ("remember" + chr(0x00AD) + "preference", False),  # soft hyphen
         ("Remember_Preference", False),
         (" remember_preference", False),
         ("remember-preference", False),
     ],
 )
-def test_a_look_alike_tool_name_saves_nothing(name, saved):
-    """Security rounds 7-8: a near-copy of the tool's name runs no tool and saves nothing."""
+def test_only_the_exact_tool_name_saves(name, saved):
+    """Security rounds 7-9: a near-copy of the tool's name runs no tool and saves nothing."""
     store = InMemoryStore()
     model = ScriptedChatModel(
         responses=[_calls((name, {"topic": "zoo", "feeling": "likes"}, "m1")), AIMessage("Okay.")]
@@ -739,6 +739,45 @@ def test_resuming_with_memory_off_does_not_show_a_save(decision):
     )
     assert config.PROGRESS_TOOL_LABELS["remember_preference"] not in events
     assert config.PROGRESS_TOOL_LABELS["get_weather_forecast"] in events
+
+
+@pytest.mark.parametrize("memory_on", [False, True])
+@pytest.mark.parametrize(
+    "name",
+    [
+        "![x](https://evil.example/a.png)",
+        '<img src="https://evil.example/a.png">',
+        "{children}",
+        "x" * 5000,
+        "",
+        "remember_preference" + chr(0x200B),
+        "r" + chr(0x0435) + "member_preference",
+    ],
+    ids=["markdown-image", "html", "placeholder", "long", "empty", "zero-width", "cyrillic"],
+)
+def test_tool_labels_are_fixed_text(name, memory_on):
+    """Security round 9: a tool name the model writes never reaches the progress text."""
+    from src.agent.runner import tool_labels
+
+    assert tool_labels([{"name": name}], memory_on) == [config.PROGRESS_UNKNOWN_TOOL]
+
+
+def test_reject_shows_no_tool_label():
+    """Security round 9: rejecting a paused save and outside call shows no tool label."""
+    events: list[str] = []
+    store = InMemoryStore()
+    graph, _, paused = _paused_with_memory_call(store)
+    resume_turn(
+        graph,
+        "t1",
+        {"action": "reject", "feedback": "not now"},
+        turn_start_index=paused.start_index,
+        memory_on=True,
+        progress=events.append,
+    )
+    assert config.PROGRESS_TOOL_LABELS["remember_preference"] not in events
+    assert config.PROGRESS_TOOL_LABELS["get_weather_forecast"] not in events
+    assert memory.preferences(store) == []
 
 
 def test_a_memory_call_next_to_a_knowledge_search_is_hidden_while_off():
