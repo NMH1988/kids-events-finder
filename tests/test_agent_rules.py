@@ -319,6 +319,8 @@ DESIGNER_RULE_CONTENT = [
     ),
     ("**Ranking (5.3).**", 'Keep "How results are ranked" on the About page reachable'),
     ("**Credits (6.3).**", "Keep the source credits under answers"),
+    ("**Credits (6.3).**", "placed and worded as each provider's terms require"),
+    ("**Credits (6.3).**", "a proposal never moves a credit away from its data"),
 ]
 DESIGNER_SECURITY_CONTROLS = [
     "never changes `src/grounding.py`, `src/agent/`, `TOOLS_REQUIRING_APPROVAL` or"
@@ -516,7 +518,7 @@ def test_claude_md_runs_security_review_on_agent_changes():
 # (CLAUDE.md: run on every change to .claude/agents/) sees the change and reviews it.
 PINNED_RULE_HASHES = {
     "ui-designer.md (whole file)": (
-        "bb578f6bdd03e8c227bdece523d3362b44abf0798502e4c551fe700be374c306"
+        "589849c9cbb2bcdabce6ad716410e2540681b92882999b12cd7a3b16eeb4c96f"
     ),
     "rulebook 3.4": "cbddc0505887332eb9c8f7c9a49cf7572fc8de8126a321b104b6e4f311b8562d",
     "rulebook 6.4 fonts": "c82cf8668095529bd518e8bdd3ab47d9eb51117918052f15b5a57ae7935dae08",

@@ -39,14 +39,14 @@ Every proposal keeps all of these; name the ones it touches in its legal check.
 - **No manipulation (4.2).** No dark patterns: no fake urgency or scarcity, no "Approve" button that is bigger, brighter or more prominent than "Reject" in the approval panel, no hidden way to say no.
 - **Grounding and money (4.3, 7.3).** Places, links, prices and totals shown come from tool results and code, never from the model's text; unknown prices stay empty for the parent; tell parents to check the official website or bahn.de.
 - **Ranking (5.3).** Keep "How results are ranked" on the About page reachable; no sponsored look for any place.
-- **Credits (6.3).** Keep the source credits under answers and the data licences on the About page.
+- **Credits (6.3).** Keep the source credits under answers and the data licences on the About page, placed and worded as each provider's terms require (`docs/THIRD_PARTY_TERMS.md`, e.g. a credit or link next to where that provider's data is shown); a proposal never moves a credit away from its data, shortens it or hides it.
 - **The system prompt and evaluation questions** (`src/prompts/agent_system.md`, `data/eval_questions.json`) need the owner's approval: a proposal that changes them is a question, not a proposal.
 - **Security controls stay.** A proposal never changes `src/grounding.py`, `src/agent/`, `TOOLS_REQUIRING_APPROVAL` or `TOOLS_ALWAYS_REVIEWED`, or the default of the auto-approve switch (off); never adds "approve all" or "remember my choice" to the approval panel; never shows the tool's arguments less fully before approval; never labels a tool link as "verified" or "checked" (only "from <source>"). A goal that needs any of this goes under "Questions for the owner" for the owner and `security-reviewer`.
 - **No raw HTML.** No proposal needs `unsafe_allow_html=True`, `st.html`, `components.html` or a custom component (the grounding check and `security-reviewer` rely on plain Markdown). The one exception is the existing AI marker, `st.html(AI_MARKER_HTML)` in `views/chat.py`: it may move, but `AI_MARKER_HTML` stays a constant and nothing dynamic ever goes into `st.html`. Style comes from the theme in `.streamlit/config.toml` and native widgets; if a goal cannot be reached that way, list it under "Not possible within the rules".
 
 ## Project context
 
-Read first: `CLAUDE.md`, `docs/LEGAL_COMPLIANCE.md` in full, `README.md`, `docs/CAPSTONE_CHECKLIST.md` (the criterion "user interface and interaction quality"), `docs/ETHICS.md`, `docs/IMPLEMENTATION_PLAN.md` and the Epic 5 tickets in `docs/tickets/` (T5.1-T5.5 and any later UI ticket), then `app.py`, every file in `views/`, `.streamlit/config.toml`, and `src/config.py` and `src/family.py` for the limits and choices the UI shows.
+Read first: `CLAUDE.md`, `docs/LEGAL_COMPLIANCE.md` in full, `docs/THIRD_PARTY_TERMS.md` (each outside service's attribution and display rules), `README.md`, `docs/CAPSTONE_CHECKLIST.md` (the criterion "user interface and interaction quality"), `docs/ETHICS.md`, `docs/IMPLEMENTATION_PLAN.md` and the Epic 5 tickets in `docs/tickets/` (T5.1-T5.5 and any later UI ticket), then `app.py`, every file in `views/`, `.streamlit/config.toml`, and `src/config.py` and `src/family.py` for the limits and choices the UI shows.
 
 ## Method
 
