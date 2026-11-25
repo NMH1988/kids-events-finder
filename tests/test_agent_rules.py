@@ -45,6 +45,7 @@ def front_matter_tools(text: str) -> str:
     lines = re.findall(r"^tools:(.*)$", front_matter(text), re.MULTILINE)
     assert lines, "without a tools line Claude Code gives the agent every tool"
     assert len(lines) == 1, "YAML keeps the last of two tools lines, which a test may not read"
+    assert lines[0].strip(), "a YAML list under tools: would hide its entries from the tests"
     return lines[0].strip()
 
 
