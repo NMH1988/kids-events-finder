@@ -225,13 +225,24 @@ The users are parents, but the app handles data about children, who are speciall
 - **3.3** Adding any tracker or non-essential storage is an owner decision and requires a consent
   tool and an update of this file first.
 - **3.4 Nothing from third-party hosts.** (owner decision 2026-11-25, T1.9) Fonts, icons, images,
-  stylesheets and scripts come from the app itself: Streamlit's bundled font and Material Symbols
-  icons (Apache-2.0), emoji, or files under a 6.4 licence. None is loaded from another host (no
-  Google Fonts, no CDN, no theme `font = "<name>:<url>"` or `[[theme.fontFaces]]` with an outside
-  `url`, no remote image in Markdown; the grounding check already drops every image in an answer),
-  because each such request sends the parent's IP address to that host (LG München I, judgment of
-  20 January 2022, 3 O 17493/20). A link the parent clicks is not a load. Adding an outside asset is
-  an owner decision and updates this file first.
+  map tiles, stylesheets and scripts that the page loads by itself come from the app itself: the
+  fonts and Material Symbols shipped inside Streamlit (6.4), emoji, or files the owner approved.
+  None is loaded from another host, because each such load sends the parent's IP address to that
+  host (LG München I, judgment of 20 January 2022, 3 O 17493/20). In Streamlit this means: no Google
+  Fonts or CDN; no theme font option (`font`, `headingFont`, `codeFont`) with a `<name>:<url>`
+  value and no `[[theme.fontFaces]]` with an outside `url`; no Material Symbol as `page_icon`
+  (Streamlit fetches that favicon from `fonts.gstatic.com`; the app uses an emoji, which Streamlit
+  renders locally); no `st.image`, `st.logo`, `st.video` or `st.audio` with a remote URL; no
+  `st.map` or `st.pydeck_chart` (base map tiles from Carto or Mapbox; owner decision 2026-11-25:
+  no embedded map unless the owner decides otherwise and updates this file first); no remote image
+  in Markdown; a URL from a tool result or the knowledge base is never rendered as an element that
+  loads it (the grounding check drops images from the answer's Markdown, not from such elements).
+  A link the parent clicks is not a load. Today nothing in `app.py`, `views/` or
+  `.streamlit/config.toml` loads from another host; re-check after every Streamlit upgrade, since
+  Streamlit itself can add such loads. Adding an outside asset is an owner decision and updates
+  this file first. Legal basis: the load is a transfer of personal data (the IP address) under
+  GDPR Art. 6(1) and, for hosts outside the EU, Art. 44 ff. (see 2.2, 2.5), not a device access
+  under § 25 TDDDG; it sits here next to 3.1 because it is the same kind of rule.
 
 ## 4. AI rules (EU AI Act)
 - **4.1 Disclosure (Art. 50, in force since 2 August 2026).** The chat clearly says the parent is
@@ -282,6 +293,12 @@ Affiliate links are **off** in the Capstone version. Before they are switched on
   changed model updates that row in the same PR); data sets follow 6.3. Any GPL/AGPL/SSPL, "non-commercial"
   or unclear licence needs the owner's decision first. Check the licence when adding or upgrading a
   dependency in `pyproject.toml`.
+  **Fonts inside Streamlit (owner decision 2026-11-25, T1.9):** the fonts that ship unmodified
+  inside the Streamlit package (Source Sans, Source Serif and Source Code, and the KaTeX fonts
+  for formulas, under the SIL OFL 1.1; the Material Symbols icons under Apache-2.0) are accepted
+  as part of that dependency. Any other font, including another OFL font, is still an owner
+  decision first. (Licences from the model's knowledge; the owner checks the font projects'
+  licence files by hand, since the Streamlit wheel ships no notice for them.)
 - **6.5 Brand.** Before choosing a public app name, check DPMA and EUIPO for existing trademarks.
 
 ## 7. Consumer and business duties (owner, before public launch or income)
