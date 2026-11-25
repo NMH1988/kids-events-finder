@@ -9,10 +9,13 @@ Deadline: **2026-12-16**. Case 2 (AI agent for task automation) with an advanced
 | README with goal, problem and how it works | `README.md` (first section) | Done |
 | Showcase link near the top of the README (optional, a small part of the score); the entry must reflect the current state of the project | `README.md` line 3 | **Owner: upload after Epic 5, before booking the review, and add the link; update the entry after any later change** |
 | Effective use of LangChain / LLM APIs | LangGraph agent, LangChain tools, OpenRouter | Done |
+| OpenAI API | OpenAI models (`openai/gpt-5-mini`, `-nano`, `gpt-5`) through OpenRouter's OpenAI-compatible Chat Completions API, called with the official `openai` SDK through `langchain_openai` (`src/llm.py`); calling OpenAI directly means changing the provider lines in `src/config.py` (`AI_BASE_URL`, `API_KEY_NAME`, `AI_PROVIDER_NAME`) and the model IDs, which carry OpenRouter's `openai/` prefix | Done |
 | Vector database (ChromaDB) | `src/rag/index.py` | Done |
 | RAG (here advanced: multi-query, hybrid, RRF, filters, rerank) | `src/rag/retriever.py` | Done |
-| Function calling / tool integration with external APIs | `src/tools/` (7 tools, 4 external APIs: OSM, Ticketmaster, Open-Meteo, Transitous) | Done |
-| Multi-step reasoning, memory | LangGraph loop with checkpointer (conversation memory per thread) | Done |
+| Function calling / tool integration with external APIs | `src/tools/` (8 tools, 4 external APIs: OSM, Ticketmaster, Open-Meteo, Transitous; the internal `remember_preference` writes the long-term memory, T5.11) | Done |
+| Multi-step reasoning | LangGraph agent loop: model, tools, human-in-the-loop approval, grounding check (`src/agent/graph.py`) | Done |
+| Short-term memory | LangGraph checkpointer: the conversation per thread (`views/chat.py`); the history sent to the model is trimmed to a token budget (`history_for_model` in `src/agent/graph.py`, T5.11) | Done |
+| Long-term memory | LangGraph Store passed to the graph: the family's activity preferences across conversations, opt-in, saved on this computer, written by the `remember_preference` tool only after the parent approves each save (human in the loop) and read into the system prompt (`src/memory.py`, T5.11) | Done (T5.11) |
 | Interactive prototype ("Streamlit or another interface" for Case 2) | `app.py`, `views/` (Streamlit) | Done |
 | User interface and interaction quality (evaluation criterion "Outcome quality") | `views/`; Epic 5 in `docs/IMPLEMENTATION_PLAN.md` (T5.1-T5.5) | Works; improvements planned in Epic 5 |
 | Prompt engineering best practices | `src/prompts/agent_system.md` (role, process, rules, format, injection rule) | Done (reviewed for O2, T1.5) |

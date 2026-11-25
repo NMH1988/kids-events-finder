@@ -201,11 +201,18 @@ The users are parents, but the app handles data about children, who are speciall
 - **2.7 Retention.** Conversations are deleted from the server when the parent starts a new one and
   automatically after 2 hours without use (`CONVERSATION_RETENTION_SECONDS`, enforced by a
   background cleaner every `CLEANUP_INTERVAL_SECONDS`, also when nobody uses the app); feedback
-  is deleted after 90 days and stores the question text
-  only with the parent's consent; push subscriptions are deleted after the trip date; logs never
-  contain message content, ages, budgets or keys.
+  is deleted after 90 days and stores the question text only with the parent's consent;
+  long-term memory (T5.11) keeps each preference `LONG_TERM_MEMORY_RETENTION_DAYS` (30) days
+  after it was last saved, deleted by the same cleaner and when the memory is loaded, and
+  "Forget everything" deletes all of it at once, together with any file the app could not load
+  and any temporary copy; push subscriptions are deleted after the trip date; logs never contain
+  message content, ages, budgets or keys.
 - **2.8 Data subject rights.** Parents can delete their data (and export it where stored on the
-  server) without contacting support.
+  server) without contacting support. Long-term memory (T5.11) is listed in the sidebar and deleted
+  with "Forget everything", which is offered whenever something is remembered, also while the
+  switch is off; switching it off stops its use from the next step, also for a turn that waits
+  for approval (the switch is read again at every step). What the parent said earlier stays in
+  the current conversation until a new one starts (2.7).
 - **2.9 Security.** Keys only through `config.get_secret()`, never logged or shown; HTTPS only;
   invite codes and rate limits protect the deployed app. Every length limit on the parent's text
   (question, reject reason, edited values, folded length) is enforced on the server, not only by
@@ -216,6 +223,41 @@ The users are parents, but the app handles data about children, who are speciall
   bodies at DEBUG (`config.QUIET_LOGGERS`) are capped at `config.LOG_LEVEL` (INFO). The app's own
   logs hold only event names and error types. Adding any such service is an owner decision that
   updates the processor register first.
+- **2.11 Long-term memory (T5.11).** Off by default; the parent switches it on in the sidebar
+  ("Remember our preferences on this computer", consent; the switch's help text says what is
+  kept, that it goes to the AI model with each question, that everyone using the app on that
+  computer shares it, and how to stop and delete it). It keeps only fixed choices: a place
+  category or indoor/outdoor, and "likes" or "avoids" (`config.MEMORY_TOPICS`,
+  `config.MEMORY_FEELINGS`), with the date it was saved. Never free text, place names, age
+  groups, the budget, the family size, or visited or liked places (those would be the activity
+  history of 1.5-1.7). The model can only save through the `remember_preference` tool, whose
+  arguments are these fixed choices; the switch (from the run's config) and the store are
+  injected by the graph, and a preference is saved only when the parent's own latest message
+  names its topic as a whole word (`config.MEMORY_TOPIC_WORDS`; "parking", "parken" or "theme
+  park" do not count as "park"), so text in a tool result cannot add a topic the parent never
+  mentioned; only before any other tool result of the same turn, so a tool result of that turn
+  cannot decide what is saved; and only once per topic in one step. **Every save waits for the
+  parent's approval** (`config.TOOLS_ALWAYS_REVIEWED`, also with auto-approve on; owner decision
+  2026-11-25): the approval panel shows the kind of place and "likes" or "avoids", and nothing is
+  stored if the parent rejects. With the switch off the call is refused without a pause. Without
+  the server setting below the model is not offered the tool at all. Each saved preference is
+  shown under the answer. Remembered preferences change which places the AI suggests first
+  (5.3). Without a login the memory belongs to the computer that runs the app (one local profile
+  shared by every browser session there). The server setting `config.LONG_TERM_MEMORY_ENABLED` switches the
+  whole feature off; while it is on, the switch is offered only when the page is opened on that
+  computer (`views/memory.py: is_local_visit`, which checks the connection's address, its Host
+  header and its Origin header, required and of the same origin, which a web page cannot set)
+  and `.streamlit/config.toml` accepts only local host names (`server.allowedHosts`). If the file
+  cannot be opened at start-up (another program holds it), it is kept as it is, never used or
+  sent, and the next start-up (which applies the 30-day limit) or the next save rewrites it; until
+  then the sidebar cannot list it. A visit through a proxy or tunnel that adds forwarding headers
+  (`Forwarded`, `Via`, `X-Forwarded-*`, `X-Real-*`, `X-Client-*`, `X-Original-*`,
+  `True-Client-*`, `Cf-*`, even empty) is never local; one that adds none of them and rewrites
+  Host and Origin to localhost cannot be told apart, which is why exposing the app in any way
+  counts as a deployment. The feature is for the local demo only (see "Before a public deployment").
+  Remaining risk: the model proposes the topic and the feeling (from a message that only mentions
+  a topic, or from an earlier turn's tool result), but nothing is stored unless the parent
+  approves exactly that save; an approved save is shown under the answer and can be deleted.
 
 ## 3. Device storage and tracking (TDDDG § 25)
 - **3.1 No trackers.** No analytics, advertising pixels, fingerprinting or third-party tracking
@@ -250,7 +292,8 @@ Affiliate links are **off** in the Capstone version. Before they are switched on
   when the final answer is displayed. Free places stay in the results. No paid placement unless it
   is clearly marked as an ad.
 - **5.3 Publish the main ranking parameters** (country, city, age, indoor/outdoor, relevance to the
-  question, weather) on the About page (done: "How results are ranked").
+  question, weather, and the remembered preferences when the parent switched long-term memory on,
+  2.11) on the About page (done: "How results are ranked").
 - **5.4 No advertising aimed at children (UWG Annex No. 28).** Commercial content addresses parents
   only.
 - **5.5 No unproven claims.** No promises that the app improves a child's development or health.
@@ -293,7 +336,8 @@ Affiliate links are **off** in the Capstone version. Before they are switched on
 - **Testers:** only adults (18+) who agreed beforehand (a short written note is enough) that they
   test an AI demo, use only made-up questions, and that their feedback may be kept for 90 days;
   no children take part, no screen or voice recordings, and testers' names are not stored with
-  their feedback.
+  their feedback. Long-term memory (2.11) is shared by everyone on the test computer: press
+  "Forget everything" before and after each tester, so no tester's preferences reach the next.
 
 ## Before a public deployment (checklist)
 Remind the owner of this whole list whenever deployment comes up. Nothing here blocks the local
@@ -331,6 +375,14 @@ Capstone demo with synthetic data.
 - [ ] Transitous: request counter (coordinate above 720 `/plan` per day).
 - [ ] Coordinates from OpenStreetMap, not Google; `place_id_checked_on` for Place IDs.
 - [ ] Re-check `data/fares.json` prices and every knowledge base entry (closed places).
+- [ ] Long-term memory (2.11): set `config.LONG_TERM_MEMORY_ENABLED = False` (the visitor check
+      is only a second line; sharing the demo through a tunnel such as ngrok counts as a
+      deployment), and set `server.allowedHosts` in `.streamlit/config.toml` to the
+      real host names; or move the memory to the parent's device (or behind a login, per
+      account) with a record of each consent, wording that does not say "on this computer" and its
+      own text in the Datenschutzerklärung. Lawyer / Datenschutzberater: must switching off delete
+      the data (Art. 7(3), 17(1)(b))? Does the personalised order need more than the 5.3 note
+      (§ 5b UWG)?
 
 **Before earning money** (in addition)
 - [ ] Replace Transitous, the free Open-Meteo API and the public Overpass server; turn off
@@ -367,6 +419,7 @@ Capstone demo with synthetic data.
 | Town or city name, country, dates | Family events | Contract (Art. 6(1)(b)) | Open-Meteo geocoder, then Ticketmaster (US) with the geocoder's town name | Not stored by the app; only with the optional key |
 | Town or city name, country, dates | Weather forecast | Contract (Art. 6(1)(b)) | Open-Meteo geocoder and forecast | Not stored by the app |
 | Feedback rating and technical facts (model, country, tools, grounding); question, answer and comment plus a random browser-session id only when the parent ticks "share" | Evaluation | Rating: legitimate interest (Art. 6(1)(f)); shared text: consent (Art. 6(1)(a)), withdrawable with the "Delete the questions and answers I shared" button while the page is open | Local file on the server | 90 days, then deleted automatically by the background cleaner (no records from before the consent tick existed; checked 2026-11-20) |
+| Long-term memory: liked or avoided place categories and indoor/outdoor (fixed choices only), each with the date it was saved (T5.11) | Tailor suggestions in later conversations | Consent (Art. 6(1)(a)): the sidebar switch, off by default; withdrawn by switching off and "Forget everything" | Local file on the computer that runs the app (`data/memory/`, gitignored); with each question while the switch is on: OpenRouter → model provider | 30 days after it was last saved, or at once with "Forget everything" |
 | Activity history (themes, dates) | Variety nudges | Consent; stays on the device | Phone only | Until the parent deletes it |
 | Push subscription (planned) | Trip notifications | Consent | Server | Until the trip date |
 | Invite code, request counts (planned) | Access control, cost limits | Legitimate interest (Art. 6(1)(f)) | Server | While the code is active |

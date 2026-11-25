@@ -2,10 +2,11 @@
 .streamlit/secrets.toml
 .env
 
-# Local data: the vector index, feedback and evaluation runs
+# Local data: the vector index, feedback, evaluation runs and long-term memory
 chroma/
 data/feedback/
 data/eval_runs/
+data/memory/
 
 # Python
 .venv/

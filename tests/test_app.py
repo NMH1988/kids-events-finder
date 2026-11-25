@@ -1,5 +1,6 @@
 """Smoke tests of the Streamlit page with AppTest (no API key, no network)."""
 
+import json
 from pathlib import Path
 
 import pytest
@@ -498,6 +499,15 @@ def test_every_tool_has_its_own_progress_label():
     assert names == set(config.PROGRESS_TOOL_LABELS)
 
 
+def test_every_tool_is_explained_in_the_approval_panel():
+    """The panel says what each tool does, the memory tool included (it can share a pause)."""
+    from src.rag.retriever import AdvancedRetriever
+    from src.tools.registry import build_tools
+    from views.chat import TOOL_EXPLANATIONS
+
+    assert {t.name for t in build_tools(AdvancedRetriever(None))} == set(TOOL_EXPLANATIONS)
+
+
 def _approval_page():
     """Render the approval panel for the pause and calls held in the session state."""
     import streamlit as st
@@ -529,6 +539,129 @@ def _approval_page():
             rerank=False,
         )
     )
+
+
+def _memory_approval_page(memory_on: bool = True):
+    """Render a pause for a memory save whose arguments carry an extra, misleading key."""
+    import streamlit as st
+
+    from src.agent.runner import TurnResult
+    from views import chat
+    from views.sidebar import Settings
+
+    ss = st.session_state
+    ss.setdefault("thread_id", "t-memory")
+    ss.setdefault("history", [])
+    ss.setdefault("resumed", [])
+    args = {"topic": "theme_park", "feeling": "likes", "meaning": "avoids theme parks"}
+    ss.pending = {
+        "result": TurnResult(
+            status="needs_approval",
+            pending_tool_calls=[{"id": "m1", "name": "remember_preference", "args": args}],
+            needs_approval=[],
+            pause_id="p-memory",
+        ),
+        "question": "We avoid theme parks.",
+    }
+
+    def fake_resume(graph, thread_id, decision, **kwargs):
+        """Record what the panel passes to resume_turn."""
+        ss.resumed.append({"decision": decision, **kwargs})
+        return TurnResult(status="done", answer="Okay.")
+
+    originals = chat._graph, chat.resume_turn, chat.st.rerun
+    chat._graph = lambda *a: "fake-graph"
+    chat.resume_turn = fake_resume
+    chat.st.rerun = lambda *a, **k: None
+    try:
+        chat._render_approval(
+            Settings(
+                country="DE",
+                city="Berlin",
+                model="openai/gpt-5-mini",
+                auto_approve=True,
+                multi_query=False,
+                rerank=False,
+                memory_on=memory_on,
+            )
+        )
+    finally:
+        chat._graph, chat.resume_turn, chat.st.rerun = originals
+
+
+def test_a_memory_save_is_shown_in_the_apps_words_and_resumed_with_the_switch():
+    """The panel names the save from topic and feeling only, and Approve passes memory_on."""
+    at = AppTest.from_function(_memory_approval_page, default_timeout=30).run()
+    assert not at.exception
+    assert any(t.value == "🧠 Save to memory: likes theme parks" for t in at.text)
+    assert all("meaning" not in a.value for a in at.text_area)
+    assert any("sent to the AI model" in c.value for c in at.caption)
+    approve = next(b for b in at.button if b.key and b.key.startswith("approve_"))
+    approve.click().run()
+    resumed = at.session_state.resumed
+    assert resumed and resumed[0]["memory_on"] is True
+    assert resumed[0]["decision"] == {"action": "approve"}
+
+
+@pytest.mark.parametrize(
+    ("typed", "sent"),
+    [
+        (None, {"topic": "theme_park", "feeling": "likes"}),
+        (
+            '{"topic": "theme_park", "feeling": "avoids"}',
+            {"topic": "theme_park", "feeling": "avoids"},
+        ),
+    ],
+)
+def test_run_with_my_edits_sends_only_topic_and_feeling(typed, sent):
+    """Code review round 6: the edit box and its decision hold the two fields the tool reads."""
+    at = AppTest.from_function(_memory_approval_page, default_timeout=30).run()
+    box = next(a for a in at.text_area if a.key and a.key.startswith("args_"))
+    assert json.loads(box.value) == {"topic": "theme_park", "feeling": "likes"}
+    if typed:
+        box.input(typed).run()
+    edit = next(b for b in at.button if b.key and b.key.startswith("edit_"))
+    edit.click().run()
+    resumed = at.session_state.resumed
+    assert resumed and resumed[0]["decision"] == {
+        "action": "edit",
+        "tool_calls": [{"id": "m1", "args": sent}],
+    }
+
+
+def test_the_panel_says_when_memory_is_off():
+    """With the switch off, the panel says the save will not happen."""
+    at = AppTest.from_function(_memory_approval_page, args=(False,), default_timeout=30).run()
+    assert not at.exception
+    heading = "🧠 Save to memory: likes theme parks (Memory is off: it will not be saved)"
+    assert any(t.value == heading for t in at.text)
+
+
+@pytest.mark.parametrize(
+    "args",
+    [
+        {"topic": "museum", "feeling": "likes"},
+        {"topic": "Museum", "feeling": "likes"},
+        {"topic": "museum​", "feeling": "likes"},
+        {"topic": "musеum", "feeling": "likes"},
+        {"topic": ["museum"], "feeling": "likes"},
+        {"topic": None, "feeling": "likes"},
+        {"topic": "museum", "feeling": "loves"},
+    ],
+)
+def test_the_panel_sentence_matches_what_the_tool_accepts(args):
+    """Security round 6: the panel names a save exactly when the tool's schema accepts it."""
+    from pydantic import ValidationError
+
+    from src.tools.registry import PreferenceArgs
+    from views.chat import memory_save_text
+
+    try:
+        PreferenceArgs(**args)
+        valid = True
+    except ValidationError:
+        valid = False
+    assert ("allowed choices" not in memory_save_text(args)) is valid
 
 
 def _panel_keys(at) -> set[str]:
@@ -634,3 +767,161 @@ def test_the_chat_shows_a_kept_stale_warning_once():
     ) == 1
     at.run()
     assert not any("changed or ended" in w.value for w in at.warning)
+
+
+def test_memory_is_not_offered_to_a_visitor_from_another_computer():
+    """One local profile is shared by everyone, so the switch exists only for a local visit."""
+    from src import config, memory
+    from views.memory import memory_store
+
+    memory.save_preference(memory_store(), "museum", "likes")
+    at = AppTest.from_file(APP, default_timeout=30).run()
+    assert not [t for t in at.sidebar.toggle if t.key == "memory_on"]
+    assert not [b for b in at.sidebar.button if b.key == "memory_forget"]
+    assert not any("likes museums" in c.value for c in at.sidebar.caption)
+    assert any("only available" in c.value for c in at.sidebar.caption)
+    assert config.MEMORY_FILE.exists()
+
+
+LOCAL_HEADERS = {"Host": "localhost:8510", "Origin": "http://localhost:8510"}
+
+
+@pytest.mark.parametrize(
+    ("ip", "url", "headers", "local"),
+    [
+        (None, "http://localhost:8510/", LOCAL_HEADERS, True),
+        ("::1", "http://[::1]:8510/", {"Host": "[::1]:8510", "Origin": "http://[::1]:8510"}, True),
+        # A tunnel or proxy that rewrites Host to localhost still marks the request as forwarded.
+        (
+            None,
+            "http://localhost:8501/",
+            {
+                "Host": "localhost:8501",
+                "Origin": "http://localhost:8501",
+                "X-Forwarded-For": "203.0.113.9",
+            },
+            False,
+        ),
+        # No Origin: not a browser visit (e.g. a script through a proxy on the same computer).
+        (None, "http://localhost:8501/", {"Host": "localhost:8501"}, False),
+        ("203.0.113.5", "http://localhost:8510/", LOCAL_HEADERS, False),
+        (None, "https://kids.example.com/", {"Host": "kids.example.com"}, False),
+        ("192.168.1.20", "http://192.168.1.10:8510/", {"Host": "192.168.1.10:8510"}, False),
+        (None, None, LOCAL_HEADERS, False),
+        # DNS rebinding: the page claims a local URL, but the connection's headers do not.
+        (None, "http://localhost:8501/", {"Host": "rebind.example:8501"}, False),
+        (
+            None,
+            "http://localhost:8501/",
+            {"Host": "localhost:8501", "Origin": "http://evil.example"},
+            False,
+        ),
+        (None, "http://localhost:8510/", {}, False),
+        # Another local port (another dev server) is not this app; a broken Origin fails closed.
+        (
+            None,
+            "http://localhost:8501/",
+            {"Host": "localhost:8501", "Origin": "http://localhost:3000"},
+            False,
+        ),
+        (
+            None,
+            "http://localhost:8501/",
+            {"Host": "localhost:8501", "Origin": "http://[::1"},
+            False,
+        ),
+    ],
+)
+def test_only_a_visit_on_the_same_computer_counts_as_local(monkeypatch, ip, url, headers, local):
+    """A proxy, another device or a rebound host name never gets the memory switch."""
+    from types import SimpleNamespace
+
+    from views import memory as memory_view
+
+    fake = SimpleNamespace(context=SimpleNamespace(ip_address=ip, url=url, headers=headers))
+    monkeypatch.setattr(memory_view, "st", fake)
+    assert memory_view.is_local_visit() is local
+
+
+@pytest.mark.parametrize(
+    "extra",
+    [
+        ("Via", "1.1 nginx"),
+        ("X-Forwarded-Proto", "https"),
+        ("X-Forwarded-Server", "proxy"),
+        ("True-Client-Ip", "203.0.113.9"),
+        ("X-Client-Ip", "203.0.113.9"),
+        ("X-Original-Forwarded-For", "203.0.113.9"),
+        ("X-Forwarded-For", ""),
+        ("x-forwarded-for", "203.0.113.9"),
+        ("FORWARDED", "for=203.0.113.9"),
+    ],
+)
+def test_any_proxy_header_makes_a_visit_remote(monkeypatch, extra):
+    """Security round 6 (Low): any forwarding header, in any case and even empty, is not local."""
+    from types import SimpleNamespace
+
+    from streamlit.runtime.context import StreamlitHeaders
+
+    from views import memory as memory_view
+
+    headers = StreamlitHeaders([*LOCAL_HEADERS.items(), extra])
+    context = SimpleNamespace(ip_address=None, url="http://localhost:8510/", headers=headers)
+    monkeypatch.setattr(memory_view, "st", SimpleNamespace(context=context))
+    assert memory_view.is_local_visit() is False
+    # The same headers without the proxy's one are a local visit (the check is not just broken).
+    context.headers = StreamlitHeaders(LOCAL_HEADERS.items())
+    assert memory_view.is_local_visit() is True
+
+
+def test_the_server_setting_removes_long_term_memory(monkeypatch):
+    """With LONG_TERM_MEMORY_ENABLED off there is no memory section, even for a local visit."""
+    from src import config
+    from views import memory as memory_view
+
+    monkeypatch.setattr(config, "LONG_TERM_MEMORY_ENABLED", False)
+    monkeypatch.setattr(memory_view, "is_local_visit", lambda: True)
+    at = AppTest.from_file(APP, default_timeout=30).run()
+    assert not [t for t in at.sidebar.toggle if t.key == "memory_on"]
+    assert not any(s.value == "🧠 Memory" for s in at.sidebar.subheader)
+
+
+def test_memory_is_off_by_default_and_forget_deletes_everything(monkeypatch):
+    """Long-term memory starts off; the sidebar lists what is kept and forgets it in one click."""
+    from src import config, memory
+    from views import memory as memory_view
+    from views.memory import memory_store
+
+    monkeypatch.setattr(memory_view, "is_local_visit", lambda: True)
+    at = AppTest.from_file(APP, default_timeout=30).run()
+    assert at.sidebar.toggle(key="memory_on").value is False
+    assert not any(c.value.startswith("Remembered") for c in at.sidebar.caption)
+    assert not [b for b in at.sidebar.button if b.key == "memory_forget"]
+    at.sidebar.toggle(key="memory_on").set_value(True).run()
+    assert any(c.value == "Nothing remembered yet." for c in at.sidebar.caption)
+
+    # Saved through the app's own store, as the tool does (the page loaded it already).
+    memory.save_preference(memory_store(), "museum", "likes")
+    at = AppTest.from_file(APP, default_timeout=30).run()
+    assert any(c.value == "Remembered: likes museums" for c in at.sidebar.caption)
+    at.sidebar.button(key="memory_forget").click().run()
+    assert not at.exception
+    assert not config.MEMORY_FILE.exists()
+    assert not any(c.value.startswith("Remembered") for c in at.sidebar.caption)
+
+
+def _remembered_page():
+    """Render the long-term memory notice under two answers, one that saved a preference."""
+    from views.chat import _render_remembered
+
+    _render_remembered({"remembered": [{"topic": "indoor", "feeling": "likes"}]})
+    _render_remembered({"remembered": []})
+
+
+def test_a_saved_preference_is_shown_under_the_answer():
+    """The parent sees in the app's own words what this answer remembered and where to delete."""
+    at = AppTest.from_function(_remembered_page, default_timeout=30).run()
+    notes = [c.value for c in at.caption]
+    assert len(notes) == 1
+    assert notes[0].startswith("🧠 Remembered for next time: likes indoor places.")
+    assert "sidebar" in notes[0]

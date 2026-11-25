@@ -7,6 +7,10 @@ grounding check on every final answer.
 
 human_review pauses the graph with `interrupt()`. The UI shows the planned calls and resumes the
 graph with the parent's decision: approve, edit the arguments, or reject with feedback.
+
+Memory: the checkpointer keeps each conversation (short-term; the model sees its trimmed history),
+and the store keeps the family's preferences across conversations when the parent switched
+long-term memory on (T5.11).
 """
 
 import json
@@ -14,15 +18,18 @@ from datetime import date
 from typing import Any
 
 from langchain_core.language_models import BaseChatModel
-from langchain_core.messages import AIMessage, SystemMessage, ToolMessage
+from langchain_core.messages import AIMessage, AnyMessage, HumanMessage, SystemMessage, ToolMessage
+from langchain_core.messages.utils import count_tokens_approximately, trim_messages
 from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import BaseTool
 from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.graph import END, START, MessagesState, StateGraph
 from langgraph.prebuilt import ToolNode
+from langgraph.store.base import BaseStore
+from langgraph.store.memory import InMemoryStore
 from langgraph.types import Command, interrupt
 
-from src import config, family
+from src import config, family, memory
 from src.grounding import allowed_urls, enforce_grounding
 
 _SYSTEM_TEMPLATE = (config.PROMPTS_DIR / "agent_system.md").read_text(encoding="utf-8")
@@ -61,8 +68,13 @@ def trip_context(trip: dict | None) -> str:
     )
 
 
-def system_prompt(state: AgentState, today: date | None = None) -> str:
-    """Fill the system prompt with today's date, the chosen place, children and trip settings."""
+def system_prompt(
+    state: AgentState,
+    today: date | None = None,
+    store: BaseStore | None = None,
+    memory_on: bool = False,
+) -> str:
+    """Fill the system prompt with the date, place, children, trip settings and preferences."""
     country = state.get("country") or "DE"
     today = today or date.today()
     return _SYSTEM_TEMPLATE.format(
@@ -72,7 +84,35 @@ def system_prompt(state: AgentState, today: date | None = None) -> str:
         city=state.get("city") or "All cities",
         children=family.describe_children(state.get("children") or []),
         trip=trip_context(state.get("trip")),
+        memory=memory.describe(store, memory_on),
     )
+
+
+def history_for_model(
+    messages: list[AnyMessage], max_tokens: int | None = None
+) -> list[AnyMessage]:
+    """Return the messages the model sees: the latest question whole, earlier turns trimmed."""
+    max_tokens = max_tokens or config.MAX_HISTORY_TOKENS
+    last_question = next(
+        (i for i in range(len(messages) - 1, -1, -1) if isinstance(messages[i], HumanMessage)),
+        None,
+    )
+    if last_question is None:
+        return list(messages)
+    current = list(messages[last_question:])
+    budget = max_tokens - count_tokens_approximately(current)
+    if budget <= 0 or last_question == 0:
+        return current
+    # Earlier turns are cut from the oldest end, at a question, so a tool call is never separated
+    # from its result.
+    earlier = trim_messages(
+        messages[:last_question],
+        max_tokens=budget,
+        token_counter=count_tokens_approximately,
+        strategy="last",
+        start_on="human",
+    )
+    return [*earlier, *current]
 
 
 def needs_approval(message: AIMessage) -> list[dict]:
@@ -80,14 +120,21 @@ def needs_approval(message: AIMessage) -> list[dict]:
     return [tc for tc in message.tool_calls if tc["name"] in config.TOOLS_REQUIRING_APPROVAL]
 
 
-def always_reviewed(message: AIMessage) -> bool:
+def always_reviewed(message: AIMessage, memory_on: bool = True) -> bool:
     """Return True when a message calls a tool that pauses even with auto-approve on."""
-    return any(tc["name"] in config.TOOLS_ALWAYS_REVIEWED for tc in message.tool_calls)
+    # With memory off the memory tool only refuses, so it is not worth a pause.
+    return any(
+        tc["name"] in config.TOOLS_ALWAYS_REVIEWED
+        and (memory_on or tc["name"] != "remember_preference")
+        for tc in message.tool_calls
+    )
 
 
-def goes_to_review(message: AIMessage, auto_approve: bool) -> bool:
+def goes_to_review(message: AIMessage, auto_approve: bool, memory_on: bool = True) -> bool:
     """Return True when the graph pauses for the parent before running this message's tools."""
-    return always_reviewed(message) or (bool(needs_approval(message)) and not auto_approve)
+    return always_reviewed(message, memory_on) or (
+        bool(needs_approval(message)) and not auto_approve
+    )
 
 
 def _edited_args(call: dict, edits: dict[str, dict], fields: dict[str, set[str]]) -> dict:
@@ -101,26 +148,35 @@ def _edited_args(call: dict, edits: dict[str, dict], fields: dict[str, set[str]]
     return {k: v for k, v in edit.items() if k in allowed}
 
 
-def build_graph(llm: BaseChatModel, tools: list[BaseTool], checkpointer: BaseCheckpointSaver):
-    """Compile the agent graph with its tools and a checkpointer (needed for interrupts)."""
+def build_graph(
+    llm: BaseChatModel,
+    tools: list[BaseTool],
+    checkpointer: BaseCheckpointSaver,
+    store: BaseStore | None = None,
+):
+    """Compile the agent graph with its tools, a checkpointer (for interrupts) and a store."""
     model = llm.bind_tools(tools)
     # The argument names the model may use for each tool (injected fields are not among them).
     fields = {t.name: set(getattr(t.tool_call_schema, "model_fields", {}) or {}) for t in tools}
 
-    def agent(state: AgentState) -> dict:
+    # LangGraph passes the run's config only to a parameter named `config`, which shadows the
+    # settings module inside these functions.
+    def agent(state: AgentState, config: RunnableConfig, store: BaseStore) -> dict:  # noqa: F811
         """Ask the model for the next step: tool calls or the final answer."""
-        response = model.invoke([SystemMessage(system_prompt(state)), *state["messages"]])
+        # The memory switch is read from the run's config at every step, so switching it off
+        # during an approval pause takes effect at once (LEGAL_COMPLIANCE 2.8, 2.11).
+        prompt = system_prompt(state, store=store, memory_on=memory.switched_on(config))
+        response = model.invoke([SystemMessage(prompt), *history_for_model(state["messages"])])
         return {"messages": [response]}
 
-    # LangGraph passes the run's config only to a parameter named `config`, which shadows the
-    # settings module inside this one function.
     def route_after_agent(state: AgentState, config: RunnableConfig) -> str:  # noqa: F811
         """Route tool calls to review or to the tools, and answers to the grounding check."""
         last = state["messages"][-1]
         if not isinstance(last, AIMessage) or not last.tool_calls:
             return "grounding"
         auto = config.get("configurable", {}).get("auto_approve", False)
-        return "human_review" if goes_to_review(last, auto) else "tools"
+        review = goes_to_review(last, auto, memory.switched_on(config))
+        return "human_review" if review else "tools"
 
     def human_review(state: AgentState) -> Command:
         """Pause for the parent's decision on the planned tool calls, then apply it."""
@@ -174,4 +230,7 @@ def build_graph(llm: BaseChatModel, tools: list[BaseTool], checkpointer: BaseChe
     )
     builder.add_edge("tools", "agent")
     builder.add_edge("grounding", END)
-    return builder.compile(checkpointer=checkpointer)
+    # Without a store (tests, evaluation scripts) the memory lives only as long as the graph.
+    return builder.compile(
+        checkpointer=checkpointer, store=store if store is not None else InMemoryStore()
+    )
