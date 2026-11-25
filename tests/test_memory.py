@@ -670,46 +670,87 @@ def test_the_model_cannot_forge_the_parents_words():
     assert memory.preferences(store) == []
 
 
-PAUSE_TOOLS = ("remember_preference", "check_budget", "find_nearby_places", "search_knowledge_base")
+OUTSIDE_TOOLS = sorted(config.TOOLS_REQUIRING_APPROVAL)
+MIXED_TOOLS = ("remember_preference", "check_budget", "search_knowledge_base")
 
 
+@pytest.mark.parametrize("outside", OUTSIDE_TOOLS)
 @pytest.mark.parametrize("auto_approve", [False, True])
 @pytest.mark.parametrize("memory_on", [False, True])
 @pytest.mark.parametrize(
     "names",
     [
         names
-        for size in range(1, len(PAUSE_TOOLS) + 1)
-        for names in itertools.combinations(PAUSE_TOOLS, size)
+        for size in range(1, len(MIXED_TOOLS) + 2)
+        for names in itertools.combinations((*MIXED_TOOLS, "OUTSIDE"), size)
     ],
 )
-def test_the_pause_rule_holds_for_every_mix_of_calls(names, memory_on, auto_approve):
-    """Security round 7: budget always pauses, memory only while on, outside calls unless auto."""
+def test_the_pause_rule_holds_for_every_mix_of_calls(names, memory_on, auto_approve, outside):
+    """Security rounds 7-8: budget always pauses, memory only while on, outside unless auto."""
     from src.agent.graph import goes_to_review
 
+    names = tuple(outside if name == "OUTSIDE" else name for name in names)
     message = _calls(*[(name, {}, f"c{i}") for i, name in enumerate(names)])
     expected = (
         "check_budget" in names
         or (memory_on and "remember_preference" in names)
-        or (not auto_approve and "find_nearby_places" in names)
+        or (not auto_approve and outside in names)
     )
     assert goes_to_review(message, auto_approve, memory_on) is expected
 
 
 @pytest.mark.parametrize(
-    "name",
-    ["remember_preference​", "Remember_Preference", " remember_preference", "remember-preference"],
+    ("name", "saved"),
+    [
+        ("remember_preference", True),  # control: the same words save under the real name
+        ("remember_preference​", False),  # zero-width space
+        ("rеmember_preference", False),  # Cyrillic "е"
+        ("remember­preference", False),  # soft hyphen
+        ("Remember_Preference", False),
+        (" remember_preference", False),
+        ("remember-preference", False),
+    ],
 )
-def test_a_look_alike_tool_name_saves_nothing(name):
-    """Security round 7: a call to a near-copy of the tool's name runs no tool and saves nothing."""
+def test_a_look_alike_tool_name_saves_nothing(name, saved):
+    """Security rounds 7-8: a near-copy of the tool's name runs no tool and saves nothing."""
     store = InMemoryStore()
     model = ScriptedChatModel(
         responses=[_calls((name, {"topic": "zoo", "feeling": "likes"}, "m1")), AIMessage("Okay.")]
     )
     graph = build_graph(model, _memory_tool(), InMemorySaver(), store)
     result = _turn_approved(graph, "t1", "We love zoos.", memory_on=True, **CONTEXT)
-    assert result.remembered == []
-    assert memory.preferences(store) == []
+    expected = [{"topic": "zoo", "feeling": "likes"}] if saved else []
+    assert result.remembered == expected
+    assert memory.preferences(store) == expected
+
+
+@pytest.mark.parametrize("decision", [{"action": "approve"}, {"action": "edit", "tool_calls": []}])
+def test_resuming_with_memory_off_does_not_show_a_save(decision):
+    """Code review round 8: after approval with memory off, no "Remembering" label is shown."""
+    events: list[str] = []
+    graph, _, paused = _paused_with_memory_call(InMemoryStore())
+    resume_turn(
+        graph,
+        "t1",
+        decision,
+        turn_start_index=paused.start_index,
+        memory_on=False,
+        progress=events.append,
+    )
+    assert config.PROGRESS_TOOL_LABELS["remember_preference"] not in events
+    assert config.PROGRESS_TOOL_LABELS["get_weather_forecast"] in events
+
+
+def test_a_memory_call_next_to_a_knowledge_search_is_hidden_while_off():
+    """Security round 8: with memory off, only the knowledge search is shown."""
+    from src.agent.runner import progress_labels
+
+    step = _calls(
+        ("remember_preference", {"topic": "zoo", "feeling": "likes"}, "m1"),
+        ("search_knowledge_base", {"query": "zoo"}, "k1"),
+    )
+    shown = progress_labels({"agent": {"messages": [step]}}, False, False)
+    assert shown == [config.PROGRESS_TOOL_LABELS["search_knowledge_base"]]
 
 
 def test_memory_off_mixed_with_an_outside_call_still_pauses():

@@ -207,6 +207,15 @@ def tool_label(name: str) -> str:
     return config.PROGRESS_TOOL_LABELS.get(name, config.PROGRESS_UNKNOWN_TOOL)
 
 
+def tool_labels(calls: list[dict], memory_on: bool) -> list[str]:
+    """Return the progress labels for tool calls about to run, in the app's own words."""
+    # With memory off the memory tool refuses to save, so it is not shown as
+    # "Remembering your preference" (code review T5.11 rounds 7 and 8).
+    return [
+        tool_label(tc["name"]) for tc in calls if memory_on or tc["name"] != "remember_preference"
+    ]
+
+
 def progress_labels(chunk: dict, auto_approve: bool = False, memory_on: bool = False) -> list[str]:
     """Turn one streamed graph update into fixed progress labels (no model or tool text)."""
     labels: list[str] = []
@@ -221,13 +230,7 @@ def progress_labels(chunk: dict, auto_approve: bool = False, memory_on: bool = F
             elif goes_to_review(last, auto_approve, memory_on):
                 continue  # the graph pauses next; the interrupt reports it
             else:
-                # With memory off the memory tool refuses to save, so it is not shown as
-                # "Remembering your preference" (code review T5.11 round 7).
-                labels += [
-                    tool_label(tc["name"])
-                    for tc in last.tool_calls
-                    if memory_on or tc["name"] != "remember_preference"
-                ]
+                labels += tool_labels(last.tool_calls, memory_on)
         elif node == "tools":
             labels.append(config.PROGRESS_NEXT_STEP)
     return labels
@@ -339,7 +342,7 @@ def resume_turn(
         first = (
             [config.PROGRESS_NEXT_STEP]
             if decision["action"] == "reject"
-            else [tool_label(tc["name"]) for tc in pending]
+            else tool_labels(pending, memory_on)
         )
         progress = _report(progress, first)
     _execute(graph, Command(resume=decision), run_config, progress, auto_approve)
