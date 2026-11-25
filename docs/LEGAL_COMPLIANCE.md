@@ -224,6 +224,14 @@ The users are parents, but the app handles data about children, who are speciall
   features the parent explicitly uses or switches on.
 - **3.3** Adding any tracker or non-essential storage is an owner decision and requires a consent
   tool and an update of this file first.
+- **3.4 Nothing from third-party hosts.** (owner decision 2026-11-25, T1.9) Fonts, icons, images,
+  stylesheets and scripts come from the app itself: Streamlit's bundled font and Material Symbols
+  icons (Apache-2.0), emoji, or files under a 6.4 licence. None is loaded from another host (no
+  Google Fonts, no CDN, no theme `font = "<name>:<url>"` or `[[theme.fontFaces]]` with an outside
+  `url`, no remote image in Markdown; the grounding check already drops every image in an answer),
+  because each such request sends the parent's IP address to that host (LG München I, judgment of
+  20 January 2022, 3 O 17493/20). A link the parent clicks is not a load. Adding an outside asset is
+  an owner decision and updates this file first.
 
 ## 4. AI rules (EU AI Act)
 - **4.1 Disclosure (Art. 50, in force since 2 August 2026).** The chat clearly says the parent is
