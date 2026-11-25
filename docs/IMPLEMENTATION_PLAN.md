@@ -57,7 +57,7 @@ Deadline: **2026-12-16** (Capstone review). The owner tasks O1-O7 come first for
 | [T1.6](tickets/T1.6.md) | QRSPI workflow skill and stronger code and legal reviewers | S | none | done |
 | [T1.7](tickets/T1.7.md) | Enforce the reviewers' never-open and allowlist rules with deny rules and hooks | S | T1.6 | todo |
 | [T1.9](tickets/T1.9.md) | Third-party terms file and the owner's rules on outside services and keys | S | none | done |
-| [T1.10](tickets/T1.10.md) | ui-designer agent: research and propose a legally safe UI design | S | none | in progress |
+| [T1.10](tickets/T1.10.md) | ui-designer agent: research and propose a legally safe UI design | S | none | done |
 | [T5.1](tickets/T5.1.md) | Live progress while the agent works | M | none | done |
 | [T5.2](tickets/T5.2.md) | Parent-friendly approval form instead of raw JSON | M | T5.1 | todo |
 | [T5.6](tickets/T5.6.md) | Offline red-team tests: injection through tool data and the approval gate | M | none | todo |
