@@ -11,6 +11,11 @@ The owner writes in Vietnamese: reply in Vietnamese. Everything in the repo is i
 - Every PR fills in the **Legal check** section of `.github/pull_request_template.md`. A PR without it is not merged.
 - A new data source, service, data flow or legally relevant feature updates `docs/LEGAL_COMPLIANCE.md` (rules and registers) in the same PR.
 - These rules are not legal advice; tell the owner when something needs a lawyer or Datenschutzberater.
+- **Before starting any ticket, also read `docs/THIRD_PARTY_TERMS.md`**, and read it again before any live or paid run (evaluations, live checks, the index build, the app in a browser): it lists every outside service we use, what its terms allow and forbid, and a checklist for live runs.
+- **The owner's rules on outside services and keys (2026-11-24, absolute):**
+  1. Never violate the terms, policies or usage rules of any service that is not part of our app (OpenRouter and the model providers behind it, Overpass/OpenStreetMap, Open-Meteo, Ticketmaster, Transitous, Google, GitHub, PyPI, bahn.de and any new one): no red-teaming or adversarial prompts to a live model without the provider's written approval, no going over limits, no forbidden commercial use, no missing attribution, no scraping. Unclear means do not do it yet: ask the owner.
+  2. Never expose the OpenRouter key, or any other key, in any form: not printed, logged, masked or encoded; not in a tracked or shared file, commit, PR, issue, comment, screenshot, link, UI, error message or test (the git-ignored `.streamlit/secrets.toml` is where it lives); never passed to a subagent or another session. A key goes only to its own provider, over HTTPS, in the way that provider's API requires (OpenRouter: the authorisation header; Ticketmaster: the `apikey` query parameter, so the request URL and request errors are never logged, shown or returned). Never read, list or print, into a conversation, a terminal or any output, where keys live or what they hold (`.streamlit/secrets.toml`, `~/.streamlit/`, `.env`, environment dumps, `gh auth token`, the value `get_api_key()` returns). If a key shows up anywhere, stop and tell the owner so it can be rotated.
+- A new outside service, or a new use of one (a new endpoint, a live run of a new kind), gets its entry in `docs/THIRD_PARTY_TERMS.md` in the same PR, after its terms are read.
 - **Synthetic data only for now:** the project uses the school's OpenRouter account (no DPA, no zero data retention). Whenever deployment, hosting, real users or income come up, remind the owner of the "Before a public deployment" checklist in `docs/LEGAL_COMPLIANCE.md` first.
 
 ## Tickets, plan and progress log (mandatory)
@@ -38,7 +43,7 @@ After each review check with `gh pr view <n> --json comments` that the report is
 - Every function, method and class gets a one-line docstring.
 - Business logic in `src/`; UI in `views/`; `app.py` only composes the page.
 - Settings and limits live in `src/config.py`. Build model clients only with `src/llm.py`; never pass `model`, `max_tokens` or `base_url` at call time.
-- The OpenRouter and Ticketmaster keys are read only through `config.get_secret()`; never log, print or show them.
+- The OpenRouter and Ticketmaster keys are read only through `config.get_secret()` and sent only to their own provider in the way its API requires (OpenRouter: the authorisation header; Ticketmaster: the `apikey` query parameter); never log, print or show them, or a URL or error that holds them, in any form (owner's rule 2 above).
 - Chroma runs embedded only, with embeddings from OpenRouter (never Chroma's built-in embedding functions).
 - Map, event, weather and transit services receive only town or city names (or their coordinates), country, dates, times and category; never the question, the children's age groups, the budget or the family size. The AI model via OpenRouter receives the question, the age groups and the trip settings, as disclosed on the About page.
 - Children are only "Child 1", "Child 2" with an age group (`src/family.py`); never names or exact ages.
@@ -55,4 +60,4 @@ After each review check with `gh pr view <n> --json comments` that the report is
 - Build index (needs key): `.venv/Scripts/python.exe -m scripts.build_index`
 - Test / lint: `.venv/Scripts/python.exe -m pytest -q`, `.venv/Scripts/ruff.exe check .`
 - CI (`.github/workflows/ci.yml`) runs `ruff check`, `ruff format --check` and pytest on every push to `main` and every PR.
-- Evaluation (needs key + index): `python -m scripts.evaluate_retrieval`, `python -m scripts.evaluate_agent --judge`, `python -m scripts.evaluate_agent --red-team`; link check: `python -m scripts.check_links`. After a knowledge base change, rebuild the index.
+- Evaluation (needs key + index): `python -m scripts.evaluate_retrieval`, `python -m scripts.evaluate_agent --judge`, `python -m scripts.evaluate_agent --red-team` (**paused**: no live red-team run until the owner decides, `docs/THIRD_PARTY_TERMS.md`, incidents); link check: `python -m scripts.check_links`. After a knowledge base change, rebuild the index.

@@ -518,8 +518,8 @@ PINNED_RULE_HASHES = {
     "ui-designer.md (whole file)": (
         "bb578f6bdd03e8c227bdece523d3362b44abf0798502e4c551fe700be374c306"
     ),
-    "rulebook 3.4": "ad2c0714f1d90b2aae885b31e20a7ca8b2ddf580d1d94512600ea6d21945087e",
-    "rulebook 6.4 fonts": "26007ea29c9ccbc229c518cf58cdecb3e493890c3859f9dd850b528cc17dde11",
+    "rulebook 3.4": "cbddc0505887332eb9c8f7c9a49cf7572fc8de8126a321b104b6e4f311b8562d",
+    "rulebook 6.4 fonts": "c82cf8668095529bd518e8bdd3ab47d9eb51117918052f15b5a57ae7935dae08",
 }
 
 
@@ -539,3 +539,50 @@ def test_pinned_rules_are_unchanged(key):
     """An added exception or bullet changes the hash, so it cannot slip in unreviewed."""
     digest = hashlib.sha256(pinned_rule_text(key).encode("utf-8")).hexdigest()
     assert digest == PINNED_RULE_HASHES[key], f"{key}: {digest}"
+
+
+def test_claude_md_requires_the_third_party_terms_and_states_the_owners_rules():
+    """CLAUDE.md makes the terms file mandatory reading and states both rules of 2026-11-24."""
+    text = (ROOT / "CLAUDE.md").read_text(encoding="utf-8")
+    assert "**Before starting any ticket, also read `docs/THIRD_PARTY_TERMS.md`**" in text
+    assert "read it again before any live or paid run" in text
+    assert "1. Never violate the terms, policies or usage rules of any service" in text
+    assert "2. Never expose the OpenRouter key, or any other key, in any form" in text
+
+
+def test_skill_reads_the_third_party_terms_and_checks_live_runs():
+    """The qrspi skill reads the terms file first and checks the terms for every paid command."""
+    text = SKILL.read_text(encoding="utf-8")
+    question = text.split("## 1. Question", 1)[1].split("\n## ", 1)[0]
+    plan = text.split("## 4. Plan", 1)[1].split("\n## ", 1)[0]
+    assert "`docs/THIRD_PARTY_TERMS.md` (mandatory before any ticket)" in question
+    assert "follow the checklist in `docs/THIRD_PARTY_TERMS.md`" in plan
+    assert "adversarial or red-team prompt to a live model" in plan
+
+
+def test_legal_reviewer_checks_the_third_party_terms():
+    """The legal reviewer reads the terms file and reports stale entries, unchecked runs, keys."""
+    text = read("legal-reviewer.md")
+    assert "`docs/THIRD_PARTY_TERMS.md` (in full)" in text
+    item = text.split("9. **Third-party terms (`docs/THIRD_PARTY_TERMS.md`).**", 1)[1].split(
+        "\n10. ", 1
+    )[0]
+    for phrase in ("more than 30 days", "without the checklist", "any exposed key (BLOCK"):
+        assert phrase in item
+
+
+def test_live_red_team_runs_are_marked_paused():
+    """The commands list and the docs say the live red-team run is paused (T1.9)."""
+    for path in ("CLAUDE.md", "README.md", "docs/EVALUATION.md", "docs/LEGAL_COMPLIANCE.md"):
+        text = (ROOT / path).read_text(encoding="utf-8")
+        assert re.search(r"[Pp]aused", text), path
+
+
+@pytest.mark.parametrize("name", REVIEWERS)
+def test_reviewers_never_show_a_found_key_even_masked(name):
+    """A key found in a review is reported by its place only, never masked (owner's rule 2)."""
+    text = read(name)
+    assert "sk-or-v1-****" not in text
+    assert (
+        "only its `path:line`, never the value in any form" in text or name == "legal-reviewer.md"
+    )

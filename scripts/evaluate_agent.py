@@ -8,8 +8,8 @@ For each question the agent runs with tools auto-approved and the script records
 - judge (with --judge): an LLM's 1-5 score for how well the answer fits the question.
 
 Run: python -m scripts.evaluate_agent [--model openai/gpt-5-mini] [--limit 10] [--judge]
-     python -m scripts.evaluate_agent --red-team   (safety cases: privacy block, injection,
-     development and urgency claims, off-topic)
+     python -m scripts.evaluate_agent --red-team   (safety cases; live runs are paused since
+     2026-11-24, see docs/THIRD_PARTY_TERMS.md)
 """
 
 import argparse
@@ -89,7 +89,11 @@ def main() -> None:
     parser.add_argument("--model", default=config.DEFAULT_AGENT_MODEL)
     parser.add_argument("--limit", type=int, default=0)
     parser.add_argument("--judge", action="store_true")
-    parser.add_argument("--red-team", action="store_true", help="Run only the red-team cases.")
+    parser.add_argument(
+        "--red-team",
+        action="store_true",
+        help="Run only the red-team cases (live runs paused: docs/THIRD_PARTY_TERMS.md).",
+    )
     args = parser.parse_args()
     if args.red_team:
         red_team(args.model)

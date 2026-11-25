@@ -256,7 +256,9 @@ The users are parents, but the app handles data about children, who are speciall
   pressure parents (no fake urgency, no dark patterns). The system prompt forbids urgency and
   scarcity claims and claims about a child's development (5.5); red-team cases in
   `data/eval_questions.json` check both: r09 (urgency) and r13 ("make my child smarter") reach the
-  model and must be declined, r08 (a development statement) is blocked before the model.
+  model and must be declined, r08 (a development statement) is blocked before the model. Live
+  red-team runs are paused since 2026-11-24 until the owner decides (OpenRouter's terms on
+  red-teaming, `docs/THIRD_PARTY_TERMS.md`).
 - **4.3 Grounding.** The AI recommends only places, events, times and links returned by tools; the
   grounding check removes any other link. Money is calculated in code, never by the model: the
   family for the ticket comparison is taken from the app's settings (the model cannot pass it), and
@@ -375,6 +377,8 @@ Capstone demo with synthetic data.
 
 ## Register: data sources
 
+The terms, limits and attribution rules of each outside service, with the dates they were read, are in `docs/THIRD_PARTY_TERMS.md`.
+
 | Source | Used for | Licence / terms | Commercial use | Notes |
 |---|---|---|---|---|
 | Own knowledge base | Places | Project's own text | Yes | No copied text or images |
@@ -404,8 +408,10 @@ Capstone demo with synthetic data.
 
 ## Register: processors and affiliate programmes
 
+OpenRouter's and the model providers' terms (red-teaming, data use) are summarised in `docs/THIRD_PARTY_TERMS.md`.
+
 | Name | Role | Location | DPA / terms checked |
 |---|---|---|---|
-| OpenRouter (+ model providers, incl. the embedding model's providers). Models: `openai/gpt-5-mini`, `openai/gpt-5-nano`, `openai/gpt-5` (OpenAI terms via OpenRouter); embeddings `qwen/qwen3-embedding-8b` (Apache-2.0 per the model card, checked 2026-11-20; providers possibly in China / Singapore). OpenAI-via-OpenRouter and hosting providers' terms: not yet checked (owner, before launch) | AI model access | US / other countries; EU routing only on Business/Enterprise plans | **Not possible today:** the project uses the school's OpenRouter account, so the owner cannot sign a DPA or set zero data retention / no-training providers. Allowed only with synthetic data (see "Before a public deployment") |
+| OpenRouter (+ model providers, incl. the embedding model's providers). Models: `openai/gpt-5-mini`, `openai/gpt-5-nano`, `openai/gpt-5` (OpenAI terms via OpenRouter); embeddings `qwen/qwen3-embedding-8b` (Apache-2.0 per the model card, checked 2026-11-20; providers possibly in China / Singapore). OpenAI's usage policies and OpenRouter's terms checked 2026-11-24 (`docs/THIRD_PARTY_TERMS.md`); embedding seen served by DeepInfra on 2026-11-24 (location not checked); the hosting providers' terms: not yet checked (owner, before launch) | AI model access | US / other countries; EU routing only on Business/Enterprise plans | **Not possible today:** the project uses the school's OpenRouter account, so the owner cannot sign a DPA or set zero data retention / no-training providers. Allowed only with synthetic data (see "Before a public deployment") |
 | Hosting provider (to be chosen, EU) | Server | EU | To do before launch |
 | Affiliate programmes | — | — | None active |
