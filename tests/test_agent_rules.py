@@ -1,4 +1,4 @@
-"""Checks that the agents and the qrspi skill keep their safety rules (T1.6, T1.9)."""
+"""Checks that the agents and the qrspi skill keep their safety rules (T1.6, T1.10)."""
 
 import hashlib
 import re
@@ -506,9 +506,9 @@ def test_rulebook_accepts_only_the_fonts_inside_streamlit():
 def test_claude_md_runs_security_review_on_agent_changes():
     """Every change to an agent's tools or rules gets a security review."""
     text = (ROOT / "CLAUDE.md").read_text(encoding="utf-8")
-    assert "and on every change to `.claude/agents/` (owner decision 2026-11-25, T1.9" in text
+    assert "and on every change to `.claude/agents/` (owner decision 2026-11-25, T1.10" in text
     skill = SKILL.read_text(encoding="utf-8")
-    assert "and on every change to `.claude/agents/` (owner decision 2026-11-25, T1.9)" in skill
+    assert "and on every change to `.claude/agents/` (owner decision 2026-11-25, T1.10)" in skill
 
 
 # SHA-256 of the rule text that keeps keys, the approval gate and the parent's IP address safe.

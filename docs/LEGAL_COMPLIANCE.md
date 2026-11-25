@@ -224,7 +224,7 @@ The users are parents, but the app handles data about children, who are speciall
   features the parent explicitly uses or switches on.
 - **3.3** Adding any tracker or non-essential storage is an owner decision and requires a consent
   tool and an update of this file first.
-- **3.4 Nothing from third-party hosts.** (owner decision 2026-11-25, T1.9) Fonts, icons, images,
+- **3.4 Nothing from third-party hosts.** (owner decision 2026-11-25, T1.10) Fonts, icons, images,
   map tiles, stylesheets and scripts that the page loads by itself come from the app itself: the
   fonts and Material Symbols shipped inside Streamlit (6.4), emoji, or files the owner approved.
   None is loaded from another host, because each such load sends the parent's IP address to that
@@ -296,7 +296,7 @@ Affiliate links are **off** in the Capstone version. Before they are switched on
   changed model updates that row in the same PR); data sets follow 6.3. Any GPL/AGPL/SSPL, "non-commercial"
   or unclear licence needs the owner's decision first. Check the licence when adding or upgrading a
   dependency in `pyproject.toml`.
-  **Fonts inside Streamlit (owner decision 2026-11-25, T1.9):** the fonts shipped inside the
+  **Fonts inside Streamlit (owner decision 2026-11-25, T1.10):** the fonts shipped inside the
   Streamlit package, used as Streamlit ships them (Source Sans, Source Serif and Source Code, and
   the KaTeX fonts for formulas, under the SIL OFL 1.1; the Material Symbols icons under
   Apache-2.0), are accepted as part of that dependency. Any other font, including another OFL font, is still an owner
@@ -353,7 +353,7 @@ Capstone demo with synthetic data.
       (above) remains the real safeguard.
 - [ ] Licence notices for what the app sends to browsers (6.4): a licences list on the About page
       for Streamlit's frontend, its fonts (SIL OFL 1.1) and the Material Symbols (Apache-2.0),
-      since both licences ask for the licence text to go with copies (T1.9, legal-reviewer).
+      since both licences ask for the licence text to go with copies (T1.10, legal-reviewer).
 - [ ] Invite codes (hashes and counters only) and per-code daily limits.
 - [ ] Web Push: own opt-in screen, minimal payload, subscriptions deleted after the trip date.
 - [ ] Ticketmaster: family events only, drop 18+ events; privacy link in the footer.
