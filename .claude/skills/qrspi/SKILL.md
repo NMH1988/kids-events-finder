@@ -13,6 +13,7 @@ Trivial edits (a typo, a comment, formatting) may collapse Q-R-S-P into a single
 First read, for every task:
 - `CLAUDE.md` (project rules and conventions);
 - `docs/LEGAL_COMPLIANCE.md` **in full** (mandatory before any ticket), noting each section and register the task touches;
+- `docs/THIRD_PARTY_TERMS.md` (mandatory before any ticket): the owner's two rules (never violate an outside service's terms; never expose a key in any form), the live-run checklist and the entry of every outside service the task touches;
 - `docs/CAPSTONE_CHECKLIST.md` (what the Capstone asks, and what is done) and `README.md` (what the product is);
 - the task's own record: for a ticket, its file in `docs/tickets/` and its GitHub issue (`gh issue view <n>`); for an owner task, its row in the "Owner tasks" table of `docs/IMPLEMENTATION_PLAN.md`; and the plan's order table;
 - `docs/PROGRESS.md` (the progress log's index) and the entries in `docs/progress/` of the tickets this one builds on, changes or names as a follow-up;
@@ -49,7 +50,7 @@ Organize the work into **vertical slices**.
 Produce a detailed implementation plan from the slices.
 - Numbered steps per slice: exact files/functions to create or change, tests to write first or alongside, commands to run (with the venv: `.venv/Scripts/python.exe`, `.venv/Scripts/ruff.exe`).
 - Map every acceptance criterion to the test or check that proves it.
-- Name every paid or live command (index build, `scripts.evaluate_retrieval`, `scripts.evaluate_agent --judge` / `--red-team`, `scripts.check_links`), why it is needed and roughly how many model calls it makes; these run only after the owner approves the plan, and send only synthetic (made-up) data (`docs/LEGAL_COMPLIANCE.md` 8: the school's OpenRouter account has no DPA).
+- Name every paid or live command (index build, `scripts.evaluate_retrieval`, `scripts.evaluate_agent --judge` / `--red-team` (paused), `scripts.check_links`, a run of the app in a browser that asks the agent anything), why it is needed and roughly how many model calls it makes; these run only after the owner approves the plan, and send only synthetic (made-up) data (`docs/LEGAL_COMPLIANCE.md` 8: the school's OpenRouter account has no DPA). For every such command, follow the checklist in `docs/THIRD_PARTY_TERMS.md`: list the services it calls and how many calls it makes, re-read any entry checked more than 30 days ago at its source, confirm that nothing in it is an adversarial or red-team prompt to a live model, and tell the owner what the terms say.
 - List the docs the PR updates: the progress entry, the ticket's status in its file and the plan's order table, and `docs/LEGAL_COMPLIANCE.md` (rules and registers) when a data source, service, data flow or legally relevant feature changes.
 - Include risks and rollback notes where relevant.
 - Present the plan to the owner and **wait for approval** before implementing, unless the owner already said to proceed.

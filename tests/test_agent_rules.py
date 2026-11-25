@@ -222,3 +222,50 @@ def test_legal_reviewer_keeps_its_network_limits():
 def test_no_reviewer_can_search_the_web(name):
     """No reviewer agent lists WebSearch among its tools."""
     assert "WebSearch" not in front_matter_tools(read(name))
+
+
+def test_claude_md_requires_the_third_party_terms_and_states_the_owners_rules():
+    """CLAUDE.md makes the terms file mandatory reading and states both rules of 2026-11-24."""
+    text = (ROOT / "CLAUDE.md").read_text(encoding="utf-8")
+    assert "**Before starting any ticket, also read `docs/THIRD_PARTY_TERMS.md`**" in text
+    assert "read it again before any live or paid run" in text
+    assert "1. Never violate the terms, policies or usage rules of any service" in text
+    assert "2. Never expose the OpenRouter key, or any other key, in any form" in text
+
+
+def test_skill_reads_the_third_party_terms_and_checks_live_runs():
+    """The qrspi skill reads the terms file first and checks the terms for every paid command."""
+    text = SKILL.read_text(encoding="utf-8")
+    question = text.split("## 1. Question", 1)[1].split("\n## ", 1)[0]
+    plan = text.split("## 4. Plan", 1)[1].split("\n## ", 1)[0]
+    assert "`docs/THIRD_PARTY_TERMS.md` (mandatory before any ticket)" in question
+    assert "follow the checklist in `docs/THIRD_PARTY_TERMS.md`" in plan
+    assert "adversarial or red-team prompt to a live model" in plan
+
+
+def test_legal_reviewer_checks_the_third_party_terms():
+    """The legal reviewer reads the terms file and reports stale entries, unchecked runs, keys."""
+    text = read("legal-reviewer.md")
+    assert "`docs/THIRD_PARTY_TERMS.md` (in full)" in text
+    item = text.split("9. **Third-party terms (`docs/THIRD_PARTY_TERMS.md`).**", 1)[1].split(
+        "\n10. ", 1
+    )[0]
+    for phrase in ("more than 30 days", "without the checklist", "any exposed key (BLOCK"):
+        assert phrase in item
+
+
+def test_live_red_team_runs_are_marked_paused():
+    """The commands list and the docs say the live red-team run is paused (T1.9)."""
+    for path in ("CLAUDE.md", "README.md", "docs/EVALUATION.md", "docs/LEGAL_COMPLIANCE.md"):
+        text = (ROOT / path).read_text(encoding="utf-8")
+        assert re.search(r"[Pp]aused", text), path
+
+
+@pytest.mark.parametrize("name", REVIEWERS)
+def test_reviewers_never_show_a_found_key_even_masked(name):
+    """A key found in a review is reported by its place only, never masked (owner's rule 2)."""
+    text = read(name)
+    assert "sk-or-v1-****" not in text
+    assert (
+        "only its `path:line`, never the value in any form" in text or name == "legal-reviewer.md"
+    )

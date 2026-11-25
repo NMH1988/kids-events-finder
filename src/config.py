@@ -43,6 +43,8 @@ TRACING_ENV_OFF: tuple[str, ...] = (
     "LANGCHAIN_TRACING",
 )
 # Highest log detail allowed; logs never hold message content, ages, budgets or keys (2.7, 2.10).
+# The libraries below log request bodies, and urllib3 logs each request's URL, which holds the
+# Ticketmaster key, at DEBUG; `src/llm.py` caps them at LOG_LEVEL when it is imported.
 LOG_LEVEL = "INFO"
 QUIET_LOGGERS: tuple[str, ...] = (
     "openai",
