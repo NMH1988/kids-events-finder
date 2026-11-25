@@ -1,5 +1,6 @@
 """Checks that the agents and the qrspi skill keep their safety rules (T1.6, T1.9)."""
 
+import hashlib
 import re
 from pathlib import Path
 
@@ -8,6 +9,7 @@ import pytest
 ROOT = Path(__file__).resolve().parent.parent
 AGENTS = ROOT / ".claude" / "agents"
 REVIEWERS = ["code-reviewer.md", "legal-reviewer.md", "security-reviewer.md"]
+ALL_AGENTS = [*REVIEWERS, "ui-designer.md"]
 SKILL = ROOT / ".claude" / "skills" / "qrspi" / "SKILL.md"
 STORED = [
     ".streamlit/secrets.toml",
@@ -32,11 +34,26 @@ def section(text: str, heading: str) -> str:
     return text[start:] if end == -1 else text[start:end]
 
 
+def front_matter(text: str) -> str:
+    """Return the block between an agent file's opening and closing "---" lines."""
+    assert text.startswith("---\n"), "an agent file starts with its front matter"
+    return text[4 : text.index("\n---\n", 4)]
+
+
 def front_matter_tools(text: str) -> str:
-    """Return the tools line of an agent's front matter."""
-    match = re.search(r"^tools: (.+)$", text, re.MULTILINE)
-    assert match
+    """Return the tools line of an agent's front matter (never a line in the body)."""
+    match = re.search(r"^tools: (.+)$", front_matter(text), re.MULTILINE)
+    assert match, "without a tools line Claude Code gives the agent every tool"
     return match.group(1)
+
+
+@pytest.mark.parametrize("name", ALL_AGENTS)
+def test_agent_tools_live_in_the_front_matter(name):
+    """A tools line moved into the body would leave the agent with every tool."""
+    text = read(name)
+    assert front_matter_tools(text)
+    body = text[4 + len(front_matter(text)) :]
+    assert not re.search(r"^tools:", body, re.MULTILINE)
 
 
 @pytest.mark.parametrize("name", REVIEWERS)
@@ -268,12 +285,38 @@ DESIGNER_OUTSIDE_LOADS = [
     "no Google Fonts or CDN",
     "no theme font option (`font`, `headingFont`, `codeFont`) with a `<name>:<url>` value",
     "no `[[theme.fontFaces]]` with an outside `url`",
-    "no Material Symbol as `page_icon`",
+    "no Material Symbol as `page_icon` or `st.Page(icon=...)`",
     "no `st.image`, `st.logo`, `st.video` or `st.audio` with a remote URL",
     "no `st.map` or `st.pydeck_chart`",
     "no remote image in Markdown",
     "never render a URL from a tool result or the knowledge base as an element that loads it",
-    "keep knowledge base text on the Browse page as plain text",
+    "render knowledge base text on the Browse page as plain text",
+]
+DESIGNER_RULE_CONTENT = [
+    ("**Users are adults (1.1, 5.4).**", "Design for parents and carers aged 18+"),
+    ("**Users are adults (1.1, 5.4).**", "No look made to appeal to children"),
+    ("**Children's data (1.2, 1.3).**", 'Children appear only as "Child 1", "Child 2"'),
+    (
+        "**Children's data (1.2, 1.3).**",
+        "Never propose a field, avatar or label for a child's name",
+    ),
+    (
+        "**No health or accessibility-needs data (1.4, 1.5).**",
+        "No input, filter, chip or question about health, illness, disability, development or"
+        " accessibility needs",
+    ),
+    ("**Free text (2.6).**", "Any new free-text field passes `src/privacy_check.py`"),
+    ("**No trackers, no extra storage (3.1-3.4).**", "keep `gatherUsageStats = false`"),
+    (
+        "**AI disclosure (4.1).**",
+        "a redesign may move them but never hide or weaken them",
+    ),
+    (
+        "**Grounding and money (4.3, 7.3).**",
+        "come from tool results and code, never from the model's text",
+    ),
+    ("**Ranking (5.3).**", 'Keep "How results are ranked" on the About page reachable'),
+    ("**Credits (6.3).**", "Keep the source credits under answers"),
 ]
 DESIGNER_SECURITY_CONTROLS = [
     "never changes `src/grounding.py`, `src/agent/`, `TOOLS_REQUIRING_APPROVAL` or"
@@ -286,11 +329,14 @@ DESIGNER_SECURITY_CONTROLS = [
 RULEBOOK_OUTSIDE_LOADS = [
     "None is loaded from another host, because each such load sends the parent's IP address",
     "no Google Fonts or CDN",
-    "no Material Symbol as `page_icon`",
+    "no theme font option (`font`, `headingFont`, `codeFont`) with a `<name>:<url>` value and no"
+    " `[[theme.fontFaces]]` with an outside `url`",
+    "no Material Symbol as `page_icon` or `st.Page(icon=...)`",
     "no `st.image`, `st.logo`, `st.video` or `st.audio` with a remote URL",
     "no `st.map` or `st.pydeck_chart`",
     "no remote image in Markdown",
     "is never rendered as an element that loads it",
+    "re-checks this rule in its Legal check",
     "GDPR Art. 6(1)",
 ]
 
@@ -373,10 +419,20 @@ def test_ui_designer_never_copies_another_product():
 def test_ui_designer_uses_only_assets_shipped_inside_streamlit():
     """Only Streamlit's own fonts and icons and emoji; anything else is the owner's call."""
     rule = designer_line("**Assets.**")
-    assert "Only the fonts shipped unmodified inside Streamlit" in rule
+    assert "Only the fonts shipped inside Streamlit, used as Streamlit ships them" in rule
     assert "SIL OFL 1.1, accepted for these bundled files only" in rule
     assert "the Material Symbols shipped inside Streamlit (`:material/<name>:`" in rule
+    assert (
+        "never where it can become the browser tab's icon (`page_icon`, `st.Page(icon=...)`)"
+        in rule
+    )
     assert "Any other font, icon set, image or illustration is an owner decision" in rule
+
+
+@pytest.mark.parametrize(("marker", "phrase"), DESIGNER_RULE_CONTENT)
+def test_ui_designer_rules_keep_their_content(marker, phrase):
+    """Each design rule keeps its key sentence, not only its section number."""
+    assert phrase in designer_line(marker)
 
 
 @pytest.mark.parametrize("phrase", DESIGNER_OUTSIDE_LOADS)
@@ -441,5 +497,50 @@ def test_rulebook_bans_assets_from_third_party_hosts(phrase):
 def test_rulebook_accepts_only_the_fonts_inside_streamlit():
     """Rule 6.4 accepts the OFL fonts shipped inside Streamlit and no other font."""
     rule = rulebook_rule("**Fonts inside Streamlit", "- **6.5 Brand.**")
-    assert "the fonts that ship unmodified inside the Streamlit package" in rule
+    assert "the fonts shipped inside the Streamlit package, used as Streamlit ships them" in rule
     assert "Any other font, including another OFL font, is still an owner decision first" in rule
+
+
+def test_claude_md_runs_security_review_on_agent_changes():
+    """Every change to an agent's tools or rules gets a security review."""
+    text = (ROOT / "CLAUDE.md").read_text(encoding="utf-8")
+    assert "and on every change to `.claude/agents/` (owner decision 2026-11-25, T1.9" in text
+
+
+# SHA-256 of the rule text that keeps keys, the approval gate and the parent's IP address safe.
+# A change to that text must change these values in the same diff, so security-reviewer
+# (CLAUDE.md: run on every change to .claude/agents/) sees the change and reviews it.
+PINNED_RULE_HASHES = {
+    "ui-designer front matter": "6fabc1cbf3e81ba192ebd726bc2f1db3882b01063042b94546b769107834e4f1",
+    "ui-designer ## Ground rules": (
+        "8f61454e2e67a31c40023f7cd184b4736db40d4ef38e6ef83ca133b6354ed3a3"
+    ),
+    "ui-designer ## Copyright and the law": (
+        "d6dad3383e647c3317ed45b10dade5c1088e14e3cef00c045e39ee90a8050c25"
+    ),
+    "ui-designer ## Design rules from docs/LEGAL_COMPLIANCE.md": (
+        "962478401d502491bec807f103b4a5911795248625f87d36389564dcb18c13f5"
+    ),
+    "rulebook 3.4": "5fce7bb0fe3b5e63dc5e88253b36c540f5e570ce1c3a2ae9f678332687d14899",
+    "rulebook 6.4 fonts": "26007ea29c9ccbc229c518cf58cdecb3e493890c3859f9dd850b528cc17dde11",
+}
+
+
+def pinned_rule_text(key: str) -> str:
+    """Return the text one pinned hash covers, with its line breaks folded."""
+    if key == "ui-designer front matter":
+        text = front_matter(read(DESIGNER))
+    elif key.startswith("ui-designer "):
+        text = section(read(DESIGNER), key.removeprefix("ui-designer "))
+    elif key == "rulebook 3.4":
+        text = rulebook_rule("**3.4 Nothing from third-party hosts.**", "## 4. AI rules")
+    else:
+        text = rulebook_rule("**Fonts inside Streamlit", "- **6.5 Brand.**")
+    return " ".join(text.split())
+
+
+@pytest.mark.parametrize("key", sorted(PINNED_RULE_HASHES))
+def test_pinned_rules_are_unchanged(key):
+    """An added exception or bullet changes the hash, so it cannot slip in unreviewed."""
+    digest = hashlib.sha256(pinned_rule_text(key).encode("utf-8")).hexdigest()
+    assert digest == PINNED_RULE_HASHES[key], f"{key}: {digest}"
