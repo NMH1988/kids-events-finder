@@ -59,7 +59,7 @@ Deadline: **2026-12-16** (Capstone review). The owner tasks O1-O7 come first for
 | [T1.9](tickets/T1.9.md) | Third-party terms file and the owner's rules on outside services and keys | S | none | done |
 | [T5.1](tickets/T5.1.md) | Live progress while the agent works | M | none | done |
 | [T5.2](tickets/T5.2.md) | Parent-friendly approval form instead of raw JSON | M | T5.1 | todo |
-| [T5.11](tickets/T5.11.md) | Long-term memory: the family's preferences across conversations | M | T5.2 | in progress |
+| [T5.11](tickets/T5.11.md) | Long-term memory: the family's preferences across conversations | M | none | in progress |
 | [T5.6](tickets/T5.6.md) | Offline red-team tests: injection through tool data and the approval gate | M | none | todo |
 | [T5.4](tickets/T5.4.md) | Clear messages when the agent stops | S | T5.1 | todo |
 | [T5.3](tickets/T5.3.md) | Trip plan box from the tool results | M | none | todo |
@@ -110,7 +110,7 @@ The owner's plans for the app after the Capstone (owner's request).
 
 ## Epic 5: Capstone demo: UI and agent
 
-Interface and agent improvements before the Capstone review (2026-12-16), for the evaluation criteria "user interface and interaction quality" and "accuracy and responsiveness" (`docs/CAPSTONE_CHECKLIST.md`). Order: T5.1 and T5.2 first, then T5.11, so the user tests (O5) and the showcase entry (O6) see the new interface and the long-term memory; O4 can run in parallel.
+Interface and agent improvements before the Capstone review (2026-12-16), for the evaluation criteria "user interface and interaction quality" and "accuracy and responsiveness" (`docs/CAPSTONE_CHECKLIST.md`). Order: T5.1, then T5.11 (merged before T5.2, which must keep the memory save limited to topic and feeling in its new approval form), then T5.2, so the user tests (O5) and the showcase entry (O6) see the new interface and the long-term memory; O4 can run in parallel.
 
 - [T5.1 Live progress while the agent works (M)](tickets/T5.1.md)
 - [T5.2 Parent-friendly approval form instead of raw JSON (M)](tickets/T5.2.md)

@@ -1,5 +1,6 @@
 """Tests for long-term memory (the preference store and tool) and short-term history trimming."""
 
+import itertools
 import json
 import typing
 import unicodedata
@@ -569,10 +570,10 @@ def test_every_save_waits_for_the_parent_even_with_auto_approve():
 
 @pytest.mark.parametrize(
     ("memory_on", "labels"),
-    [(True, [config.PROGRESS_APPROVAL]), (False, ["Remembering your preference"])],
+    [(True, [config.PROGRESS_APPROVAL]), (False, [])],
 )
 def test_progress_shows_a_wait_for_a_save_only_while_memory_is_on(memory_on, labels):
-    """With memory on a save is reported as a wait (it pauses); with it off it just runs."""
+    """With memory on a save is reported as a wait (it pauses); with it off it is not shown."""
     from src.agent.runner import progress_labels
 
     step = {"agent": {"messages": [_remember("museum", "likes")]}}
@@ -666,6 +667,48 @@ def test_the_model_cannot_forge_the_parents_words():
         graph, "t1", {"action": "approve"}, turn_start_index=paused.start_index, memory_on=True
     )
     assert done.remembered == []
+    assert memory.preferences(store) == []
+
+
+PAUSE_TOOLS = ("remember_preference", "check_budget", "find_nearby_places", "search_knowledge_base")
+
+
+@pytest.mark.parametrize("auto_approve", [False, True])
+@pytest.mark.parametrize("memory_on", [False, True])
+@pytest.mark.parametrize(
+    "names",
+    [
+        names
+        for size in range(1, len(PAUSE_TOOLS) + 1)
+        for names in itertools.combinations(PAUSE_TOOLS, size)
+    ],
+)
+def test_the_pause_rule_holds_for_every_mix_of_calls(names, memory_on, auto_approve):
+    """Security round 7: budget always pauses, memory only while on, outside calls unless auto."""
+    from src.agent.graph import goes_to_review
+
+    message = _calls(*[(name, {}, f"c{i}") for i, name in enumerate(names)])
+    expected = (
+        "check_budget" in names
+        or (memory_on and "remember_preference" in names)
+        or (not auto_approve and "find_nearby_places" in names)
+    )
+    assert goes_to_review(message, auto_approve, memory_on) is expected
+
+
+@pytest.mark.parametrize(
+    "name",
+    ["remember_preference​", "Remember_Preference", " remember_preference", "remember-preference"],
+)
+def test_a_look_alike_tool_name_saves_nothing(name):
+    """Security round 7: a call to a near-copy of the tool's name runs no tool and saves nothing."""
+    store = InMemoryStore()
+    model = ScriptedChatModel(
+        responses=[_calls((name, {"topic": "zoo", "feeling": "likes"}, "m1")), AIMessage("Okay.")]
+    )
+    graph = build_graph(model, _memory_tool(), InMemorySaver(), store)
+    result = _turn_approved(graph, "t1", "We love zoos.", memory_on=True, **CONTEXT)
+    assert result.remembered == []
     assert memory.preferences(store) == []
 
 

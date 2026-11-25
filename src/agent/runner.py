@@ -221,7 +221,13 @@ def progress_labels(chunk: dict, auto_approve: bool = False, memory_on: bool = F
             elif goes_to_review(last, auto_approve, memory_on):
                 continue  # the graph pauses next; the interrupt reports it
             else:
-                labels += [tool_label(tc["name"]) for tc in last.tool_calls]
+                # With memory off the memory tool refuses to save, so it is not shown as
+                # "Remembering your preference" (code review T5.11 round 7).
+                labels += [
+                    tool_label(tc["name"])
+                    for tc in last.tool_calls
+                    if memory_on or tc["name"] != "remember_preference"
+                ]
         elif node == "tools":
             labels.append(config.PROGRESS_NEXT_STEP)
     return labels
