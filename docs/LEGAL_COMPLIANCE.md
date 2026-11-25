@@ -239,8 +239,9 @@ The users are parents, but the app handles data about children, who are speciall
   loads it (the grounding check drops images from the answer's Markdown, not from such elements).
   A link the parent clicks is not a load. Today nothing in `app.py`, `views/` or
   `.streamlit/config.toml` loads from another host. Streamlit itself can add such loads, so the PR
-  that upgrades Streamlit (a Dependabot PR included) re-checks this rule in its Legal check, next
-  to the licence check of 6.4. Adding an outside asset is an owner decision and updates this file
+  that upgrades Streamlit re-checks this rule in its Legal check, next to the licence check of
+  6.4; a Dependabot PR has no Legal check, so the owner adds that re-check as a PR comment before
+  merging it. Adding an outside asset is an owner decision and updates this file
   first. Legal basis: the load is a transfer of personal data (the IP address) under GDPR
   Art. 6(1) and, for hosts outside the EU, Art. 44 ff. (see 2.2, 2.5); if the outside host also
   sets or reads cookies, § 25 TDDDG and 3.1 apply too. It sits here next to 3.1 because it is the

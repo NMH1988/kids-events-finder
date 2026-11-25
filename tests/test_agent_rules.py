@@ -42,9 +42,10 @@ def front_matter(text: str) -> str:
 
 def front_matter_tools(text: str) -> str:
     """Return the tools line of an agent's front matter (never a line in the body)."""
-    match = re.search(r"^tools: (.+)$", front_matter(text), re.MULTILINE)
-    assert match, "without a tools line Claude Code gives the agent every tool"
-    return match.group(1)
+    lines = re.findall(r"^tools:(.*)$", front_matter(text), re.MULTILINE)
+    assert lines, "without a tools line Claude Code gives the agent every tool"
+    assert len(lines) == 1, "YAML keeps the last of two tools lines, which a test may not read"
+    return lines[0].strip()
 
 
 @pytest.mark.parametrize("name", ALL_AGENTS)
@@ -505,33 +506,26 @@ def test_claude_md_runs_security_review_on_agent_changes():
     """Every change to an agent's tools or rules gets a security review."""
     text = (ROOT / "CLAUDE.md").read_text(encoding="utf-8")
     assert "and on every change to `.claude/agents/` (owner decision 2026-11-25, T1.9" in text
+    skill = SKILL.read_text(encoding="utf-8")
+    assert "and on every change to `.claude/agents/` (owner decision 2026-11-25, T1.9)" in skill
 
 
 # SHA-256 of the rule text that keeps keys, the approval gate and the parent's IP address safe.
 # A change to that text must change these values in the same diff, so security-reviewer
 # (CLAUDE.md: run on every change to .claude/agents/) sees the change and reviews it.
 PINNED_RULE_HASHES = {
-    "ui-designer front matter": "6fabc1cbf3e81ba192ebd726bc2f1db3882b01063042b94546b769107834e4f1",
-    "ui-designer ## Ground rules": (
-        "8f61454e2e67a31c40023f7cd184b4736db40d4ef38e6ef83ca133b6354ed3a3"
+    "ui-designer.md (whole file)": (
+        "bb578f6bdd03e8c227bdece523d3362b44abf0798502e4c551fe700be374c306"
     ),
-    "ui-designer ## Copyright and the law": (
-        "d6dad3383e647c3317ed45b10dade5c1088e14e3cef00c045e39ee90a8050c25"
-    ),
-    "ui-designer ## Design rules from docs/LEGAL_COMPLIANCE.md": (
-        "962478401d502491bec807f103b4a5911795248625f87d36389564dcb18c13f5"
-    ),
-    "rulebook 3.4": "5fce7bb0fe3b5e63dc5e88253b36c540f5e570ce1c3a2ae9f678332687d14899",
+    "rulebook 3.4": "ad2c0714f1d90b2aae885b31e20a7ca8b2ddf580d1d94512600ea6d21945087e",
     "rulebook 6.4 fonts": "26007ea29c9ccbc229c518cf58cdecb3e493890c3859f9dd850b528cc17dde11",
 }
 
 
 def pinned_rule_text(key: str) -> str:
     """Return the text one pinned hash covers, with its line breaks folded."""
-    if key == "ui-designer front matter":
-        text = front_matter(read(DESIGNER))
-    elif key.startswith("ui-designer "):
-        text = section(read(DESIGNER), key.removeprefix("ui-designer "))
+    if key == "ui-designer.md (whole file)":
+        text = read(DESIGNER)
     elif key == "rulebook 3.4":
         text = rulebook_rule("**3.4 Nothing from third-party hosts.**", "## 4. AI rules")
     else:
