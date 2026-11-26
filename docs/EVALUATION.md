@@ -4,7 +4,7 @@ Three levels, from cheapest to most realistic. Record each run's numbers in the 
 
 ## 1. Offline tests (no key)
 
-`python -m pytest -q` runs 1472 tests (2026-11-24) with fake models and mocked HTTP. They cover the privacy check (health words, names, exact ages, contact details, place-name fields; every red-team case marked "blocked" is blocked and no normal question is), the knowledge base schema, metadata filters, BM25, hybrid search, RRF, multi-query and reranking, the seven tools (validation, parsing, error handling), the ticket comparison rules (children's free rides, Deutschlandticket holders, the 9:00 weekday start, cross-state trips) and the budget check, the human-in-the-loop flows (approve, edit, reject, auto-approve), the grounding check, the index, feedback storage and an AppTest smoke test of the page.
+`python -m pytest -q` runs 2030 tests (2026-11-26) with fake models and mocked HTTP. They cover the privacy check (health words, names, exact ages, contact details, place-name fields; every red-team case marked "blocked" is blocked and no normal question is), the knowledge base schema, metadata filters, BM25, hybrid search, RRF, multi-query and reranking, the eight tools (validation, parsing, error handling), long-term memory (the store, the save tool and its approval, local visits only), the ticket comparison rules (children's free rides, Deutschlandticket holders, the 9:00 weekday start, cross-state trips) and the budget check, the human-in-the-loop flows (approve, edit, reject, auto-approve), the grounding check, the index, feedback storage and an AppTest smoke test of the page.
 
 ## 2. Retrieval comparison (key + index)
 
@@ -40,6 +40,8 @@ Expected pattern to check: BM25 fails on the Vietnamese and German questions, mu
 |---|---|---|---|---|---|---|---|
 | 2026-11-24 | openai/gpt-5-mini | 1.0 | 0.971 | 0.206* | 44.4 | 9566 | 3.91 |
 | 2026-11-24 | openai/gpt-5-nano | 0.882 | 0.971 | 0.206* | 57.2 | 7046 | 4.09 |
+
+The 2026-11-24 runs used the code from before long-term memory (T5.11, merged 2026-11-26). Since then the agent is also offered the `remember_preference` tool and its system prompt has a memory section, so later runs can differ in tokens and seconds for that reason alone. The script runs with long-term memory off: nothing is read from or written to the memory store.
 
 **Result (2026-11-24, T1.8), 34 questions per model:**
 - **Grounded:** the target (100%) is met by gpt-5-mini. gpt-5-nano wrote a link that no tool returned in 4 answers (q02, q13, q25, q34); the grounding check removed each of them before the parent would see it, so the safeguard worked, but the model alone misses the target. gpt-5-mini stays the default.

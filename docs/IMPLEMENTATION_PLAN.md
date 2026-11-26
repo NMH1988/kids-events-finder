@@ -121,7 +121,7 @@ The owner's plans for the app after the Capstone (owner's request).
 
 ## Epic 5: Capstone demo: UI and agent
 
-Interface and agent improvements before the Capstone review (2026-12-16), for the evaluation criteria "user interface and interaction quality" and "accuracy and responsiveness" (`docs/CAPSTONE_CHECKLIST.md`). Order: T5.1, then T5.11 (merged before T5.2, which must keep the memory save limited to topic and feeling in its new approval form), then T5.2, so the user tests (O5) and the showcase entry (O6) see the new interface and the long-term memory; O4 can run in parallel. The look of the UI tickets follows `docs/design/ui-design-spec.md`, the owner-approved mockups of 2026-11-26 (T5.12).
+Interface and agent improvements before the Capstone review (2026-12-16), for the evaluation criteria "user interface and interaction quality" and "accuracy and responsiveness" (`docs/CAPSTONE_CHECKLIST.md`). Order: T5.1, then T5.11 (merged before T5.2, which must keep the memory save limited to topic and feeling in its new approval form), then T5.2, so the user tests (O5) and the showcase entry (O6) see the new interface and the long-term memory; O4 is done (T1.8). The look of the UI tickets follows `docs/design/ui-design-spec.md`, the owner-approved mockups of 2026-11-26 (T5.12).
 
 - [T5.1 Live progress while the agent works (M)](tickets/T5.1.md)
 - [T5.2 Parent-friendly approval form instead of raw JSON (M)](tickets/T5.2.md)
