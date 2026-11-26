@@ -26,6 +26,12 @@ def _no_network_no_keys(monkeypatch):
     monkeypatch.setattr(config, "get_secret", lambda name: None)
 
 
+@pytest.fixture(autouse=True)
+def _memory_in_tmp(monkeypatch, tmp_path):
+    """Keep every test's long-term memory in its own temporary file, never in data/memory/."""
+    monkeypatch.setattr(config, "MEMORY_FILE", tmp_path / "memory" / "preferences.json")
+
+
 class FakeResponse:
     """A minimal requests.Response stand-in with a JSON body."""
 

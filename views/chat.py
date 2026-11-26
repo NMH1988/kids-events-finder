@@ -13,7 +13,7 @@ import streamlit as st
 from langgraph.checkpoint.memory import InMemorySaver
 from streamlit.runtime.scriptrunner_utils.exceptions import ScriptControlException
 
-from src import config, services
+from src import config, memory, services
 from src.agent.runner import (
     InputRejected,
     StaleDecision,
@@ -34,6 +34,7 @@ from src.tools.external import (
     TRANSITOUS_SOURCES_URL,
 )
 from src.tools.registry import RagSettings
+from views.memory import memory_store
 from views.sidebar import Settings
 
 logger = logging.getLogger(__name__)
@@ -48,6 +49,10 @@ TOOL_EXPLANATIONS = {
     "coordinates and the date and time to Transitous (journey planner, regional trains only).",
     "compare_train_tickets": "Compares day tickets from the app's own fare table. Nothing leaves "
     "the app.",
+    "remember_preference": "Saves a kind of place your family likes or avoids on this computer, "
+    "for later conversations (only while Memory is switched on). It is saved only if you approve; "
+    "check that it is what you said. While Memory is on, it is sent to the AI model with your "
+    "later questions; it goes to no other service.",
     "check_budget": "Adds up the costs inside the app. Fill in the amounts you know (entry fees, "
     "food); leave a cell empty if you don't know it yet.",
 }
@@ -109,7 +114,11 @@ def _retriever():
 def _graph(model: str, multi_query: bool, rerank: bool):
     """Build the agent graph once per model and RAG settings."""
     return services.build_agent(
-        model, RagSettings(multi_query=multi_query, rerank=rerank), _checkpointer(), _retriever()
+        model,
+        RagSettings(multi_query=multi_query, rerank=rerank),
+        _checkpointer(),
+        _retriever(),
+        memory_store(),
     )
 
 
@@ -130,12 +139,16 @@ def _forget_old_threads(now: float | None = None) -> None:
 
 
 def _cleanup_loop() -> None:
-    """Every few minutes, delete idle conversations and expired feedback, even with no visitors."""
+    """Every few minutes, delete idle conversations and expired feedback and preferences."""
     while True:
         try:
             _forget_old_threads()
             purge_old_feedback()
         except Exception as exc:  # noqa: BLE001 - keep the cleaner alive; log only the type
+            logger.warning("cleanup_failed", extra={"type": type(exc).__name__})
+        try:
+            memory.purge_expired(memory_store())
+        except Exception as exc:  # noqa: BLE001 - own try, so a feedback error never blocks it
             logger.warning("cleanup_failed", extra={"type": type(exc).__name__})
         time.sleep(config.CLEANUP_INTERVAL_SECONDS)
 
@@ -198,6 +211,7 @@ def _store_result(result: TurnResult, question: str, model: str) -> None:
             "tools": result.tools_used,
             "calculations": result.calculations,
             "grounding": result.grounding,
+            "remembered": result.remembered,
             "tokens": (result.input_tokens, result.output_tokens),
             "seconds": result.seconds,
         }
@@ -266,6 +280,17 @@ def _render_attributions(message: dict) -> None:
         lines.append(ATTRIBUTION_GEOCODING)
     if lines:
         st.caption(" · ".join(lines))
+
+
+def _render_remembered(message: dict) -> None:
+    """Tell the parent which preferences this answer saved to long-term memory (app's own words)."""
+    saved = message.get("remembered") or []
+    if saved:
+        st.caption(
+            "🧠 Remembered for next time: "
+            + ", ".join(memory.label(p) for p in saved)
+            + ". You can delete it in the sidebar (Memory)."
+        )
 
 
 def _render_details(message: dict) -> None:
@@ -408,7 +433,14 @@ def _render_approval(settings: Settings) -> None:
         for call in result.pending_tool_calls:
             with st.container(border=True):
                 needs = call["id"] in result.needs_approval
-                st.text(f"{'🌍' if needs else '📚'} {call['name']}")
+                if call["name"] == "remember_preference":
+                    # The app's own sentence from the two fields the tool reads, so extra keys
+                    # the model adds cannot mislead the parent (security review T5.11 round 5).
+                    call = {**call, "args": memory_save_args(call["args"])}
+                    off = "" if settings.memory_on else " (Memory is off: it will not be saved)"
+                    st.text(f"🧠 Save to memory: {memory_save_text(call['args'])}{off}")
+                else:
+                    st.text(f"{'🌍' if needs else '📚'} {call['name']}")
                 st.caption(TOOL_EXPLANATIONS.get(call["name"], ""))
                 if call["name"] == "check_budget":
                     has_budget = True
@@ -474,6 +506,7 @@ def _render_approval(settings: Settings) -> None:
                 decision,
                 turn_start_index=result.start_index,
                 auto_approve=settings.auto_approve,
+                memory_on=settings.memory_on,
                 progress=progress,
                 expected_ids=expected_ids,
                 expected_pause=result.pause_id,
@@ -481,6 +514,19 @@ def _render_approval(settings: Settings) -> None:
             pending["question"],
             settings,
         )
+
+
+def memory_save_args(args: dict) -> dict:
+    """Return only the fields the memory tool reads (topic, feeling) from a proposed save."""
+    return {key: args[key] for key in ("topic", "feeling") if key in (args or {})}
+
+
+def memory_save_text(args: dict) -> str:
+    """Describe a proposed memory save in the app's own words, e.g. "likes museums"."""
+    topic, feeling = args.get("topic"), args.get("feeling")
+    if topic in config.MEMORY_TOPICS and feeling in config.MEMORY_FEELINGS:
+        return memory.label({"topic": topic, "feeling": feeling})
+    return "not one of the allowed choices (it will be refused)"
 
 
 def approval_panel_key(pause_id: str | None, call_ids: list[str]) -> str:
@@ -591,6 +637,7 @@ def render_chat(settings: Settings) -> None:
             if message["role"] == "assistant":
                 _render_calculations(message)
                 _render_attributions(message)
+                _render_remembered(message)
                 _render_details(message)
                 _render_feedback(i, message, settings)
 
@@ -622,6 +669,7 @@ def render_chat(settings: Settings) -> None:
                 city=settings.city,
                 children=settings.children,
                 trip=settings.trip,
+                memory_on=settings.memory_on,
                 auto_approve=settings.auto_approve,
                 progress=progress,
             ),

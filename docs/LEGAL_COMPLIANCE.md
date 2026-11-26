@@ -201,11 +201,18 @@ The users are parents, but the app handles data about children, who are speciall
 - **2.7 Retention.** Conversations are deleted from the server when the parent starts a new one and
   automatically after 2 hours without use (`CONVERSATION_RETENTION_SECONDS`, enforced by a
   background cleaner every `CLEANUP_INTERVAL_SECONDS`, also when nobody uses the app); feedback
-  is deleted after 90 days and stores the question text
-  only with the parent's consent; push subscriptions are deleted after the trip date; logs never
-  contain message content, ages, budgets or keys.
+  is deleted after 90 days and stores the question text only with the parent's consent;
+  long-term memory (T5.11) keeps each preference `LONG_TERM_MEMORY_RETENTION_DAYS` (30) days
+  after it was last saved, deleted by the same cleaner and when the memory is loaded, and
+  "Forget everything" deletes all of it at once, together with any file the app could not load
+  and any temporary copy; push subscriptions are deleted after the trip date; logs never contain
+  message content, ages, budgets or keys.
 - **2.8 Data subject rights.** Parents can delete their data (and export it where stored on the
-  server) without contacting support.
+  server) without contacting support. Long-term memory (T5.11) is listed in the sidebar and deleted
+  with "Forget everything", which is offered whenever something is remembered, also while the
+  switch is off; switching it off stops its use from the next step, also for a turn that waits
+  for approval (the switch is read again at every step). What the parent said earlier stays in
+  the current conversation until a new one starts (2.7).
 - **2.9 Security.** Keys only through `config.get_secret()`, never logged or shown; HTTPS only;
   invite codes and rate limits protect the deployed app. Every length limit on the parent's text
   (question, reject reason, edited values, folded length) is enforced on the server, not only by
@@ -216,6 +223,41 @@ The users are parents, but the app handles data about children, who are speciall
   bodies at DEBUG (`config.QUIET_LOGGERS`) are capped at `config.LOG_LEVEL` (INFO). The app's own
   logs hold only event names and error types. Adding any such service is an owner decision that
   updates the processor register first.
+- **2.11 Long-term memory (T5.11).** Off by default; the parent switches it on in the sidebar
+  ("Remember our preferences on this computer", consent; the switch's help text says what is
+  kept, that it goes to the AI model with each question, that everyone using the app on that
+  computer shares it, and how to stop and delete it). It keeps only fixed choices: a place
+  category or indoor/outdoor, and "likes" or "avoids" (`config.MEMORY_TOPICS`,
+  `config.MEMORY_FEELINGS`), with the date it was saved. Never free text, place names, age
+  groups, the budget, the family size, or visited or liked places (those would be the activity
+  history of 1.5-1.7). The model can only save through the `remember_preference` tool, whose
+  arguments are these fixed choices; the switch (from the run's config) and the store are
+  injected by the graph, and a preference is saved only when the parent's own latest message
+  names its topic as a whole word (`config.MEMORY_TOPIC_WORDS`; "parking", "parken" or "theme
+  park" do not count as "park"), so text in a tool result cannot add a topic the parent never
+  mentioned; only before any other tool result of the same turn, so a tool result of that turn
+  cannot decide what is saved; and only once per topic in one step. **Every save waits for the
+  parent's approval** (`config.TOOLS_ALWAYS_REVIEWED`, also with auto-approve on; owner decision
+  2026-11-25): the approval panel shows the kind of place and "likes" or "avoids", and nothing is
+  stored if the parent rejects. With the switch off the call is refused without a pause. Without
+  the server setting below the model is not offered the tool at all. Each saved preference is
+  shown under the answer. Remembered preferences change which places the AI suggests first
+  (5.3). Without a login the memory belongs to the computer that runs the app (one local profile
+  shared by every browser session there). The server setting `config.LONG_TERM_MEMORY_ENABLED` switches the
+  whole feature off; while it is on, the switch is offered only when the page is opened on that
+  computer (`views/memory.py: is_local_visit`, which checks the connection's address, its Host
+  header and its Origin header, required and of the same origin, which a web page cannot set)
+  and `.streamlit/config.toml` accepts only local host names (`server.allowedHosts`). If the file
+  cannot be opened at start-up (another program holds it), it is kept as it is, never used or
+  sent, and the next start-up (which applies the 30-day limit) or the next save rewrites it; until
+  then the sidebar cannot list it. A visit through a proxy or tunnel that adds forwarding headers
+  (`Forwarded`, `Via`, `X-Forwarded-*`, `X-Real-*`, `X-Client-*`, `X-Original-*`,
+  `True-Client-*`, `Cf-*`, even empty) is never local; one that adds none of them and rewrites
+  Host and Origin to localhost cannot be told apart, which is why exposing the app in any way
+  counts as a deployment. The feature is for the local demo only (see "Before a public deployment").
+  Remaining risk: the model proposes the topic and the feeling (from a message that only mentions
+  a topic, or from an earlier turn's tool result), but nothing is stored unless the parent
+  approves exactly that save; an approved save is shown under the answer and can be deleted.
 
 ## 3. Device storage and tracking (TDDDG § 25)
 - **3.1 No trackers.** No analytics, advertising pixels, fingerprinting or third-party tracking
@@ -224,6 +266,28 @@ The users are parents, but the app handles data about children, who are speciall
   features the parent explicitly uses or switches on.
 - **3.3** Adding any tracker or non-essential storage is an owner decision and requires a consent
   tool and an update of this file first.
+- **3.4 Nothing from third-party hosts.** (owner decision 2026-11-25, T1.10) Fonts, icons, images,
+  map tiles, stylesheets and scripts that the page loads by itself come from the app itself: the
+  fonts and Material Symbols shipped inside Streamlit (6.4), emoji, or files the owner approved.
+  None is loaded from another host, because each such load sends the parent's IP address to that
+  host (LG München I, judgment of 20 January 2022, 3 O 17493/20). In Streamlit this means: no Google
+  Fonts or CDN; no theme font option (`font`, `headingFont`, `codeFont`) with a `<name>:<url>`
+  value and no `[[theme.fontFaces]]` with an outside `url`; no Material Symbol as `page_icon` or
+  `st.Page(icon=...)` (Streamlit fetches such a tab icon from `fonts.gstatic.com`; the app uses an
+  emoji, which Streamlit renders locally); no `st.image`, `st.logo`, `st.video` or `st.audio` with a remote URL; no
+  `st.map` or `st.pydeck_chart` (base map tiles from Carto or Mapbox; owner decision 2026-11-25:
+  no embedded map unless the owner decides otherwise and updates this file first); no remote image
+  in Markdown; a URL from a tool result or the knowledge base is never rendered as an element that
+  loads it (the grounding check drops images from the answer's Markdown, not from such elements).
+  A link the parent clicks is not a load. Today nothing in `app.py`, `views/` or
+  `.streamlit/config.toml` loads from another host. Streamlit itself can add such loads, so the PR
+  that upgrades Streamlit re-checks this rule in its Legal check, next to the licence check of
+  6.4; a Dependabot PR has no Legal check, so the owner adds that re-check as a PR comment before
+  merging it. Adding an outside asset is an owner decision and updates this file
+  first. Legal basis: the load is a transfer of personal data (the IP address) under GDPR
+  Art. 6(1) and, for hosts outside the EU, Art. 44 ff. (see 2.2, 2.5); if the outside host also
+  sets or reads cookies, § 25 TDDDG and 3.1 apply too. It sits here next to 3.1 because it is the
+  same kind of rule.
 
 ## 4. AI rules (EU AI Act)
 - **4.1 Disclosure (Art. 50, in force since 2 August 2026).** The chat clearly says the parent is
@@ -255,7 +319,8 @@ Affiliate links are **off** in the Capstone version. Before they are switched on
   when the final answer is displayed. Free places stay in the results. No paid placement unless it
   is clearly marked as an ad.
 - **5.3 Publish the main ranking parameters** (country, city, age, indoor/outdoor, relevance to the
-  question, weather) on the About page (done: "How results are ranked").
+  question, weather, and the remembered preferences when the parent switched long-term memory on,
+  2.11) on the About page (done: "How results are ranked").
 - **5.4 No advertising aimed at children (UWG Annex No. 28).** Commercial content addresses parents
   only.
 - **5.5 No unproven claims.** No promises that the app improves a child's development or health.
@@ -279,6 +344,12 @@ Affiliate links are **off** in the Capstone version. Before they are switched on
   changed model updates that row in the same PR); data sets follow 6.3. Any GPL/AGPL/SSPL, "non-commercial"
   or unclear licence needs the owner's decision first. Check the licence when adding or upgrading a
   dependency in `pyproject.toml`.
+  **Fonts inside Streamlit (owner decision 2026-11-25, T1.10):** the fonts shipped inside the
+  Streamlit package, used as Streamlit ships them (Source Sans, Source Serif and Source Code, and
+  the KaTeX fonts for formulas, under the SIL OFL 1.1; the Material Symbols icons under
+  Apache-2.0), are accepted as part of that dependency. Any other font, including another OFL font, is still an owner
+  decision first. (Licences from the model's knowledge; the owner checks the font projects'
+  licence files by hand, since the Streamlit wheel ships no notice for them.)
 - **6.5 Brand.** Before choosing a public app name, check DPMA and EUIPO for existing trademarks.
 
 ## 7. Consumer and business duties (owner, before public launch or income)
@@ -298,7 +369,8 @@ Affiliate links are **off** in the Capstone version. Before they are switched on
 - **Testers:** only adults (18+) who agreed beforehand (a short written note is enough) that they
   test an AI demo, use only made-up questions, and that their feedback may be kept for 90 days;
   no children take part, no screen or voice recordings, and testers' names are not stored with
-  their feedback.
+  their feedback. Long-term memory (2.11) is shared by everyone on the test computer: press
+  "Forget everything" before and after each tester, so no tester's preferences reach the next.
 
 ## Before a public deployment (checklist)
 Remind the owner of this whole list whenever deployment comes up. Nothing here blocks the local
@@ -328,6 +400,9 @@ Capstone demo with synthetic data.
       (chat, budget table, reject reason, edited values); before launch the Datenschutzberater
       re-checks the word lists and coverage, and the AI provider DPA with zero data retention
       (above) remains the real safeguard.
+- [ ] Licence notices for what the app sends to browsers (6.4): a licences list on the About page
+      for Streamlit's frontend, its fonts (SIL OFL 1.1) and the Material Symbols (Apache-2.0),
+      since both licences ask for the licence text to go with copies (T1.10, legal-reviewer).
 - [ ] Invite codes (hashes and counters only) and per-code daily limits.
 - [ ] Web Push: own opt-in screen, minimal payload, subscriptions deleted after the trip date.
 - [ ] Ticketmaster: family events only, drop 18+ events; privacy link in the footer.
@@ -336,6 +411,14 @@ Capstone demo with synthetic data.
 - [ ] Transitous: request counter (coordinate above 720 `/plan` per day).
 - [ ] Coordinates from OpenStreetMap, not Google; `place_id_checked_on` for Place IDs.
 - [ ] Re-check `data/fares.json` prices and every knowledge base entry (closed places).
+- [ ] Long-term memory (2.11): set `config.LONG_TERM_MEMORY_ENABLED = False` (the visitor check
+      is only a second line; sharing the demo through a tunnel such as ngrok counts as a
+      deployment), and set `server.allowedHosts` in `.streamlit/config.toml` to the
+      real host names; or move the memory to the parent's device (or behind a login, per
+      account) with a record of each consent, wording that does not say "on this computer" and its
+      own text in the Datenschutzerklärung. Lawyer / Datenschutzberater: must switching off delete
+      the data (Art. 7(3), 17(1)(b))? Does the personalised order need more than the 5.3 note
+      (§ 5b UWG)?
 
 **Before earning money** (in addition)
 - [ ] Replace Transitous, the free Open-Meteo API and the public Overpass server; turn off
@@ -374,6 +457,7 @@ The terms, limits and attribution rules of each outside service, with the dates 
 | Town or city name, country, dates | Family events | Contract (Art. 6(1)(b)) | Open-Meteo geocoder, then Ticketmaster (US) with the geocoder's town name | Not stored by the app; only with the optional key |
 | Town or city name, country, dates | Weather forecast | Contract (Art. 6(1)(b)) | Open-Meteo geocoder and forecast | Not stored by the app |
 | Feedback rating and technical facts (model, country, tools, grounding); question, answer and comment plus a random browser-session id only when the parent ticks "share" | Evaluation | Rating: legitimate interest (Art. 6(1)(f)); shared text: consent (Art. 6(1)(a)), withdrawable with the "Delete the questions and answers I shared" button while the page is open | Local file on the server | 90 days, then deleted automatically by the background cleaner (no records from before the consent tick existed; checked 2026-11-20) |
+| Long-term memory: liked or avoided place categories and indoor/outdoor (fixed choices only), each with the date it was saved (T5.11) | Tailor suggestions in later conversations | Consent (Art. 6(1)(a)): the sidebar switch, off by default; withdrawn by switching off and "Forget everything" | Local file on the computer that runs the app (`data/memory/`, gitignored); with each question while the switch is on: OpenRouter → model provider | 30 days after it was last saved, or at once with "Forget everything" |
 | Activity history (themes, dates) | Variety nudges | Consent; stays on the device | Phone only | Until the parent deletes it |
 | Push subscription (planned) | Trip notifications | Consent | Server | Until the trip date |
 | Invite code, request counts (planned) | Access control, cost limits | Legitimate interest (Art. 6(1)(f)) | Server | While the code is active |

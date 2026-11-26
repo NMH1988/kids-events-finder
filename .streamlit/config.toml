@@ -6,3 +6,7 @@ showErrorDetails = false
 
 [theme]
 primaryColor = "#f97316"
+
+[server]
+# Only local host names may open the app (blocks DNS rebinding; security review T5.11).
+allowedHosts = ["localhost", "127.0.0.1", "::1"]

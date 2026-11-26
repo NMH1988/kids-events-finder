@@ -9,6 +9,8 @@ KNOWLEDGE_BASE_FILE = DATA_DIR / "knowledge_base.json"
 FARES_FILE = DATA_DIR / "fares.json"
 EVAL_QUESTIONS_FILE = DATA_DIR / "eval_questions.json"
 FEEDBACK_FILE = DATA_DIR / "feedback" / "feedback.jsonl"
+# Long-term memory (T5.11): the family's preferences, kept only on this computer (gitignored).
+MEMORY_FILE = DATA_DIR / "memory" / "preferences.json"
 EVAL_RESULTS_DIR = DATA_DIR / "eval_runs"
 CHROMA_DIR = ROOT / "chroma"
 CHROMA_COLLECTION = "kid_places"
@@ -70,8 +72,10 @@ TOOLS_REQUIRING_APPROVAL: frozenset[str] = frozenset(
     }
 )
 # These pause even with auto-approve on: the parent's own amounts must replace anything the model
-# wrote, so a guessed price can never become a real total (LEGAL_COMPLIANCE 7.3).
-TOOLS_ALWAYS_REVIEWED: frozenset[str] = frozenset({"check_budget"})
+# wrote, so a guessed price can never become a real total (LEGAL_COMPLIANCE 7.3); and the parent
+# confirms every long-term memory save, so no tool text can plant a preference (owner decision
+# 2026-11-25, T5.11, LEGAL_COMPLIANCE 2.11).
+TOOLS_ALWAYS_REVIEWED: frozenset[str] = frozenset({"check_budget", "remember_preference"})
 # Tools whose results are the app's own money calculations; the UI shows them from the tool
 # results under the answer (never from the model's text).
 CALCULATION_TOOLS: frozenset[str] = frozenset({"compare_train_tickets", "check_budget"})
@@ -90,6 +94,7 @@ PROGRESS_TOOL_LABELS: dict[str, str] = {
     "find_train_connection": "Looking for train connections",
     "compare_train_tickets": "Comparing train tickets",
     "check_budget": "Adding up the budget",
+    "remember_preference": "Remembering your preference",
 }
 MAX_USER_MESSAGE_CHARS = 1000
 # Limit for the parent's reason and edits in the approval panel (keeps every check fast).
@@ -107,6 +112,34 @@ CONVERSATION_RETENTION_SECONDS = 2 * 60 * 60
 CLEANUP_INTERVAL_SECONDS = 5 * 60
 # Feedback records are deleted after this many days; question text is kept only with consent.
 FEEDBACK_RETENTION_DAYS = 90
+# A remembered preference is deleted this many days after it was last saved (T5.11).
+LONG_TERM_MEMORY_RETENTION_DAYS = 30
+# One local profile: without a login the memory belongs to this computer, not to a person, so it
+# is for the local demo only (LEGAL_COMPLIANCE "Before a public deployment").
+MEMORY_NAMESPACE: tuple[str, ...] = ("preferences", "local")
+# Server setting: long-term memory exists only while this is True. Set it to False before any
+# deployment (LEGAL_COMPLIANCE "Before a public deployment"); the visitor check below is a second
+# line, not the switch-off (legal review T5.11, round 2).
+LONG_TERM_MEMORY_ENABLED = True
+# The memory switch is offered only when the page is opened on the computer that runs the app, so a
+# deployed copy never shares one family's memory with other visitors (security review T5.11).
+MEMORY_LOCAL_ADDRESSES: frozenset[str] = frozenset({"127.0.0.1", "::1", "localhost"})
+# Headers a proxy or tunnel adds (lower case); any of them, even empty, means the visitor is not on
+# this computer (security review T5.11, rounds 5 and 6).
+FORWARDING_HEADERS: frozenset[str] = frozenset({"forwarded", "via"})
+FORWARDING_HEADER_PREFIXES: tuple[str, ...] = (
+    "x-forwarded-",
+    "x-real-",
+    "x-client-",
+    "x-original-",
+    "true-client-",
+    "cf-",
+)
+# A memory file larger than this is treated as broken (it holds at most nine short entries).
+MAX_MEMORY_FILE_BYTES = 64_000
+# Short-term memory: the earlier turns sent to the model are trimmed to about this many tokens;
+# the latest question and its tool results are always sent whole.
+MAX_HISTORY_TOKENS = 16000
 
 # --- Advanced RAG ---
 RETRIEVAL_TOP_K = 5
@@ -183,6 +216,66 @@ CATEGORIES: tuple[str, ...] = (
     "park",
     "playground",
 )
+# What long-term memory may hold: fixed choices only, never free text, place names, age groups,
+# the budget or the family size (T5.11). No visited or liked places (LEGAL_COMPLIANCE 1.5-1.7).
+MEMORY_TOPICS: tuple[str, ...] = (*CATEGORIES, "indoor", "outdoor")
+MEMORY_FEELINGS: tuple[str, ...] = ("likes", "avoids")
+# A preference is saved only when the parent's own latest message names its topic with one of these
+# words (English, German, Vietnamese). Whole words only, with an English plural ending allowed
+# (`MEMORY_WORD_ENDINGS`; other forms are listed), so "parking" or "parken" is not "park"; a phrase
+# of another topic that contains the word ("theme park", "Zoologischer Garten") does not count
+# either. Ambiguous words ("inside", "outside", Vietnamese "trong nhà" alone, which also starts
+# "trong nhà hàng") are left out. Text in a tool result cannot make the model save a topic the
+# parent never named (security review T5.11, rounds 1-3).
+MEMORY_TOPIC_WORDS: dict[str, tuple[str, ...]] = {
+    "museum": ("museum", "museen", "bảo tàng"),
+    "science_centre": (
+        "science",
+        "wissenschaft",
+        "experiment",
+        "experimente",
+        "experimenten",
+        "khoa học",
+    ),
+    "zoo": (
+        "zoo",
+        "zoological garden",
+        "zoologischer garten",
+        "tierpark",
+        "wildpark",
+        "animal",
+        "tiere",
+        "tieren",
+        "sở thú",
+        "vườn thú",
+    ),
+    "aquarium": ("aquarium", "aquarien", "sea life", "thủy cung", "thuỷ cung"),
+    "theme_park": (
+        "theme park",
+        "amusement park",
+        "freizeitpark",
+        "erlebnispark",
+        "công viên giải trí",
+    ),
+    "park": ("park", "garden", "garten", "gärten", "công viên"),
+    "playground": ("playground", "spielplatz", "spielplätze", "spielplätzen", "sân chơi"),
+    "indoor": ("indoor", "drinnen", "chơi trong nhà", "ở trong nhà"),
+    "outdoor": ("outdoor", "draußen", "im freien", "ngoài trời"),
+}
+MEMORY_WORD_ENDINGS = r"(?:s|es)?"
+# A saved date later than now plus this many seconds counts as broken (it would never expire).
+MEMORY_CLOCK_SKEW_SECONDS = 5 * 60
+MEMORY_TOPIC_LABELS: dict[str, str] = {
+    "museum": "museums",
+    "science_centre": "science centres",
+    "zoo": "zoos",
+    "aquarium": "aquariums",
+    "theme_park": "theme parks",
+    "park": "parks",
+    "playground": "playgrounds",
+    "indoor": "indoor places",
+    "outdoor": "outdoor places",
+}
 
 
 def get_secret(name: str) -> str | None:

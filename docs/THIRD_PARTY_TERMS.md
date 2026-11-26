@@ -4,6 +4,8 @@
 
 > These notes summarise the providers' own pages in our words, as read on the date given. They are not legal advice and not a copy of the terms: the linked page is what binds us. When a page has changed or a case is unclear, read the page again and ask the owner.
 
+**Out of scope (owner decision 2026-11-26, T5.12):** the owner's own development tools, such as the coding assistant (Claude Code) and the claude.ai design canvas used for the UI mockups. The app does not use them, and only the repo's content and synthetic data go to them; the owner's rules below (never expose a key, no real personal data) still apply to them.
+
 ## The owner's rules (2026-11-24, mandatory)
 
 1. **Never violate the terms, policies or usage rules of any service that is not part of our app**, in any form. No red-teaming or adversarial prompts without the provider's written approval, no going over rate or volume limits, no commercial use where it is forbidden, no missing attribution, no scraping, no caching beyond what is allowed, no hiding who we are. When a rule is unclear, the answer is "do not do it yet, ask the owner".
@@ -27,7 +29,7 @@
 
 ### OpenRouter (AI models) and the models behind it
 - **What we use:** chat completions for the agent and the helper steps, embeddings for the index and retrieval (`config.AI_BASE_URL`, `https://openrouter.ai/api/v1`), with the school's account and key; the key-status endpoint (`/api/v1/key`, no model call) to check that the key works; a check prints only `usage`, `limit` and `limit_remaining`, never the whole answer (its `label` may hold part of the key). Host: `openrouter.ai`. Models: `openai/gpt-5-mini`, `openai/gpt-5-nano`, `openai/gpt-5`, `qwen/qwen3-embedding-8b` (`src/config.py`).
-- **What we send:** the parent's question, the children's age groups and the trip settings (`docs/LEGAL_COMPLIANCE.md`, processing register); synthetic data only.
+- **What we send:** the parent's question, the children's age groups and the trip settings, and, while the parent has long-term memory switched on, the remembered preferences as fixed words (for example "likes museums", T5.11) (`docs/LEGAL_COMPLIANCE.md`, processing register); synthetic data only.
 - **Terms:** https://openrouter.ai/terms (last updated 2026-08-31, checked 2026-11-24); https://openrouter.ai/privacy (last updated 2026-08-31, checked 2026-11-24); https://openrouter.ai/docs/cookbook/evaluate-and-optimize/red-teaming (no date, checked 2026-11-24); https://openrouter.ai/docs/features/provider-routing (no date, checked 2026-11-24, read only in part).
 - **Forbidden:** red-teaming of models (prompt injection, jailbreaking or other adversarial action) without OpenRouter's prior written approval (terms s. 7 item 11, s. 8); requests go to safety@openrouter.ai, approval is case by case and usually takes about five business days. Breaking a model provider's own terms.
 - **Data:** OpenRouter says it does not train on inputs or outputs; model providers may, depending on their terms. When prompt logging is on for the account, OpenRouter's terms give it a broad licence to store and use inputs and outputs (s. 6.2, per the legal review of 2026-11-24); its safety classifiers may flag prompts even with zero data retention (red-teaming page). By default requests may go to providers that store data and may train on it, unless a request asks for `provider.data_collection: "deny"` or zero-data-retention endpoints. The school's account settings cannot be changed by the owner.

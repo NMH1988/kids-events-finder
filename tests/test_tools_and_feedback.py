@@ -30,6 +30,7 @@ def test_all_tools_are_registered(tools):
         "find_train_connection",
         "compare_train_tickets",
         "check_budget",
+        "remember_preference",
     }
 
 
