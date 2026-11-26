@@ -62,11 +62,11 @@ Deadline: **2026-12-16** (Capstone review). The owner tasks O1-O7 come first for
 | [T5.2](tickets/T5.2.md) | Parent-friendly approval form instead of raw JSON | M | T5.1 | todo |
 | [T5.6](tickets/T5.6.md) | Offline red-team tests: injection through tool data and the approval gate | M | none | todo |
 | [T5.4](tickets/T5.4.md) | Clear messages when the agent stops | S | T5.1 | todo |
-| [T5.3](tickets/T5.3.md) | Trip plan box from the tool results | M | none | todo |
+| [T5.3](tickets/T5.3.md) | Trip plan box from the tool results | L | none | todo |
 | [T5.5](tickets/T5.5.md) | Source credits for data from earlier turns | M | none | todo |
 | [T5.12](tickets/T5.12.md) | UI design from the mockups into the Epic 5 tickets | S | T1.10 | in progress |
-| [T5.15](tickets/T5.15.md) | Light and dark colour theme with tested contrast | S | T5.12 | todo |
-| [T5.13](tickets/T5.13.md) | Settings line above the chat and the sidebar in family-first order | M | T5.12 | todo |
+| [T5.15](tickets/T5.15.md) | Light and dark colour theme with tested contrast | S | T5.12, T5.2 | todo |
+| [T5.13](tickets/T5.13.md) | Settings line above the chat and the sidebar in family-first order | M | T5.12, T5.11 | todo |
 | [T5.14](tickets/T5.14.md) | Feedback row with an honest share state | S | T5.12 | todo |
 | [T3.1](tickets/T3.1.md) | Before a public deployment: AI provider with a DPA | M | none | todo |
 | [T3.2](tickets/T3.2.md) | Datenschutzerklärung and Impressum | M | T3.1 | todo |
@@ -119,7 +119,7 @@ Interface and agent improvements before the Capstone review (2026-12-16), for th
 
 - [T5.1 Live progress while the agent works (M)](tickets/T5.1.md)
 - [T5.2 Parent-friendly approval form instead of raw JSON (M)](tickets/T5.2.md)
-- [T5.3 Trip plan box from the tool results (M)](tickets/T5.3.md)
+- [T5.3 Trip plan box from the tool results (L)](tickets/T5.3.md)
 - [T5.4 Clear messages when the agent stops (S)](tickets/T5.4.md)
 - [T5.5 Source credits for data from earlier turns (M)](tickets/T5.5.md)
 - [T5.6 Offline red-team tests: injection through tool data and the approval gate (M)](tickets/T5.6.md)
