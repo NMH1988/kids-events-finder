@@ -31,6 +31,10 @@ def render_about() -> None:
    comparison (Deutschlandticket, Länder-Tickets, Quer-durchs-Land-Ticket) calculated by
    the app from its fare table, the weather, and a budget check where you fill in the
    prices the app cannot know. The app does the arithmetic, never the AI model.
+8. **Memory:** the conversation is kept while you use it (short-term memory; long chats are
+   shortened before they are sent to the AI model). If you switch on "Remember our preferences
+   on this computer", the assistant can also remember which kinds of places your family likes
+   or avoids for later conversations (long-term memory).
 
 ### How results are ranked
 Places come first from the curated knowledge base, then from live data. The order depends only on:
@@ -38,7 +42,9 @@ Places come first from the curated knowledge base, then from live data. The orde
 - whether a place suits every chosen age group;
 - indoor or outdoor, when you ask for rainy-day plans or the forecast shows rain;
 - how well the place matches your question (text and meaning search, optionally reranked by an
-  AI model).
+  AI model);
+- only if you switched on long-term memory: the kinds of places your family likes or avoids.
+  The assistant is told to put your current question first.
 
 No place pays to be listed or ranked, there are no ads and no affiliate links, and free places
 are never pushed down.
@@ -64,14 +70,27 @@ talking to an AI assistant, and every answer is labelled as AI-generated.
 - **AI model ({config.AI_PROVIDER_NAME}; model and embedding providers possibly outside the EU,
   e.g. in the US or Asia):** receives your question, the country and city, the children's age
   groups and, when trip planning is on, the budget, the number of adults, Deutschlandticket
-  holders and the budget items, so it can plan the trip; and, from the approval panel, your
-  reason when you reject a step and the values you edit.
+  holders and the budget items, so it can plan the trip; from the approval panel, your
+  reason when you reject a step and the values you edit; and, when long-term memory is on,
+  the remembered preferences.
 - **Map, event, weather and train services** receive only town or city names (or their
   coordinates), the country, dates, times and place categories; never the age groups, budget or
   family size.
 - Conversations are deleted from the server when you start a new one. After 2 hours without use
   the agent's copy is deleted automatically (checked every 5 minutes); the copy shown on your open
   page is removed within a few minutes, or when you close it.
+- Long-term memory is off unless you switch it on in the sidebar; it is offered only when the
+  app runs on your own computer. It keeps only fixed choices (a kind of place, or indoor /
+  outdoor, and whether your family likes or avoids it), only when your own message mentions that
+  kind of place, and only after you approve the save in the approval panel, where you see the
+  kind of place and "likes" or "avoids". No names, ages, places you visited, budget or messages
+  are kept. It is saved
+  in a file on the computer that runs this app, shared by everyone who uses the app there, and
+  sent to the AI model with each question while the switch is on. Switching it off stops this
+  from your next question; what you said earlier stays in the current conversation until you
+  start a new one. Each preference is deleted {config.LONG_TERM_MEMORY_RETENTION_DAYS} days after
+  it was saved (if the app is not running then, when it next starts), and "Forget everything" in
+  the sidebar deletes all of them at once.
 - No AI tracing or analytics services are used, and the app's logs never contain your messages.
 - Feedback: only the 👍/👎 and technical facts are saved on this app's server, and deleted after
   90 days. Your question and the answer are saved only if you tick the box to share them; you can

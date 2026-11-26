@@ -247,3 +247,63 @@ def test_journey_time_without_a_time_zone_is_rejected(stamp):
     with pytest.raises(ValueError):
         _local_clock(stamp, ZoneInfo("Europe/Berlin"))
     assert _local_clock("2026-05-01T08:00:00Z", ZoneInfo("Europe/Berlin")) == "10:00"
+
+
+KEY = "tm-test-not-a-real-key-123"
+
+
+def _http_error(*args, **kwargs):
+    """Fail like requests does on a 401, with the full URL and the key in the message."""
+    raise requests.HTTPError(f"401 Client Error for url: https://app.example/?apikey={KEY}")
+
+
+def _connection_error(*args, **kwargs):
+    """Fail like a dropped connection whose text names the path and query."""
+    raise requests.ConnectionError(f"Max retries exceeded with url: /events.json?apikey={KEY}")
+
+
+def _echoing_service(*args, **kwargs):
+    """Answer 200 with an error body that echoes the key."""
+    return FakeResponse({"fault": {"faultstring": f"Invalid ApiKey {KEY}"}})
+
+
+@pytest.mark.parametrize("fake_get", [_http_error, _connection_error, _echoing_service])
+def test_ticketmaster_key_never_reaches_the_tool_result_or_the_logs(
+    monkeypatch, at_berlin, caplog, fake_get
+):
+    """Errors carrying the query-string key give a fixed result and log no key (T1.9)."""
+    from src.tools.registry import _safe
+
+    monkeypatch.setattr(requests, "get", fake_get)
+    caplog.set_level("DEBUG")
+    out = _safe(
+        "search_family_events",
+        external.search_family_events,
+        city="Berlin",
+        country="DE",
+        start_date=TODAY,
+        end_date=TODAY,
+        api_key=KEY,
+    )
+    assert KEY not in out
+    for record in caplog.records:
+        assert KEY not in record.getMessage()
+        assert KEY not in str(record.__dict__)
+
+
+def test_request_loggers_never_log_at_debug_after_the_app_starts(caplog):
+    """urllib3 logs each URL, with the Ticketmaster key, at DEBUG; the app caps it (T1.9)."""
+    import logging
+
+    import src.llm  # noqa: F401 - importing it caps the library loggers
+    from src import config
+
+    assert {"urllib3", "httpx", "httpcore", "openai"} <= set(config.QUIET_LOGGERS)
+    # With the root at DEBUG, only the app's own cap keeps these loggers quiet.
+    caplog.set_level(logging.DEBUG)
+    cap = logging.getLevelName(config.LOG_LEVEL)
+    assert cap > logging.DEBUG
+    for name in config.QUIET_LOGGERS:
+        assert logging.getLogger(name).level == cap, name
+    for name in ("urllib3", "urllib3.connectionpool", "httpx", "httpcore", "openai"):
+        assert logging.getLogger(name).getEffectiveLevel() > logging.DEBUG, name

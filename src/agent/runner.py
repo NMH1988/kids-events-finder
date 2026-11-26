@@ -10,7 +10,7 @@ from typing import Any, Literal
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from langgraph.types import Command
 
-from src import config, family, privacy_check
+from src import config, family, memory, privacy_check
 from src.agent.graph import goes_to_review, message_text
 
 logger = logging.getLogger(__name__)
@@ -49,6 +49,8 @@ class TurnResult:
     # by the UI from the tool results, so money never depends on the model's text.
     calculations: dict[str, dict] = field(default_factory=dict)
     grounding: dict | None = None
+    # Preferences saved to long-term memory in this turn (topic and feeling), shown by the UI.
+    remembered: list[dict] = field(default_factory=list)
     input_tokens: int = 0
     output_tokens: int = 0
     seconds: float = 0.0
@@ -109,10 +111,14 @@ def decision_problem(decision: dict, original_calls: list[dict]) -> str | None:
     return privacy_check.explain(findings) if findings else None
 
 
-def _run_config(thread_id: str, auto_approve: bool) -> dict:
-    """Return the LangGraph run config for a conversation thread."""
+def _run_config(thread_id: str, auto_approve: bool, memory_on: bool = False) -> dict:
+    """Return the LangGraph run config for a conversation thread and the sidebar switches."""
     return {
-        "configurable": {"thread_id": thread_id, "auto_approve": auto_approve},
+        "configurable": {
+            "thread_id": thread_id,
+            "auto_approve": auto_approve,
+            "memory_on": bool(memory_on),
+        },
         "recursion_limit": config.AGENT_RECURSION_LIMIT,
     }
 
@@ -129,6 +135,21 @@ def calculations(messages: list) -> dict[str, dict]:
             if isinstance(data, dict) and not data.get("error"):
                 found[message.name] = data
     return found
+
+
+def remembered(messages: list) -> list[dict]:
+    """Return the preferences `remember_preference` saved, the last one per topic (as stored)."""
+    saved: dict[str, dict] = {}
+    for message in messages:
+        if isinstance(message, ToolMessage) and message.name == "remember_preference":
+            try:
+                data = json.loads(message.content)
+            except json.JSONDecodeError, TypeError:
+                continue
+            if isinstance(data, dict) and isinstance(data.get("saved"), dict):
+                saved.pop(data["saved"].get("topic"), None)
+                saved[data["saved"].get("topic")] = data["saved"]
+    return list(saved.values())
 
 
 def _summarise(graph, run_config: dict, start_index: int, started: float) -> TurnResult:
@@ -149,6 +170,7 @@ def _summarise(graph, run_config: dict, start_index: int, started: float) -> Tur
         start_index=start_index,
         tools_used=tools_used,
         calculations=calculations(new),
+        remembered=remembered(new),
         input_tokens=sum(u.get("input_tokens", 0) for u in usage),
         output_tokens=sum(u.get("output_tokens", 0) for u in usage),
         seconds=round(time.perf_counter() - started, 2),
@@ -185,7 +207,16 @@ def tool_label(name: str) -> str:
     return config.PROGRESS_TOOL_LABELS.get(name, config.PROGRESS_UNKNOWN_TOOL)
 
 
-def progress_labels(chunk: dict, auto_approve: bool = False) -> list[str]:
+def tool_labels(calls: list[dict], memory_on: bool) -> list[str]:
+    """Return the progress labels for tool calls about to run, in the app's own words."""
+    # With memory off the memory tool refuses to save, so it is not shown as
+    # "Remembering your preference" (code review T5.11 rounds 7 and 8).
+    return [
+        tool_label(tc["name"]) for tc in calls if memory_on or tc["name"] != "remember_preference"
+    ]
+
+
+def progress_labels(chunk: dict, auto_approve: bool = False, memory_on: bool = False) -> list[str]:
     """Turn one streamed graph update into fixed progress labels (no model or tool text)."""
     labels: list[str] = []
     for node, update in chunk.items():
@@ -196,10 +227,10 @@ def progress_labels(chunk: dict, auto_approve: bool = False) -> list[str]:
             last = messages[-1] if messages else None
             if not isinstance(last, AIMessage) or not last.tool_calls:
                 labels.append(config.PROGRESS_GROUNDING)
-            elif goes_to_review(last, auto_approve):
+            elif goes_to_review(last, auto_approve, memory_on):
                 continue  # the graph pauses next; the interrupt reports it
             else:
-                labels += [tool_label(tc["name"]) for tc in last.tool_calls]
+                labels += tool_labels(last.tool_calls, memory_on)
         elif node == "tools":
             labels.append(config.PROGRESS_NEXT_STEP)
     return labels
@@ -209,9 +240,10 @@ def _execute(
     graph, graph_input, run_config: dict, progress: ProgressCallback | None, auto: bool
 ) -> None:
     """Run the graph until it ends or pauses, reporting each step's label as it finishes."""
+    memory_on = memory.switched_on(run_config)
     for chunk in graph.stream(graph_input, run_config, stream_mode="updates"):
         if progress and isinstance(chunk, dict):
-            progress = _report(progress, progress_labels(chunk, auto))
+            progress = _report(progress, progress_labels(chunk, auto, memory_on))
 
 
 def _report(progress: ProgressCallback, labels: list[str]) -> ProgressCallback | None:
@@ -234,13 +266,14 @@ def start_turn(
     city: str | None,
     children: list[str] | tuple[str, ...] = (),
     trip: dict | None = None,
+    memory_on: bool = False,
     auto_approve: bool = False,
     turn_start_index: int | None = None,
     progress: ProgressCallback | None = None,
 ) -> TurnResult:
     """Send the parent's message with the chosen context and run until done or a pause."""
     text = check_input(text)
-    run_config = _run_config(thread_id, auto_approve)
+    run_config = _run_config(thread_id, auto_approve, memory_on)
     start = turn_start_index if turn_start_index is not None else _message_count(graph, run_config)
     started = time.perf_counter()
     if progress:
@@ -269,6 +302,7 @@ def resume_turn(
     *,
     turn_start_index: int,
     auto_approve: bool = False,
+    memory_on: bool = False,
     progress: ProgressCallback | None = None,
     expected_ids: list[str] | None = None,
     expected_pause: str | None = None,
@@ -276,7 +310,7 @@ def resume_turn(
     """Resume a paused turn with the parent's decision (approve, edit or reject)."""
     if decision.get("action") not in ("approve", "edit", "reject"):
         raise ValueError("Unknown decision.")
-    run_config = _run_config(thread_id, auto_approve)
+    run_config = _run_config(thread_id, auto_approve, memory_on)
     snapshot = graph.get_state(run_config)
     # Resume only a thread that waits for the parent, and (when the page says which pause and
     # calls it showed) on exactly that pause. Otherwise a stale panel's decision would run what
@@ -308,7 +342,7 @@ def resume_turn(
         first = (
             [config.PROGRESS_NEXT_STEP]
             if decision["action"] == "reject"
-            else [tool_label(tc["name"]) for tc in pending]
+            else tool_labels(pending, memory_on)
         )
         progress = _report(progress, first)
     _execute(graph, Command(resume=decision), run_config, progress, auto_approve)

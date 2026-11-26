@@ -1,6 +1,7 @@
 """Wires the pieces together: models, the index, the retriever, the tools and the agent graph."""
 
 from langgraph.checkpoint.base import BaseCheckpointSaver
+from langgraph.store.base import BaseStore
 
 from src import config, llm
 from src.agent.graph import build_graph
@@ -22,10 +23,11 @@ def build_agent(
     rag_settings: RagSettings,
     checkpointer: BaseCheckpointSaver,
     retriever: AdvancedRetriever | None = None,
+    store: BaseStore | None = None,
 ):
-    """Build the compiled agent graph for a model and RAG settings."""
+    """Build the compiled agent graph for a model and RAG settings, with the long-term store."""
     retriever = retriever or build_retriever()
     tools = build_tools(
         retriever, rag_settings, ticketmaster_key=config.get_secret(config.TICKETMASTER_KEY_NAME)
     )
-    return build_graph(llm.build_chat_model(model), tools, checkpointer)
+    return build_graph(llm.build_chat_model(model), tools, checkpointer, store)

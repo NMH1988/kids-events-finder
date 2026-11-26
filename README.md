@@ -34,7 +34,7 @@ Switch on **💶 Budget day trip by train** in the sidebar and enter the budget,
 - **Prices with no open source (entry fees, food) are not guessed.** The agent leaves them empty and the parent fills them in at the approval step, in an editable table; `src/budget.py` adds everything up.
 - **Live journeys:** Transitous returns the current timetable and, where operators publish live data, delays and cancellations.
 
-Before an outside call runs, the app pauses (**human in the loop**): the parent sees what will be sent and can **approve**, **edit the arguments** or **reject with feedback**. The final answer passes a **grounding check** that removes any link not found in a tool result. Parents rate answers with 👍/👎, which feeds the evaluation. A **Browse** tab shows the curated places as cards without any model call.
+Before an outside call runs, the app pauses (**human in the loop**): the parent sees what will be sent and can **approve**, **edit the arguments** or **reject with feedback**. The final answer passes a **grounding check** that removes any link not found in a tool result. The agent has **short-term memory** (the conversation, trimmed to a token budget before each model call) and, when the parent switches it on, **long-term memory**: a LangGraph store that remembers which kinds of places the family likes or avoids for later conversations (fixed choices only; the parent approves every save, and can delete them in the sidebar). Parents rate answers with 👍/👎, which feeds the evaluation. A **Browse** tab shows the curated places as cards without any model call.
 
 ```mermaid
 flowchart LR
@@ -80,11 +80,11 @@ copy .streamlit\secrets.toml.example .streamlit\secrets.toml   # then add your k
 ## Tests and evaluation
 
 ```powershell
-.venv\Scripts\python.exe -m pytest -q          # 1249 offline tests: LLM and network calls are faked
+.venv\Scripts\python.exe -m pytest -q          # 2144 offline tests (2026-11-26): LLM and network calls are faked
 .venv\Scripts\ruff.exe check .
 .venv\Scripts\python.exe -m scripts.evaluate_retrieval   # retrieval variants: hit@5, MRR
 .venv\Scripts\python.exe -m scripts.evaluate_agent --judge   # grounded rate, relevance, wrong-country rate, latency, tokens, LLM judge
-.venv\Scripts\python.exe -m scripts.evaluate_agent --red-team   # safety cases: privacy block, injection, development and urgency claims
+.venv\Scripts\python.exe -m scripts.evaluate_agent --red-team   # do not run: no live red-team run (owner decision 2026-11-24); offline tests in T5.6, see docs/THIRD_PARTY_TERMS.md
 .venv\Scripts\python.exe -m scripts.check_links           # are the curated websites still online?
 ```
 
@@ -103,11 +103,12 @@ Summary (details in [docs/ETHICS.md](docs/ETHICS.md)):
 
 ```
 app.py                 Streamlit entry point (composes views/)
-views/                 sidebar, chat (HITL panel, feedback), browse, about
+views/                 sidebar, chat (HITL panel, feedback), memory switch, browse, about
 src/agent/             LangGraph graph (agent, human_review, tools, grounding) and turn runner
 src/rag/               Chroma index and the advanced retriever
 src/tools/             tool schemas (validated) and external service calls
 src/grounding.py       link verification
+src/memory.py          long-term memory (LangGraph store saved to a local file, opt-in)
 src/knowledge.py       curated knowledge base model and filters
 src/fares.py           regional train ticket comparison (rules from data/fares.json)
 src/budget.py          trip budget check
