@@ -145,7 +145,7 @@ def test_every_entry_says_what_we_use_and_where_its_terms_are(heading):
 
 
 def test_the_red_team_incident_is_recorded():
-    """The live red-team run of 2026-11-24 and its open decision are on record."""
+    """The live red-team run of 2026-11-24 and the owner's decision on it are on record."""
     incidents = terms().split("## Incidents and decisions", 1)[1].split("\n## ", 1)[0]
     assert "2026-11-24, red-team run on OpenRouter (T1.8)" in incidents
-    assert "**Open decision" in incidents
+    assert "**Decision (owner, 2026-11-24, T1.8):** no live red-team run at all" in incidents

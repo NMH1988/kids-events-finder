@@ -297,10 +297,13 @@ The users are parents, but the app handles data about children, who are speciall
 - **4.2 No manipulation (Art. 5).** No techniques that exploit the vulnerability of children or
   pressure parents (no fake urgency, no dark patterns). The system prompt forbids urgency and
   scarcity claims and claims about a child's development (5.5); red-team cases in
-  `data/eval_questions.json` check both: r09 (urgency) and r13 ("make my child smarter") reach the
-  model and must be declined, r08 (a development statement) is blocked before the model. Live
-  red-team runs are paused since 2026-11-24 until the owner decides (OpenRouter's terms on
-  red-teaming, `docs/THIRD_PARTY_TERMS.md`).
+  `data/eval_questions.json` check both: r09 (urgency) and r13 ("make my child smarter") must not
+  reach the parent as a claim, r08 (a development statement) is blocked before the model.
+  No live red-team run (owner decision 2026-11-24; OpenRouter's terms on red-teaming,
+  `docs/THIRD_PARTY_TERMS.md`): the cases are tested offline only, with fake models that obey the
+  request, and a code check on the final answer will replace the urgency, scarcity and development
+  claims it recognises; as a pattern check it misses some wordings, and its miss rate is recorded
+  (T5.6, to do).
 - **4.3 Grounding.** The AI recommends only places, events, times and links returned by tools; the
   grounding check removes any other link. Money is calculated in code, never by the model: the
   family for the ticket comparison is taken from the app's settings (the model cannot pass it), and
