@@ -874,16 +874,24 @@ def test_any_proxy_header_makes_a_visit_remote(monkeypatch, extra):
     assert memory_view.is_local_visit() is True
 
 
+LOCAL_HOST_NAMES = frozenset({"localhost", "127.0.0.1", "::1"})
+
+
 def test_only_local_host_names_may_open_the_app():
     """Rule 2.11: `server.allowedHosts` stays set and lists only local host names (round 11)."""
     import tomllib
 
-    from src import config
-
     path = Path(APP).parent / ".streamlit" / "config.toml"
     hosts = tomllib.loads(path.read_text(encoding="utf-8"))["server"]["allowedHosts"]
     assert hosts
-    assert set(hosts) <= config.MEMORY_LOCAL_ADDRESSES
+    assert set(hosts) <= LOCAL_HOST_NAMES
+
+
+def test_local_address_set_is_pinned():
+    """Rule 2.11: `is_local_visit` treats only the three local names as local (round 12)."""
+    from src import config
+
+    assert config.MEMORY_LOCAL_ADDRESSES == LOCAL_HOST_NAMES
 
 
 def test_the_server_setting_removes_long_term_memory(monkeypatch):
