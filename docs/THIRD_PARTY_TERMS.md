@@ -4,6 +4,8 @@
 
 > These notes summarise the providers' own pages in our words, as read on the date given. They are not legal advice and not a copy of the terms: the linked page is what binds us. When a page has changed or a case is unclear, read the page again and ask the owner.
 
+**Out of scope (owner decision 2026-11-26, T5.12):** the owner's own development tools, such as the coding assistant (Claude Code) and the claude.ai design canvas used for the UI mockups. The app does not use them, and only the repo's content and synthetic data go to them; the owner's rules below (never expose a key, no real personal data) still apply to them.
+
 ## The owner's rules (2026-11-24, mandatory)
 
 1. **Never violate the terms, policies or usage rules of any service that is not part of our app**, in any form. No red-teaming or adversarial prompts without the provider's written approval, no going over rate or volume limits, no commercial use where it is forbidden, no missing attribution, no scraping, no caching beyond what is allowed, no hiding who we are. When a rule is unclear, the answer is "do not do it yet, ask the owner".

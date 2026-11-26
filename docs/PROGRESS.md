@@ -24,6 +24,7 @@ Keep the entry short and record what the code does not say: decisions, gotchas, 
 
 ## Entries
 
+- [2026-11-26 · T5.12 UI design from the mockups into the Epic 5 tickets · PR #43 (closes #39)](progress/2026-11-26-T5.12.md)
 - [2026-11-25 · T1.10 ui-designer agent: research and propose a legally safe UI design · PR #37 (closes #36)](progress/2026-11-25-T1.10.md)
 - [2026-11-24 · T1.9 Third-party terms file and the owner's rules on outside services and keys · PR #29 (closes #28)](progress/2026-11-24-T1.9.md)
 - [2026-11-24 · T5.1 Live progress while the agent works · PR #26 (closes #20)](progress/2026-11-24-T5.1.md)

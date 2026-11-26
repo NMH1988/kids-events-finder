@@ -14,7 +14,7 @@ Deadline: **2026-12-16**. Case 2 (AI agent for task automation) with an advanced
 | Function calling / tool integration with external APIs | `src/tools/` (7 tools, 4 external APIs: OSM, Ticketmaster, Open-Meteo, Transitous) | Done |
 | Multi-step reasoning, memory | LangGraph loop with checkpointer (conversation memory per thread) | Done |
 | Interactive prototype ("Streamlit or another interface" for Case 2) | `app.py`, `views/` (Streamlit) | Done |
-| User interface and interaction quality (evaluation criterion "Outcome quality") | `views/`; Epic 5 in `docs/IMPLEMENTATION_PLAN.md` (T5.1-T5.5) | Works; improvements planned in Epic 5 |
+| User interface and interaction quality (evaluation criterion "Outcome quality") | `views/`; Epic 5 in `docs/IMPLEMENTATION_PLAN.md` (T5.1-T5.5, T5.13-T5.15); design in `docs/design/ui-design-spec.md` (T5.12) | Works; improvements planned in Epic 5 |
 | Prompt engineering best practices | `src/prompts/agent_system.md` (role, process, rules, format, injection rule) | Done (reviewed for O2, T1.5) |
 | Evaluation: accuracy and responsiveness, user testing | `scripts/evaluate_*.py`, `docs/EVALUATION.md`; offline red-team tests (T5.6) | Scripts done; **owner runs and fills the tables** |
 | Ethical considerations documented | `docs/ETHICS.md` | Done |
