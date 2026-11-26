@@ -4,14 +4,16 @@ import json
 import logging
 from dataclasses import dataclass
 from datetime import date, time
-from typing import Annotated, Literal
+from typing import Annotated, Any, Literal
 
 import requests
+from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
+from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import BaseTool, StructuredTool
-from langgraph.prebuilt import InjectedState
+from langgraph.prebuilt import InjectedState, InjectedStore
 from pydantic import AfterValidator, BaseModel, Field, ValidationError
 
-from src import budget, config, family, fares, privacy_check
+from src import budget, config, family, fares, memory, privacy_check
 from src.errors import AppInputError
 from src.family import AgeBand
 from src.rag.retriever import AdvancedRetriever
@@ -22,6 +24,18 @@ logger = logging.getLogger(__name__)
 Country = Literal["DE", "GB", "US"]
 Category = Literal[
     "museum", "science_centre", "zoo", "aquarium", "theme_park", "park", "playground"
+]
+# What long-term memory may hold (config.MEMORY_TOPICS): a place category or indoor / outdoor.
+MemoryTopic = Literal[
+    "museum",
+    "science_centre",
+    "zoo",
+    "aquarium",
+    "theme_park",
+    "park",
+    "playground",
+    "indoor",
+    "outdoor",
 ]
 # A town or city name only: no free text reaches the geocoder or other outside services.
 PlaceName = Annotated[
@@ -104,6 +118,19 @@ class BudgetArgs(BaseModel):
 
     budget_eur: float = Field(ge=0, le=config.BUDGET_RANGE_EUR[1])
     items: list[budget.BudgetItem] = Field(min_length=1, max_length=config.MAX_BUDGET_ITEMS)
+
+
+class PreferenceArgs(BaseModel):
+    """Arguments of the long-term memory tool: fixed choices only, never free text."""
+
+    topic: MemoryTopic = Field(description="A place category, or indoor / outdoor.")
+    feeling: Literal["likes", "avoids"] = Field(
+        description="Whether the family likes or avoids it, as the parent said."
+    )
+    # Injected by the graph, never written by the model: the conversation (to find the parent's own
+    # words) and the store. The sidebar switch comes from the run's config at every step.
+    messages: Annotated[list, InjectedState("messages")] = Field(default_factory=list)
+    store: Annotated[Any, InjectedStore()] = None
 
 
 def _safe(tool_name: str, func, **kwargs) -> str:
@@ -280,7 +307,59 @@ def build_tools(
         parsed = [budget.BudgetItem.model_validate(i) for i in items]
         return _safe("check_budget", budget.check_budget, budget_eur=budget_eur, items=parsed)
 
-    return [
+    def remember_preference(
+        topic: str,
+        feeling: str,
+        run_config: RunnableConfig,
+        messages: list | None = None,
+        store: Any = None,
+    ) -> str:
+        """Remember a lasting preference the parent stated, for later conversations."""
+
+        def run() -> dict:
+            """Save the preference when memory is on and the parent's own message names it."""
+            # The switch is read from this run's config, so switching it off during an approval
+            # pause stops the save (LEGAL_COMPLIANCE 2.8, 2.11).
+            if not memory.switched_on(run_config) or store is None:
+                raise AppInputError(
+                    "Long-term memory is off. Do not try again; the parent can switch it on in "
+                    "the sidebar if the app offers it."
+                )
+            history = list(messages or [])
+            asked = max(
+                (i for i, m in enumerate(history) if isinstance(m, HumanMessage)), default=None
+            )
+            text = history[asked].content if asked is not None else ""
+            if not isinstance(text, str) or not memory.named_by_parent(text, topic):
+                raise AppInputError(
+                    "Save only a preference the parent stated in their own latest message. Do "
+                    "not try again for this topic."
+                )
+            # Only before any other tool result of this turn: a result is outside text, and it
+            # must not decide what is remembered (security review T5.11 round 3).
+            later = history[asked + 1 :]
+            if any(isinstance(m, ToolMessage) and m.name != "remember_preference" for m in later):
+                raise AppInputError(
+                    "Save a preference only in your first step after the parent's message, "
+                    "before other tools. Do not try again in this turn."
+                )
+            # Calls in one step run in parallel, so two for one topic could store one feeling and
+            # report the other: refuse both (security review T5.11 round 4).
+            step = history[-1] if history and isinstance(history[-1], AIMessage) else None
+            same_topic = [
+                tc
+                for tc in (step.tool_calls if step else [])
+                if tc["name"] == "remember_preference" and tc["args"].get("topic") == topic
+            ]
+            if len(same_topic) > 1:
+                raise AppInputError(
+                    "Save each topic once per step, with the feeling the parent stated."
+                )
+            return {"saved": memory.save_preference(store, topic, feeling)}
+
+        return _safe("remember_preference", run)
+
+    tools = [
         StructuredTool.from_function(search_knowledge_base, args_schema=KnowledgeBaseArgs),
         StructuredTool.from_function(find_nearby_places, args_schema=PlacesArgs),
         StructuredTool.from_function(search_family_events, args_schema=EventsArgs),
@@ -289,3 +368,7 @@ def build_tools(
         StructuredTool.from_function(compare_train_tickets, args_schema=TicketArgs),
         StructuredTool.from_function(check_budget, args_schema=BudgetArgs),
     ]
+    # Without the feature (server setting) the model is not even offered the memory tool.
+    if config.LONG_TERM_MEMORY_ENABLED:
+        tools.append(StructuredTool.from_function(remember_preference, args_schema=PreferenceArgs))
+    return tools

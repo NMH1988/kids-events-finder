@@ -9,7 +9,7 @@ Epics, tickets, acceptance criteria, dependencies, order and status. This file a
 
 `tests/test_docs_layout.py` checks that these agree.
 
-**Status of this plan:** set up by T1.4 (issue #12) on 2026-11-23, following the layout of the owner's earlier project. T1.1-T1.3 and T2.1 were done before the plan existed; their tickets were written after the fact from their commits and PR descriptions. The open tickets come from the GitHub issues #4-#10 of 2026-11-20; their acceptance criteria were drafted by Claude: T3.1-T3.4's approved by the owner on 2026-11-23 (with the layout), T4.1-T4.3's still to be written. Epic 5 (T5.1-T5.6) was proposed by Claude at the owner's request on 2026-11-24; the owner approved the list and the acceptance criteria that day.
+**Status of this plan:** set up by T1.4 (issue #12) on 2026-11-23, following the layout of the owner's earlier project. T1.1-T1.3 and T2.1 were done before the plan existed; their tickets were written after the fact from their commits and PR descriptions. The open tickets come from the GitHub issues #4-#10 of 2026-11-20; their acceptance criteria were drafted by Claude: T3.1-T3.4's approved by the owner on 2026-11-23 (with the layout), T4.1-T4.3's still to be written. Epic 5 (T5.1-T5.6) was proposed by Claude at the owner's request on 2026-11-24; the owner approved the list and the acceptance criteria that day. T5.11 (long-term memory) was added on 2026-11-25 after the owner asked to check the course topics (first numbered T5.7; renumbered before its first commit because open PRs already use T5.7-T5.10); the owner approved its acceptance criteria that day.
 
 ## Status legend
 
@@ -59,6 +59,7 @@ Deadline: **2026-12-16** (Capstone review). The owner tasks O1-O7 come first for
 | [T1.9](tickets/T1.9.md) | Third-party terms file and the owner's rules on outside services and keys | S | none | done |
 | [T1.10](tickets/T1.10.md) | ui-designer agent: research and propose a legally safe UI design | S | none | done |
 | [T5.1](tickets/T5.1.md) | Live progress while the agent works | M | none | done |
+| [T5.11](tickets/T5.11.md) | Long-term memory: the family's preferences across conversations | M | none | done |
 | [T5.2](tickets/T5.2.md) | Parent-friendly approval form instead of raw JSON | M | T5.1 | todo |
 | [T5.6](tickets/T5.6.md) | Offline red-team tests: injection through tool data and the approval gate | M | none | todo |
 | [T5.4](tickets/T5.4.md) | Clear messages when the agent stops | S | T5.1 | todo |
@@ -115,7 +116,7 @@ The owner's plans for the app after the Capstone (owner's request).
 
 ## Epic 5: Capstone demo: UI and agent
 
-Interface and agent improvements before the Capstone review (2026-12-16), for the evaluation criteria "user interface and interaction quality" and "accuracy and responsiveness" (`docs/CAPSTONE_CHECKLIST.md`). Order: T5.1 and T5.2 first, so the user tests (O5) and the showcase entry (O6) see the new interface; O4 can run in parallel. The look of the UI tickets follows `docs/design/ui-design-spec.md`, the owner-approved mockups of 2026-11-26 (T5.12).
+Interface and agent improvements before the Capstone review (2026-12-16), for the evaluation criteria "user interface and interaction quality" and "accuracy and responsiveness" (`docs/CAPSTONE_CHECKLIST.md`). Order: T5.1, then T5.11 (merged before T5.2, which must keep the memory save limited to topic and feeling in its new approval form), then T5.2, so the user tests (O5) and the showcase entry (O6) see the new interface and the long-term memory; O4 can run in parallel. The look of the UI tickets follows `docs/design/ui-design-spec.md`, the owner-approved mockups of 2026-11-26 (T5.12).
 
 - [T5.1 Live progress while the agent works (M)](tickets/T5.1.md)
 - [T5.2 Parent-friendly approval form instead of raw JSON (M)](tickets/T5.2.md)
@@ -123,6 +124,7 @@ Interface and agent improvements before the Capstone review (2026-12-16), for th
 - [T5.4 Clear messages when the agent stops (S)](tickets/T5.4.md)
 - [T5.5 Source credits for data from earlier turns (M)](tickets/T5.5.md)
 - [T5.6 Offline red-team tests: injection through tool data and the approval gate (M)](tickets/T5.6.md)
+- [T5.11 Long-term memory: the family's preferences across conversations (M)](tickets/T5.11.md)
 - [T5.12 UI design from the mockups into the Epic 5 tickets (S)](tickets/T5.12.md)
 - [T5.13 Settings line above the chat and the sidebar in family-first order (M)](tickets/T5.13.md)
 - [T5.14 Feedback row with an honest share state (S)](tickets/T5.14.md)

@@ -1,10 +1,11 @@
-"""The sidebar: country and city dropdowns, children's age groups, trip and agent settings."""
+"""The sidebar: country and city, children's age groups, trip, memory and agent settings."""
 
 from dataclasses import dataclass, field
 
 import streamlit as st
 
 from src import config, family
+from views.memory import render_memory_settings
 
 FLAGS = {"DE": "🇩🇪", "GB": "🇬🇧", "US": "🇺🇸"}
 ALL_CITIES = "All cities"
@@ -23,6 +24,8 @@ class Settings:
     # Age groups by position: index 0 is "Child 1". No names, no exact ages.
     children: tuple[str, ...] = field(default_factory=tuple)
     trip: dict | None = None
+    # Long-term memory switch (T5.11); off by default.
+    memory_on: bool = False
 
 
 def _render_children() -> tuple[str, ...]:
@@ -99,6 +102,7 @@ def render_sidebar() -> Settings:
         city = st.selectbox("City", [ALL_CITIES, *config.CITIES[country]], key=f"city_{country}")
         children = _render_children()
         trip = _render_trip(country, children)
+        memory_on = render_memory_settings()
 
         st.divider()
         st.header("🤖 Agent settings")
@@ -139,4 +143,5 @@ def render_sidebar() -> Settings:
         multi_query=multi_query,
         rerank=rerank,
         trip=trip,
+        memory_on=memory_on,
     )

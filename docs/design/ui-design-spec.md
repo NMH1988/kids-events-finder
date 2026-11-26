@@ -31,7 +31,7 @@ repo. T5.12 put it into the tickets: T5.2 (handed to its own PR), T5.3, T5.5, T5
 |---|---|---|
 | Blue | data leaves the app; journeys; neutral information | "Sends data to an outside service", way there and back, the bahn.de note, the link note |
 | Green | stays inside the app; money that fits (every cost known); done | "Stays inside the app", "Within budget", "Shared with your rating." |
-| Violet | the AI; the children | "AI-generated", "Child 1: 3-5 years" |
+| Violet | the AI; the children | "AI-generated", "Child 1: 3-5 years", "Sent to the AI model with later questions" |
 | Orange | the day trip | the trip box and the trip settings |
 | Yellow | waiting or still unknown | "2 steps are waiting for you", "Within budget so far" |
 | Gray | secondary facts | "Sources", the service name, testing settings |
@@ -77,7 +77,11 @@ exact caption colour are measured in the running app (T5.15).
   explanation, every argument as an editable field, the tool name as small plain text; an unknown
   cost shows a yellow badge holding only the fixed word "unknown", while its label (written by the
   model) stays plain text; the reject reason field, then the three equal buttons; the disabled chat
-  box says "Answer the steps above first: approve, change or reject".
+  box says "Answer the steps above first: approve, change or reject". A memory save
+  (`remember_preference`, T5.11) never gets the green badge: what it saves goes to the AI model with
+  later questions (2.11, 4.2), so it gets a violet "Sent to the AI model with later questions" badge
+  next to the app's own "🧠 Save to memory: …" text, shown only while memory is on (while it is off,
+  the step says "(Memory is off: it will not be saved)" instead).
 - **Trip plan box (T5.3):** shown whenever a train, weather, ticket or budget tool ran (a turn with
   only the ticket comparison or the budget shows just those parts). A header saying the figures are
   calculated by the app, with an orange trip tile, the date, route and party, and the budget state from
