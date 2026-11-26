@@ -65,16 +65,18 @@ text colour of badges, `:color[...]` and the status boxes from it (15% darker in
 in dark), a value nobody measured. White text on the dark accent is only 2.80:1, so the app uses no
 `type="primary"` button (T5.2 makes all approval buttons secondary; T5.15 tests that none is left).
 Also `linkUnderline = true` and `showWidgetBorder = true`; the old top-level `[theme] primaryColor`
-is removed; `font` stays the bundled sans-serif; no `base` URL; `gatherUsageStats = false`. How Streamlit picks the light or dark section (the device
-setting or its settings menu) and the exact caption colour are measured in the running app (T5.15).
+is removed; `font` stays the bundled sans-serif; no `base` URL; `gatherUsageStats = false`.
+How Streamlit picks the light or dark section (the device setting or its settings menu) and the
+exact caption colour are measured in the running app (T5.15).
 
 ## Screens
 
 - **Approval panel (T5.2, handed to PR #31):** a yellow box "N steps are waiting for you"; one bordered
   card per step with an icon tile, "Step n of m", a blue "Sends data to an outside service" or green
   "Stays inside the app" badge plus the service's name, a plain title from `PROGRESS_TOOL_LABELS`, the
-  explanation, every argument as an editable field, the tool name as small plain text; unknown costs
-  as yellow "unknown" badges; the reject reason field, then the three equal buttons; the disabled chat
+  explanation, every argument as an editable field, the tool name as small plain text; an unknown
+  cost shows a yellow badge holding only the fixed word "unknown", while its label (written by the
+  model) stays plain text; the reject reason field, then the three equal buttons; the disabled chat
   box says "Answer the steps above first: approve, change or reject".
 - **Trip plan box (T5.3):** shown whenever a train, weather, ticket or budget tool ran (a turn with
   only the ticket comparison or the budget shows just those parts). A header saying the figures are
