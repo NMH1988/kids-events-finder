@@ -80,7 +80,8 @@ exact caption colour are measured in the running app (T5.15).
   box says "Answer the steps above first: approve, change or reject". A memory save
   (`remember_preference`, T5.11) never gets the green badge: what it saves goes to the AI model with
   later questions (2.11, 4.2), so it gets a violet "Sent to the AI model with later questions" badge
-  next to the app's own "🧠 Save to memory: …" text.
+  next to the app's own "🧠 Save to memory: …" text, shown only while memory is on (while it is off,
+  the step says "(Memory is off: it will not be saved)" instead).
 - **Trip plan box (T5.3):** shown whenever a train, weather, ticket or budget tool ran (a turn with
   only the ticket comparison or the budget shows just those parts). A header saying the figures are
   calculated by the app, with an orange trip tile, the date, route and party, and the budget state from
