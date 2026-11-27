@@ -69,7 +69,7 @@ Deadline: **2026-12-16** (Capstone review). The owner tasks O1-O7 come first for
 | [T5.4](tickets/T5.4.md) | Clear messages when the agent stops | S | T5.1 | todo |
 | [T5.3](tickets/T5.3.md) | Trip plan box from the tool results | L | none | todo |
 | [T5.5](tickets/T5.5.md) | Source credits for data from earlier turns | M | none | todo |
-| [T5.7](tickets/T5.7.md) | Hidden characters in model output and the knowledge base caption | S | T5.2 | todo |
+| [T5.7](tickets/T5.7.md) | Hidden characters in model output and the knowledge base caption | M | T5.2 | todo |
 | [T5.12](tickets/T5.12.md) | UI design from the mockups into the Epic 5 tickets | S | T1.10 | done |
 | [T5.15](tickets/T5.15.md) | Light and dark colour theme with tested contrast | S | T5.12, T5.2 | todo |
 | [T5.16](tickets/T5.16.md) | Approval panel design from the mockups | M | T5.2, T5.12 | todo |
@@ -131,7 +131,7 @@ Interface and agent improvements before the Capstone review (2026-12-16), for th
 - [T5.4 Clear messages when the agent stops (S)](tickets/T5.4.md)
 - [T5.5 Source credits for data from earlier turns (M)](tickets/T5.5.md)
 - [T5.6 Offline red-team tests: injection checks, answer checks and the approval gate (L)](tickets/T5.6.md)
-- [T5.7 Hidden characters in model output and the knowledge base caption (S)](tickets/T5.7.md)
+- [T5.7 Hidden characters in model output and the knowledge base caption (M)](tickets/T5.7.md)
 - [T5.8 Wrong-country measure by website, and a re-run (S)](tickets/T5.8.md)
 - [T5.9 Faster answers: under 30 seconds on average (M)](tickets/T5.9.md)
 - [T5.10 Harder retrieval evaluation set (M)](tickets/T5.10.md)
