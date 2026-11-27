@@ -429,6 +429,22 @@ def test_a_deep_forged_decision_is_refused_before_it_is_cleaned(tools, calls):
     assert calls == []
 
 
+def test_a_deep_tuple_decision_is_refused(tools, calls):
+    """Security round 3 of PR #48: the depth check counts tuples, as the cleaning walks them."""
+    from src.privacy_check import json_depth, string_values
+
+    nested: object = "x"
+    for _ in range(3000):
+        nested = (nested,)
+    assert json_depth(nested) == 3000 and string_values(((("a",),),)) == ["a"]
+    decision = {"action": "edit", "tool_calls": [{"id": "w1", "args": {"city": nested}}]}
+    graph, _ = _graph([_call("get_weather_forecast", {"city": "Berlin"}, "w1")], tools)
+    paused = start_turn(graph, "d2", "weather?", **CONTEXT)
+    with pytest.raises(InputRejected, match="too long"):
+        resume_turn(graph, "d2", decision, turn_start_index=paused.start_index)
+    assert calls == []
+
+
 def test_long_model_values_do_not_block_approve():
     """Security round 9: the per-value cap applies only to values the parent changed."""
     from src.agent.runner import decision_problem

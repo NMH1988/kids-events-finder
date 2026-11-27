@@ -1004,7 +1004,7 @@ def string_values(value: object) -> list[str]:
         elif isinstance(item, dict):
             found.extend(str(k) for k in item)
             stack.extend(item.values())
-        elif isinstance(item, list):
+        elif isinstance(item, (list, tuple)):
             stack.extend(item)
         elif item is not None and not isinstance(item, bool):
             found.append(str(item))
@@ -1019,7 +1019,8 @@ def json_depth(value: object) -> int:
         deepest = max(deepest, depth)
         if isinstance(item, dict):
             stack.extend((v, depth + 1) for v in item.values())
-        elif isinstance(item, list):
+        elif isinstance(item, (list, tuple)):
+            # Tuples too, as `safe_text.clean_text` walks them (security round 3 of PR #48).
             stack.extend((v, depth + 1) for v in item)
     return deepest
 

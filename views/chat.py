@@ -350,7 +350,9 @@ def _render_details(message: dict) -> None:
                 # Model-written names and arguments are shown as plain text and code, never as
                 # Markdown, with hidden characters (bidi, zero-width, surrogates) escaped as in
                 # the approval panel, so nothing can open a link, an image or reorder the text.
-                st.text(f"{call_status(tool)}: {approval_form.visible_text(name)}")
+                # One line, never wrapped: blanks in a made-up name cannot push text that looks
+                # like the app's own note onto a line of its own (security round 3).
+                st.text(f"{call_status(tool)}: {approval_form.visible_text(name)}", wrap=False)
                 st.code(approval_form.shown_json(args), language=None)
         else:
             st.markdown("- No tools were called.")
@@ -585,7 +587,7 @@ def _render_approval(settings: Settings) -> None:
                     st.text(f"🧠 Save to memory: {memory_save_text(call['args'])}{off}")
                 else:
                     name = approval_form.visible_text(str(call["name"]))
-                    st.text(f"{'🌍' if needs else '📚'} {name}")
+                    st.text(f"{'🌍' if needs else '📚'} {name}", wrap=False)
                 st.caption(TOOL_EXPLANATIONS.get(call["name"], ""))
                 if repeated_ids:
                     st.code(approval_form.shown_json(call.get("args")), language=None)

@@ -317,6 +317,35 @@ def test_answer_details_escape_hidden_characters_and_mark_calls_that_did_not_run
     assert texts[5] == "Not a tool of this app: remember_preference · saved"
     assert json.loads(codes[2]) == {"topic": "zoo", "feeling": "likes"}
     assert "meaning" not in shown and "avoids zoos" not in shown
+    # Security round 3: every name line stays one line, so blanks cannot start a fake line.
+    assert all(t.proto.wrap is False for t in at.text)
+
+
+def _named_details_page():
+    """Render an answer's details with one made-up tool name from the session state."""
+    import streamlit as st
+
+    from views.chat import _render_details
+
+    name = st.session_state["tool_name"]
+    _render_details({"tools": [{"name": name, "args": {}, "ran": True}], "tokens": (1, 1)})
+
+
+@pytest.mark.parametrize("blank", [" " * 400, "\u3164" * 200])
+def test_a_made_up_tool_name_stays_on_one_line(blank):
+    """Security round 3 of PR #48: a padded made-up name never wraps into a fake app note."""
+    name = "x" + blank + "Saved: remember_preference"
+    at, _ = _form_test((name, {"topic": "zoo", "feeling": "likes"}))
+    panel_lines = [t for t in at.text if "Saved: remember_preference" in t.value]
+    assert panel_lines and all(t.proto.wrap is False for t in panel_lines)
+
+    details = AppTest.from_function(_named_details_page, default_timeout=30)
+    details.session_state["tool_name"] = name
+    details.run()
+    assert not details.exception
+    lines = [t for t in details.text if "Saved: remember_preference" in t.value]
+    assert lines and lines[0].value.startswith("Not a tool of this app: ")
+    assert all(t.proto.wrap is False for t in lines)
 
 
 _MIXED_TOOLS = [
