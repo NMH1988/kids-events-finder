@@ -24,6 +24,7 @@ Keep the entry short and record what the code does not say: decisions, gotchas, 
 
 ## Entries
 
+- [2026-11-27 · T5.16 Approval panel design: criteria approved · PR #PRNUM (refs #44)](progress/2026-11-27-T5.16.md)
 - [2026-11-27 · T5.3 Trip plan box: criteria from the T5.1 legal review · PR #45 (refs #22)](progress/2026-11-27-T5.3.md)
 - [2026-11-24 · T5.2 Parent-friendly approval form instead of raw JSON · PR #31 (closes #21)](progress/2026-11-24-T5.2.md)
 - [2026-11-24 · T1.8 Owner task O4: run the evaluations and fill docs/EVALUATION.md · PR #27 (closes #19)](progress/2026-11-24-T1.8.md)
