@@ -75,7 +75,8 @@ exact caption colour are measured in the running app (T5.15).
 - **Approval panel (T5.16; the three equal buttons in T5.2):** a yellow box "N steps are waiting for you"; one bordered
   card per step with an icon tile, "Step n of m", a blue "Sends data to an outside service" badge with
   the name of every map, event, weather, geocoding or train service it contacts, or, for a step whose only outside
-  service is the AI model service, a violet "Only the AI model reads it" with "OpenRouter (AI models)" (no green
+  service is the AI model service, a violet "Only the AI model reads it" with the provider from `config.AI_PROVIDER_NAME`
+  and "(AI models)" (no green
   badge: by the registers no step stays fully inside the app; owner decisions 2026-11-27, T5.16), a plain title from `PROGRESS_TOOL_LABELS`, the
   explanation, every argument as an editable field, the tool name as small plain text; an unknown
   cost shows a yellow badge holding only the fixed word "unknown", while its label (written by the
