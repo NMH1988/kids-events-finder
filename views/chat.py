@@ -316,10 +316,14 @@ def _render_remembered(message: dict) -> None:
 
 
 def call_status(tool: dict) -> str:
-    """Return the app's note on whether a call ran (a memory save: whether it was saved)."""
+    """Return the app's word for a call: ran, not run, saved, not saved, or not a tool."""
+    # The app's word comes first on the line, so a made-up tool name such as
+    # "remember_preference · saved" cannot pass as the app's own note (security round 2).
+    if tool.get("name") not in TOOL_EXPLANATIONS:
+        return "Not a tool of this app"
     if tool.get("name") == "remember_preference" and "saved" in tool:
-        return " · saved" if tool["saved"] else " · not saved"
-    return "" if tool.get("ran", True) else " · not run"
+        return "Saved" if tool["saved"] else "Not saved"
+    return "Ran" if tool.get("ran", True) else "Not run"
 
 
 def _render_details(message: dict) -> None:
@@ -346,7 +350,7 @@ def _render_details(message: dict) -> None:
                 # Model-written names and arguments are shown as plain text and code, never as
                 # Markdown, with hidden characters (bidi, zero-width, surrogates) escaped as in
                 # the approval panel, so nothing can open a link, an image or reorder the text.
-                st.text(f"{approval_form.visible_text(name)}{call_status(tool)}")
+                st.text(f"{call_status(tool)}: {approval_form.visible_text(name)}")
                 st.code(approval_form.shown_json(args), language=None)
         else:
             st.markdown("- No tools were called.")

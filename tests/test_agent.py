@@ -416,6 +416,19 @@ def test_deep_valid_json_edit_is_refused_without_crashing():
     assert "too long" in decision_problem(decision, [])
 
 
+def test_a_deep_forged_decision_is_refused_before_it_is_cleaned(tools, calls):
+    """T5.7 code round 2: resume_turn checks the depth before the recursive cleaning runs."""
+    nested: object = "x"
+    for _ in range(1200):
+        nested = [nested]
+    decision = {"action": "edit", "tool_calls": [{"id": "w1", "args": {"city": nested}}]}
+    graph, _ = _graph([_call("get_weather_forecast", {"city": "Berlin"}, "w1")], tools)
+    paused = start_turn(graph, "d1", "weather?", **CONTEXT)
+    with pytest.raises(InputRejected, match="too long"):
+        resume_turn(graph, "d1", decision, turn_start_index=paused.start_index)
+    assert calls == []
+
+
 def test_long_model_values_do_not_block_approve():
     """Security round 9: the per-value cap applies only to values the parent changed."""
     from src.agent.runner import decision_problem

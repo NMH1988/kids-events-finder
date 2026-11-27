@@ -282,6 +282,9 @@ def _hidden_details_page():
                     "ran": False,
                     "saved": False,
                 },
+                {"name": "get_weather_forecast", "args": {"city": "Berlin"}, "ran": True},
+                # A made-up name that copies the app's old status note (security round 2).
+                {"name": "remember_preference · saved", "args": {}, "ran": True},
             ],
             "grounding": {"verified": [], "removed": []},
             "tokens": (1, 1),
@@ -305,9 +308,13 @@ def test_answer_details_escape_hidden_characters_and_mark_calls_that_did_not_run
     assert visible_text("get_weather\u202e_forecast\ud800") in texts[0]
     assert "\\u202e" in texts[0] and "\\ud800" in texts[0]
     assert codes[0] == shown_json({"city": "Ber\u200blin\ud800", "note": "\u2066x\u2069"})
-    assert texts[1] == "find_nearby_places · not run"
-    assert texts[2] == "remember_preference · saved"
-    assert texts[3] == "remember_preference · not saved"
+    # The app's own word starts each line, before the model-written name (security round 2).
+    assert texts[0].startswith("Not a tool of this app: ")
+    assert texts[1] == "Not run: find_nearby_places"
+    assert texts[2] == "Saved: remember_preference"
+    assert texts[3] == "Not saved: remember_preference"
+    assert texts[4] == "Ran: get_weather_forecast"
+    assert texts[5] == "Not a tool of this app: remember_preference · saved"
     assert json.loads(codes[2]) == {"topic": "zoo", "feeling": "likes"}
     assert "meaning" not in shown and "avoids zoos" not in shown
 

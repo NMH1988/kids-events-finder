@@ -81,6 +81,14 @@ def check_input(text: str) -> str:
     return text
 
 
+TOO_LONG_DECISION = "This is too long. Please keep the reason and your edits short."
+
+
+def too_deep(decision: dict) -> bool:
+    """Return True when a decision nests deeper than any edit the page can send."""
+    return privacy_check.json_depth(decision) > config.MAX_EDIT_DEPTH + 3
+
+
 def decision_problem(decision: dict, original_calls: list[dict]) -> str | None:
     """Return a privacy warning when the parent's own text in a decision holds sensitive data."""
     # Only what the parent typed or changed is checked: the reject reason and edited values that
@@ -88,8 +96,8 @@ def decision_problem(decision: dict, original_calls: list[dict]) -> str | None:
     known = {
         s.strip() for call in original_calls for s in privacy_check.string_values(call.get("args"))
     }
-    too_long = "This is too long. Please keep the reason and your edits short."
-    if privacy_check.json_depth(decision) > config.MAX_EDIT_DEPTH + 3:
+    too_long = TOO_LONG_DECISION
+    if too_deep(decision):
         return too_long
     dumped = json.dumps(decision, ensure_ascii=False, default=str)
     if len(dumped) > config.MAX_DECISION_CHARS:
@@ -345,6 +353,10 @@ def resume_turn(
     """Resume a paused turn with the parent's decision (approve, edit or reject)."""
     if decision.get("action") not in ("approve", "edit", "reject"):
         raise ValueError("Unknown decision.")
+    # The depth is checked first (iteratively), so the recursive cleaning below never meets a
+    # decision nested deep enough to exhaust the stack (code round 2).
+    if too_deep(decision):
+        raise InputRejected(TOO_LONG_DECISION)
     # The parent's edits and reason may hold a lone surrogate (a JSON edit can write the escape
     # of one): replaced before any check or the graph sees it (T5.7).
     decision = clean_decision(decision)
