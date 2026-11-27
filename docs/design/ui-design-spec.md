@@ -3,7 +3,8 @@
 What the interface should look like, as the owner approved it on 2026-11-26 from mockups of the
 `ui-designer` proposals ([ui-proposals-2026-11-25.md](ui-proposals-2026-11-25.md), T1.10). The
 mockups are a private design canvas of the owner's; this file is the record that travels with the
-repo. T5.12 put it into the tickets: T5.2 (handed to its own PR), T5.3, T5.5, T5.13, T5.14, T5.15.
+repo. T5.12 put it into the tickets: T5.2 (the equal buttons, in PR #31), T5.16 (the rest of the
+approval panel, owner decision 2026-11-26), T5.3, T5.5, T5.13, T5.14, T5.15.
 
 ## Rules the design keeps
 
@@ -71,7 +72,7 @@ exact caption colour are measured in the running app (T5.15).
 
 ## Screens
 
-- **Approval panel (T5.2, handed to PR #31):** a yellow box "N steps are waiting for you"; one bordered
+- **Approval panel (T5.16; the three equal buttons in T5.2):** a yellow box "N steps are waiting for you"; one bordered
   card per step with an icon tile, "Step n of m", a blue "Sends data to an outside service" or green
   "Stays inside the app" badge plus the service's name, a plain title from `PROGRESS_TOOL_LABELS`, the
   explanation, every argument as an editable field, the tool name as small plain text; an unknown

@@ -641,6 +641,26 @@ def test_the_panel_says_when_memory_is_off():
     assert any(t.value == heading for t in at.text)
 
 
+def test_editing_a_memory_save_locks_approve():
+    """T5.2's lock holds for a memory save: Approve never runs a save the panel no longer shows."""
+    at = AppTest.from_function(_memory_approval_page, default_timeout=30).run()
+    approve = next(b for b in at.button if b.key and b.key.startswith("approve_"))
+    assert not approve.disabled
+    box = next(a for a in at.text_area if a.key and a.key.startswith("args_"))
+    box.input('{"topic": "theme_park", "feeling": "avoids"}').run()
+    approve = next(b for b in at.button if b.key and b.key.startswith("approve_"))
+    assert approve.disabled
+
+
+def test_the_three_approval_buttons_have_the_same_type():
+    """Rule 4.2 (owner decision 2026-11-26): no primary Approve; the three buttons look the same."""
+    at = AppTest.from_function(_memory_approval_page, default_timeout=30).run()
+    prefixes = ("approve_", "edit_", "reject_")
+    buttons = [b for b in at.button if b.key and b.key.startswith(prefixes)]
+    assert len(buttons) == 3
+    assert {b.proto.type for b in buttons} == {"secondary"}
+
+
 @pytest.mark.parametrize(
     "args",
     [

@@ -597,7 +597,8 @@ def _render_approval(settings: Settings) -> None:
         if c1.button(
             "✅ Approve",
             key=f"approve_{panel}",
-            type="primary",
+            # Same button type as "Run with my edits" and Reject: yes and no weigh the same (4.2;
+            # owner decisions of 2026-11-25 and 2026-11-26).
             disabled=changed or repeated_ids,
             use_container_width=True,
         ):
