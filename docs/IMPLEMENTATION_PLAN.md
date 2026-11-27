@@ -9,7 +9,7 @@ Epics, tickets, acceptance criteria, dependencies, order and status. This file a
 
 `tests/test_docs_layout.py` checks that these agree.
 
-**Status of this plan:** set up by T1.4 (issue #12) on 2026-11-23, following the layout of the owner's earlier project. T1.1-T1.3 and T2.1 were done before the plan existed; their tickets were written after the fact from their commits and PR descriptions. The open tickets come from the GitHub issues #4-#10 of 2026-11-20; their acceptance criteria were drafted by Claude: T3.1-T3.4's approved by the owner on 2026-11-23 (with the layout), T4.1-T4.3's still to be written. Epic 5 (T5.1-T5.6) was proposed by Claude at the owner's request on 2026-11-24; the owner approved the list and the acceptance criteria that day (T5.6 criteria 8-14, added in T1.8, have their scope approved and their wording confirmed when the ticket starts). T5.7 (issue #30) was added on 2026-11-24 from the T5.2 reviews at the owner's request; its acceptance criteria are still to be approved. T5.8-T5.10 are follow-ups from the T1.8 evaluation, opened at the owner's request on 2026-11-24; their criteria were drafted by Claude and are approved by the owner before each starts. T5.11 (long-term memory) was added on 2026-11-25 after the owner asked to check the course topics (first numbered T5.7; renumbered before its first commit because open PRs already use T5.7-T5.10); the owner approved its acceptance criteria that day. T5.16 (issue #44) was added on 2026-11-26 from the reviews of the T5.2 merge, at the owner's request: it takes the approval panel's design that T5.12 had handed to PR #31; its criteria were drafted by Claude and approved by the owner on 2026-11-27.
+**Status of this plan:** set up by T1.4 (issue #12) on 2026-11-23, following the layout of the owner's earlier project. T1.1-T1.3 and T2.1 were done before the plan existed; their tickets were written after the fact from their commits and PR descriptions. The open tickets come from the GitHub issues #4-#10 of 2026-11-20; their acceptance criteria were drafted by Claude: T3.1-T3.4's approved by the owner on 2026-11-23 (with the layout), T4.1-T4.3's still to be written. Epic 5 (T5.1-T5.6) was proposed by Claude at the owner's request on 2026-11-24; the owner approved the list and the acceptance criteria that day (T5.6 criteria 8-14, added in T1.8, have their scope approved and their wording confirmed when the ticket starts). T5.7 (issue #30) was added on 2026-11-24 from the T5.2 reviews at the owner's request; its acceptance criteria were approved by the owner on 2026-11-27. T5.8-T5.10 are follow-ups from the T1.8 evaluation, opened at the owner's request on 2026-11-24; their criteria were drafted by Claude and are approved by the owner before each starts. T5.11 (long-term memory) was added on 2026-11-25 after the owner asked to check the course topics (first numbered T5.7; renumbered before its first commit because open PRs already use T5.7-T5.10); the owner approved its acceptance criteria that day. T5.16 (issue #44) was added on 2026-11-26 from the reviews of the T5.2 merge, at the owner's request: it takes the approval panel's design that T5.12 had handed to PR #31; its criteria were drafted by Claude and approved by the owner on 2026-11-27.
 
 ## Status legend
 
@@ -69,7 +69,7 @@ Deadline: **2026-12-16** (Capstone review). The owner tasks O1-O7 come first for
 | [T5.4](tickets/T5.4.md) | Clear messages when the agent stops | S | T5.1 | todo |
 | [T5.3](tickets/T5.3.md) | Trip plan box from the tool results | L | none | todo |
 | [T5.5](tickets/T5.5.md) | Source credits for data from earlier turns | M | none | todo |
-| [T5.7](tickets/T5.7.md) | Hidden characters in model output and the knowledge base caption | S | T5.2 | todo |
+| [T5.7](tickets/T5.7.md) | Hidden characters in model output and the knowledge base caption | M | T5.2 | todo |
 | [T5.12](tickets/T5.12.md) | UI design from the mockups into the Epic 5 tickets | S | T1.10 | done |
 | [T5.15](tickets/T5.15.md) | Light and dark colour theme with tested contrast | S | T5.12, T5.2 | todo |
 | [T5.16](tickets/T5.16.md) | Approval panel design from the mockups | M | T5.2, T5.12 | todo |
@@ -131,7 +131,7 @@ Interface and agent improvements before the Capstone review (2026-12-16), for th
 - [T5.4 Clear messages when the agent stops (S)](tickets/T5.4.md)
 - [T5.5 Source credits for data from earlier turns (M)](tickets/T5.5.md)
 - [T5.6 Offline red-team tests: injection checks, answer checks and the approval gate (L)](tickets/T5.6.md)
-- [T5.7 Hidden characters in model output and the knowledge base caption (S)](tickets/T5.7.md)
+- [T5.7 Hidden characters in model output and the knowledge base caption (M)](tickets/T5.7.md)
 - [T5.8 Wrong-country measure by website, and a re-run (S)](tickets/T5.8.md)
 - [T5.9 Faster answers: under 30 seconds on average (M)](tickets/T5.9.md)
 - [T5.10 Harder retrieval evaluation set (M)](tickets/T5.10.md)
