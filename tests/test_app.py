@@ -666,8 +666,8 @@ def test_the_three_approval_buttons_have_the_same_type():
     [
         {"topic": "museum", "feeling": "likes"},
         {"topic": "Museum", "feeling": "likes"},
-        {"topic": "museum​", "feeling": "likes"},
-        {"topic": "musеum", "feeling": "likes"},
+        {"topic": "museum\u200b", "feeling": "likes"},
+        {"topic": "mus\u0435um", "feeling": "likes"},
         {"topic": ["museum"], "feeling": "likes"},
         {"topic": None, "feeling": "likes"},
         {"topic": "museum", "feeling": "loves"},

@@ -239,7 +239,7 @@ The users are parents, but the app handles data about children, who are speciall
   cannot decide what is saved; and only once per topic in one step. **Every save waits for the
   parent's approval** (`config.TOOLS_ALWAYS_REVIEWED`, also with auto-approve on; owner decision
   2026-11-25): the approval panel shows the kind of place and "likes" or "avoids", and nothing is
-  stored if the parent rejects. With the switch off the call is refused without a pause. Without
+  stored if the parent rejects. With the switch off the call is refused without a pause. A save that pauses next to another step while the switch is off is decided by the switch at approval time (2.8): if the parent switches memory on first, the panel shows the save without the "Memory is off" note and approving stores it (owner decision 2026-11-26, T5.2; `test_switching_memory_on_during_a_pause_saves_the_approved_save`). Without
   the server setting below the model is not offered the tool at all. Each saved preference is
   shown under the answer. Remembered preferences change which places the AI suggests first
   (5.3). Without a login the memory belongs to the computer that runs the app (one local profile
