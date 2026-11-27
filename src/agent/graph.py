@@ -31,6 +31,7 @@ from langgraph.types import Command, interrupt
 
 from src import config, family, memory
 from src.grounding import allowed_urls, enforce_grounding
+from src.safe_text import clean_ai_message
 
 _SYSTEM_TEMPLATE = (config.PROMPTS_DIR / "agent_system.md").read_text(encoding="utf-8")
 
@@ -167,6 +168,10 @@ def build_graph(
         # during an approval pause takes effect at once (LEGAL_COMPLIANCE 2.8, 2.11).
         prompt = system_prompt(state, store=store, memory_on=memory.switched_on(config))
         response = model.invoke([SystemMessage(prompt), *history_for_model(state["messages"])])
+        # A lone surrogate in the model's text, tool calls or ids would break the next model
+        # request and the stored history (T5.7): it becomes U+FFFD before anything uses it.
+        if isinstance(response, AIMessage):
+            response = clean_ai_message(response)
         return {"messages": [response]}
 
     def route_after_agent(state: AgentState, config: RunnableConfig) -> str:  # noqa: F811
@@ -203,6 +208,8 @@ def build_graph(
                 ),
                 tool_call_id=tc["id"],
                 name=tc["name"],
+                # The app's fixed marker that this call did not run (T5.7).
+                artifact=config.REJECTED_BY_PARENT,
             )
             for tc in last.tool_calls
         ]

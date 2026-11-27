@@ -27,6 +27,7 @@ from src.agent.runner import (
 from src.feedback import delete_shared_feedback, purge_old_feedback, save_feedback
 from src.llm import MissingAPIKeyError
 from src.privacy_check import json_depth
+from src.safe_text import short_hash
 from src.tools.external import (
     ATTRIBUTION_GEOCODING,
     ATTRIBUTION_OSM,
@@ -42,7 +43,9 @@ from views.sidebar import Settings
 logger = logging.getLogger(__name__)
 
 TOOL_EXPLANATIONS = {
-    "search_knowledge_base": "Searches the app's own curated list. Nothing leaves the app.",
+    "search_knowledge_base": "Searches the app's own curated list. The search text goes to the AI "
+    "model service to find matches; no map, event, weather, geocoding or train service is "
+    "contacted.",
     "find_nearby_places": "Looks up the city and country with Open-Meteo, then sends its location "
     "and a place category to OpenStreetMap (Overpass API).",
     "search_family_events": "Looks up the city with Open-Meteo, then sends the town name, country "
@@ -285,9 +288,15 @@ def _render_calculations(message: dict) -> None:
         )
 
 
+def tools_that_ran(message: dict) -> list[dict]:
+    """Return the answer's tool calls that ran: a call the parent rejected did not (T5.7)."""
+    return [t for t in message.get("tools") or [] if t.get("ran", True)]
+
+
 def _render_attributions(message: dict) -> None:
     """Name the data sources of the live tools this answer used (set by the app, not the model)."""
-    used = {t["name"] for t in message.get("tools") or []}
+    # Only calls that ran: a rejected call reached no service, so it has nothing to credit.
+    used = {t["name"] for t in tools_that_ran(message)}
     lines = [text for name, text in ATTRIBUTIONS.items() if name in used]
     if used & GEOCODING_TOOLS:
         lines.append(ATTRIBUTION_GEOCODING)
@@ -306,6 +315,13 @@ def _render_remembered(message: dict) -> None:
         )
 
 
+def call_status(tool: dict) -> str:
+    """Return the app's note on whether a call ran (a memory save: whether it was saved)."""
+    if tool.get("name") == "remember_preference" and "saved" in tool:
+        return " · saved" if tool["saved"] else " · not saved"
+    return "" if tool.get("ran", True) else " · not run"
+
+
 def _render_details(message: dict) -> None:
     """Show how an answer was made: tools, grounding check, tokens and time."""
     grounding = message.get("grounding") or {}
@@ -321,12 +337,17 @@ def _render_details(message: dict) -> None:
         tools = message.get("tools") or []
         if tools:
             for tool in tools:
-                # Model-written names and arguments are shown as plain code, never as Markdown,
-                # so a backtick in them cannot open a link or an image.
-                st.code(
-                    f"{tool['name']} {json.dumps(tool['args'], ensure_ascii=False)}",
-                    language=None,
-                )
+                name = str(tool.get("name", ""))
+                args = tool.get("args")
+                if name == "remember_preference":
+                    # Only the two fields the tool reads, as in the approval panel: other keys
+                    # the model wrote are never shown as if they were saved (T5.7).
+                    args = memory_save_args(args if isinstance(args, dict) else {})
+                # Model-written names and arguments are shown as plain text and code, never as
+                # Markdown, with hidden characters (bidi, zero-width, surrogates) escaped as in
+                # the approval panel, so nothing can open a link, an image or reorder the text.
+                st.text(f"{approval_form.visible_text(name)}{call_status(tool)}")
+                st.code(approval_form.shown_json(args), language=None)
         else:
             st.markdown("- No tools were called.")
         tin, tout = message.get("tokens", (0, 0))
@@ -356,7 +377,11 @@ def _render_feedback(index: int, message: dict, settings: Settings) -> None:
             message["content"],
             model=message.get("model", ""),
             country=settings.country,
-            tools_used=[t["name"] for t in message.get("tools") or []],
+            # Only calls that ran (a refused memory save did run), and only the app's own tool
+            # names: a made-up name is model text and is not stored (T5.7, security round 1).
+            tools_used=[
+                t["name"] for t in tools_that_ran(message) if t["name"] in TOOL_EXPLANATIONS
+            ],
             grounded=not (message.get("grounding") or {}).get("removed"),
             share_text=share,
             session_id=st.session_state.feedback_session,
@@ -378,7 +403,7 @@ def _budget_editor(call: dict, settings: Settings, panel: str = "") -> dict:
         min_value=float(low),
         max_value=float(high),
         value=min(max(float(start or 0), float(low)), float(high)),
-        key=f"budget_{panel}_{call['id']}",
+        key=f"budget_{panel}_{call_key(call['id'])}",
     )
     rows = [
         {
@@ -391,7 +416,7 @@ def _budget_editor(call: dict, settings: Settings, panel: str = "") -> dict:
     table = st.data_editor(
         rows,
         num_rows="dynamic",
-        key=f"items_{panel}_{call['id']}",
+        key=f"items_{panel}_{call_key(call['id'])}",
         column_config={
             "label": st.column_config.TextColumn("Cost", required=True, max_chars=80),
             "amount_eur": st.column_config.NumberColumn(
@@ -445,7 +470,7 @@ def _json_editor(call: dict, panel: str) -> tuple[dict | None, bool]:
         text = st.text_area(
             "Arguments (you can edit them)",
             original,
-            key=f"args_{panel}_{call['id']}",
+            key=f"args_{panel}_{call_key(call['id'])}",
             height=130,
             max_chars=config.MAX_DECISION_CHARS,
         )
@@ -508,7 +533,7 @@ def _form_editor(call: dict, values: dict, panel: str) -> tuple[dict | None, boo
     form = approval_form.FORMS[call["name"]]
     shown = {
         field.name: _form_widget(
-            field, values[field.name], form, f"{field.name}_{panel}_{call['id']}"
+            field, values[field.name], form, f"{field.name}_{panel}_{call_key(call['id'])}"
         )
         for field in form.fields
     }
@@ -658,6 +683,12 @@ def approval_panel_key(pause_id: str | None, call_ids: list[str]) -> str:
     # the key short whatever the ids look like.
     parts = [str(pause_id or ""), *map(str, call_ids)]
     return hashlib.sha256(json.dumps(parts).encode("utf-8")).hexdigest()[:16]
+
+
+def call_key(call_id: object) -> str:
+    """Return a widget key part for one model call id, safe whatever characters it holds."""
+    # The id is the model's text: a hash keeps the key short and plain (T5.7).
+    return short_hash(str(call_id))
 
 
 class ProgressWriter:

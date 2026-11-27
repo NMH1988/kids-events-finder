@@ -90,7 +90,9 @@ def test_external_tool_pauses_and_runs_after_approval(tools, calls):
     done = resume_turn(graph, "t2", {"action": "approve"}, turn_start_index=paused.start_index)
     assert done.status == "done" and done.answer == "It will rain."
     assert calls == [("get_weather_forecast", {"city": "Berlin"})]
-    assert done.tools_used == [{"name": "get_weather_forecast", "args": {"city": "Berlin"}}]
+    assert done.tools_used == [
+        {"name": "get_weather_forecast", "args": {"city": "Berlin"}, "ran": True}
+    ]
 
 
 def test_edit_changes_the_arguments_before_the_tool_runs(tools, calls):
@@ -802,3 +804,235 @@ def test_a_sentence_that_skips_the_form_is_refused_by_the_tools_place_name_check
     assert decision_problem(forged, paused.pending_tool_calls) is None
     resume_turn(graph, "f3", forged, turn_start_index=paused.start_index)
     assert train_calls == []
+
+
+# T5.7: a lone surrogate never reaches a model request or the stored history.
+SURROGATE, FFFD = "\ud800", "�"
+
+
+def _requests_encode(model: ScriptedChatModel) -> None:
+    """Check that every request the model received can be written as UTF-8, as sent."""
+    from langchain_openai.chat_models.base import _convert_message_to_dict
+
+    assert model.received
+    for batch in model.received:
+        sent = [_convert_message_to_dict(m) for m in batch]
+        json.dumps(sent, ensure_ascii=False).encode("utf-8")
+        json.dumps([m.model_dump() for m in batch], ensure_ascii=False, default=str).encode()
+
+
+def _stored(graph, thread: str) -> list:
+    """Return the messages the checkpointer holds for a thread."""
+    return graph.get_state({"configurable": {"thread_id": thread}}).values["messages"]
+
+
+def _no_surrogate(value) -> bool:
+    """Return True when no string in the value holds a lone surrogate."""
+    text = json.dumps(value, ensure_ascii=False, default=str)
+    return not any(0xD800 <= ord(ch) <= 0xDFFF for ch in text)
+
+
+@pytest.mark.parametrize("name", ["search_knowledge_base", "search_knowledge_base" + SURROGATE])
+def test_a_surrogate_in_a_call_that_runs_without_a_pause_is_replaced(tools, calls, name):
+    """T5.7 AC2: the tool call, its id and the answer hold U+FFFD; the next request encodes."""
+    graph, model = _graph(
+        [
+            _call(name, {"query": "zoo" + SURROGATE}, "c" + SURROGATE),
+            AIMessage("Zoo " + SURROGATE + " [Zoo](https://zoo.example)"),
+        ],
+        tools,
+    )
+    result = start_turn(graph, "u1", "zoo?", **CONTEXT)
+    assert result.status == "done"
+    assert len(model.received) == 2
+    _requests_encode(model)
+    stored = _stored(graph, "u1")
+    call = stored[1].tool_calls[0]
+    assert call["args"] == {"query": "zoo" + FFFD} and call["name"] == name.replace(SURROGATE, FFFD)
+    assert call["id"].startswith("c" + FFFD) and stored[2].tool_call_id == call["id"]
+    assert FFFD in stored[-1].content and FFFD in result.answer
+    assert _no_surrogate([m.model_dump() for m in stored])
+    if name == "search_knowledge_base":
+        assert calls == [("search_knowledge_base", {"query": "zoo" + FFFD})]
+
+
+def test_a_surrogate_in_a_call_that_pauses_is_replaced_before_the_pause(tools, calls):
+    """T5.7 AC2: the pause payload holds U+FFFD, and approving runs the cleaned call."""
+    graph, model = _graph(
+        [
+            _call("get_weather_forecast", {"city": "Ber" + SURROGATE + "lin"}, "w" + SURROGATE),
+            AIMessage("Rain."),
+        ],
+        tools,
+    )
+    paused = start_turn(graph, "u2", "weather?", **CONTEXT)
+    pending = paused.pending_tool_calls[0]
+    assert pending["args"] == {"city": "Ber" + FFFD + "lin"}
+    assert _no_surrogate(pending) and pending["id"] == paused.needs_approval[0]
+    done = resume_turn(
+        graph,
+        "u2",
+        {"action": "approve"},
+        turn_start_index=paused.start_index,
+        expected_ids=[pending["id"]],
+        expected_pause=paused.pause_id,
+    )
+    assert done.status == "done"
+    assert calls == [("get_weather_forecast", {"city": "Ber" + FFFD + "lin"})]
+    _requests_encode(model)
+    assert _no_surrogate([m.model_dump() for m in _stored(graph, "u2")])
+
+
+def test_a_surrogate_in_an_answer_is_replaced(tools):
+    """T5.7 AC2: the stored answer holds U+FFFD, and the next turn's request encodes."""
+    graph, model = _graph([AIMessage("Hi " + SURROGATE), AIMessage("Again.")], tools)
+    first = start_turn(graph, "u3", "hi", **CONTEXT)
+    assert first.answer == "Hi " + FFFD
+    assert _stored(graph, "u3")[-1].content == "Hi " + FFFD
+    start_turn(graph, "u3", "and?", **CONTEXT)
+    _requests_encode(model)
+
+
+def test_a_surrogate_in_the_parents_edit_is_replaced(tools, calls):
+    """T5.7 AC2: a JSON edit holding a lone surrogate reaches the tool and the model as U+FFFD."""
+    graph, model = _graph(
+        [_call("get_weather_forecast", {"city": "Berlin"}, "w1"), AIMessage("Done.")], tools
+    )
+    paused = start_turn(graph, "u4", "weather?", **CONTEXT)
+    # The six-character JSON escape a parent can type in the editor, read by json.loads.
+    edit = json.loads(r'{"city": "Pots\ud800dam"}')
+    assert edit["city"] == "Pots" + SURROGATE + "dam"
+    resume_turn(
+        graph,
+        "u4",
+        {"action": "edit", "tool_calls": [{"id": "w1", "args": edit}]},
+        turn_start_index=paused.start_index,
+    )
+    assert calls == [("get_weather_forecast", {"city": "Pots" + FFFD + "dam"})]
+    _requests_encode(model)
+    stored = _stored(graph, "u4")
+    assert stored[1].tool_calls[0]["args"] == {"city": "Pots" + FFFD + "dam"}
+    assert _no_surrogate([m.model_dump() for m in stored])
+
+
+def test_a_surrogate_in_a_reject_reason_is_replaced(tools, calls):
+    """T5.7 AC2: the rejection the model reads holds U+FFFD, not the surrogate or its escape."""
+    graph, model = _graph(
+        [_call("get_weather_forecast", {"city": "Berlin"}, "w1"), AIMessage("OK.")], tools
+    )
+    paused = start_turn(graph, "u5", "weather?", **CONTEXT)
+    resume_turn(
+        graph,
+        "u5",
+        {"action": "reject", "feedback": "indoor " + SURROGATE + " only"},
+        turn_start_index=paused.start_index,
+    )
+    assert calls == []
+    _requests_encode(model)
+    rejection = [m for m in _stored(graph, "u5") if isinstance(m, ToolMessage)][-1]
+    assert "indoor " + FFFD + " only" in json.loads(rejection.content)["error"]
+
+
+@pytest.mark.parametrize(
+    ("first", "second", "same"),
+    [
+        ("a" + SURROGATE, "a\udc00", False),  # differ only by the surrogate
+        ("a" + SURROGATE, "a" + FFFD, False),  # a real U+FFFD at the same place
+        ("x" + SURROGATE, "x" + SURROGATE, True),  # repeated id stays repeated
+    ],
+)
+def test_call_ids_compare_the_same_after_the_replacement(tools, first, second, same):
+    """T5.7 AC2: distinct ids stay distinct and equal ids stay equal (repeated ids: only Reject)."""
+    message = AIMessage(
+        content="",
+        tool_calls=[
+            {"name": "get_weather_forecast", "args": {"city": "Berlin"}, "id": first},
+            {"name": "get_weather_forecast", "args": {"city": "Potsdam"}, "id": second},
+        ],
+    )
+    graph, _ = _graph([message], tools)
+    paused = start_turn(graph, "u6", "weather?", **CONTEXT)
+    ids = [tc["id"] for tc in paused.pending_tool_calls]
+    assert _no_surrogate(ids)
+    assert (ids[0] == ids[1]) is same
+
+
+def test_cleaning_an_id_twice_keeps_it():
+    """T5.7: an id the page sends back unchanged is the id the thread holds."""
+    from src.safe_text import clean_decision, clean_id
+
+    once = clean_id("w" + SURROGATE)
+    assert clean_id(once) == once and clean_id("w1") == "w1"
+    decision = {"action": "edit", "tool_calls": [{"id": "w" + SURROGATE, "args": {}}]}
+    assert clean_decision(decision)["tool_calls"][0]["id"] == once
+
+
+def test_surrogates_in_additional_kwargs_and_invalid_calls_are_replaced(tools):
+    """T5.7 AC2 (code round 1): extra fields and malformed calls are cleaned and sent as UTF-8."""
+    from langchain_core.messages.tool import invalid_tool_call
+
+    broken = AIMessage(
+        content="Hi",
+        additional_kwargs={"note": "a" + SURROGATE, "nested": {"k" + SURROGATE: ["b" + SURROGATE]}},
+        invalid_tool_calls=[
+            invalid_tool_call(
+                name="bad" + SURROGATE, args="{" + SURROGATE, id="i" + SURROGATE, error=None
+            )
+        ],
+    )
+    graph, model = _graph([broken, AIMessage("Again.")], tools)
+    start_turn(graph, "u7", "hi", **CONTEXT)
+    start_turn(graph, "u7", "and?", **CONTEXT)
+    _requests_encode(model)
+    stored = _stored(graph, "u7")
+    assert _no_surrogate([m.model_dump() for m in stored])
+    first = stored[1]
+    assert first.additional_kwargs["note"] == "a" + FFFD
+    assert first.invalid_tool_calls[0]["args"] == "{" + FFFD
+    assert first.invalid_tool_calls[0]["id"].startswith("i" + FFFD)
+
+
+def test_message_ids_that_differ_only_by_a_surrogate_stay_distinct(tools, calls):
+    """Security round 1: two steps whose ids differ by a surrogate are both kept."""
+    step = _call("search_knowledge_base", {"query": "zoo"}, "c1")
+    step.id = "m" + SURROGATE
+    answer = AIMessage("[Zoo](https://zoo.example)", id="m\udc00")
+    graph, model = _graph([step, answer], tools)
+    result = start_turn(graph, "u8", "zoo?", **CONTEXT)
+    assert result.status == "done" and calls
+    ids = [m.id for m in _stored(graph, "u8") if isinstance(m, AIMessage)]
+    assert len(ids) == 2 and ids[0] != ids[1] and _no_surrogate(ids)
+    _requests_encode(model)
+
+
+def test_a_call_id_reused_after_a_rejection_still_counts_as_run(tools, calls):
+    """Legal and security round 1: a later step's rejection never marks an earlier call."""
+    graph, _ = _graph(
+        [
+            _call("get_weather_forecast", {"city": "Berlin"}, "call_0"),
+            _call("get_weather_forecast", {"city": "Potsdam"}, "call_0"),
+            AIMessage("Done."),
+        ],
+        tools,
+    )
+    first = start_turn(graph, "u9", "weather?", **CONTEXT)
+    second = resume_turn(graph, "u9", {"action": "reject"}, turn_start_index=first.start_index)
+    done = resume_turn(graph, "u9", {"action": "approve"}, turn_start_index=second.start_index)
+    assert [t["ran"] for t in done.tools_used] == [False, True]
+    assert calls == [("get_weather_forecast", {"city": "Potsdam"})]
+
+
+def test_an_approved_call_stays_run_when_a_later_step_reusing_its_id_is_rejected(tools, calls):
+    """Legal round 1: approved first, a reused id rejected next: only the second did not run."""
+    graph, _ = _graph(
+        [
+            _call("get_weather_forecast", {"city": "Berlin"}, "call_0"),
+            _call("get_weather_forecast", {"city": "Potsdam"}, "call_0"),
+            AIMessage("Done."),
+        ],
+        tools,
+    )
+    first = start_turn(graph, "u10", "weather?", **CONTEXT)
+    second = resume_turn(graph, "u10", {"action": "approve"}, turn_start_index=first.start_index)
+    done = resume_turn(graph, "u10", {"action": "reject"}, turn_start_index=second.start_index)
+    assert [t["ran"] for t in done.tools_used] == [True, False]

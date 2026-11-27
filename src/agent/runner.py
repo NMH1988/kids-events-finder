@@ -12,6 +12,7 @@ from langgraph.types import Command
 
 from src import config, family, memory, privacy_check
 from src.agent.graph import goes_to_review, message_text
+from src.safe_text import clean_decision
 
 logger = logging.getLogger(__name__)
 
@@ -44,6 +45,8 @@ class TurnResult:
     needs_approval: list[str] = field(default_factory=list)
     # The id LangGraph gives this pause; unique per pause, unlike the model's tool-call ids.
     pause_id: str | None = None
+    # Every answered tool call: name, args and "ran" (False when the parent rejected it); a memory
+    # save also has "saved" (True only when its result holds the saved preference). T5.7.
     tools_used: list[dict] = field(default_factory=list)
     # The app's own calculations in this turn (latest ticket comparison and budget check), shown
     # by the UI from the tool results, so money never depends on the model's text.
@@ -137,19 +140,57 @@ def calculations(messages: list) -> dict[str, dict]:
     return found
 
 
+def saved_entry(message: ToolMessage) -> dict | None:
+    """Return the preference a `remember_preference` result says it saved, or None."""
+    try:
+        data = json.loads(message.content)
+    except json.JSONDecodeError, TypeError:
+        return None
+    if isinstance(data, dict) and isinstance(data.get("saved"), dict):
+        return data["saved"]
+    return None
+
+
 def remembered(messages: list) -> list[dict]:
     """Return the preferences `remember_preference` saved, the last one per topic (as stored)."""
     saved: dict[str, dict] = {}
     for message in messages:
         if isinstance(message, ToolMessage) and message.name == "remember_preference":
-            try:
-                data = json.loads(message.content)
-            except json.JSONDecodeError, TypeError:
-                continue
-            if isinstance(data, dict) and isinstance(data.get("saved"), dict):
-                saved.pop(data["saved"].get("topic"), None)
-                saved[data["saved"].get("topic")] = data["saved"]
+            entry = saved_entry(message)
+            if entry is not None:
+                saved.pop(entry.get("topic"), None)
+                saved[entry.get("topic")] = entry
     return list(saved.values())
+
+
+def tool_runs(messages: list) -> list[dict]:
+    """Return each answered tool call with whether it ran (and, for a memory save, was saved)."""
+    used = []
+    for i, message in enumerate(messages):
+        if not isinstance(message, AIMessage):
+            continue
+        # Only the results right after this step: the model's call ids can repeat in a later
+        # step, whose rejection must not mark this step's calls (legal and security round 1).
+        results: dict[str, list[ToolMessage]] = {}
+        for later in messages[i + 1 :]:
+            if not isinstance(later, ToolMessage):
+                break
+            results.setdefault(later.tool_call_id, []).append(later)
+        for tc in message.tool_calls:
+            answers = results.get(tc["id"])
+            if not answers:
+                continue
+            # Known from the fixed marker `human_review` sets, never from the result's text.
+            ran = not any(t.artifact == config.REJECTED_BY_PARENT for t in answers)
+            entry = {"name": tc["name"], "args": tc["args"], "ran": ran}
+            if tc["name"] == "remember_preference":
+                # The tool also refuses an approved save (memory off, a topic the parent did not
+                # name, ...): saved only when its result says so, as `remembered()` reads it.
+                entry["saved"] = ran and any(
+                    t.name == "remember_preference" and saved_entry(t) is not None for t in answers
+                )
+            used.append(entry)
+    return used
 
 
 def _summarise(graph, run_config: dict, start_index: int, started: float) -> TurnResult:
@@ -157,13 +198,7 @@ def _summarise(graph, run_config: dict, start_index: int, started: float) -> Tur
     snapshot = graph.get_state(run_config)
     messages = snapshot.values.get("messages", [])
     new = messages[start_index:]
-    tools_used = [
-        {"name": tc["name"], "args": tc["args"]}
-        for m in new
-        if isinstance(m, AIMessage)
-        for tc in m.tool_calls
-        if any(isinstance(t, ToolMessage) and t.tool_call_id == tc["id"] for t in new)
-    ]
+    tools_used = tool_runs(new)
     usage = [m.usage_metadata for m in new if isinstance(m, AIMessage) and m.usage_metadata]
     result = TurnResult(
         status="done",
@@ -310,6 +345,9 @@ def resume_turn(
     """Resume a paused turn with the parent's decision (approve, edit or reject)."""
     if decision.get("action") not in ("approve", "edit", "reject"):
         raise ValueError("Unknown decision.")
+    # The parent's edits and reason may hold a lone surrogate (a JSON edit can write the escape
+    # of one): replaced before any check or the graph sees it (T5.7).
+    decision = clean_decision(decision)
     run_config = _run_config(thread_id, auto_approve, memory_on)
     snapshot = graph.get_state(run_config)
     # Resume only a thread that waits for the parent, and (when the page says which pause and
