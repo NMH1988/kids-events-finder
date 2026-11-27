@@ -30,7 +30,7 @@ approval panel, owner decision 2026-11-26), T5.3, T5.5, T5.13, T5.14, T5.15.
 
 | Colour | Means | Examples |
 |---|---|---|
-| Blue | data goes to a map, event, weather or train service; journeys; neutral information | "Sends data to an outside service", way there and back, the bahn.de note, the link note |
+| Blue | data goes to a map, event, weather, geocoding or train service; journeys; neutral information | "Sends data to an outside service", way there and back, the bahn.de note, the link note |
 | Green | money that fits (every cost known); done | "Within budget", "Shared with your rating." |
 | Violet | the AI, including what the AI model service reads; the children | "AI-generated", "Child 1: 3-5 years", "Sent to the AI model with later questions", "Only the AI model reads it" |
 | Orange | the day trip | the trip box and the trip settings |
