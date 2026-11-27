@@ -30,9 +30,9 @@ approval panel, owner decision 2026-11-26), T5.3, T5.5, T5.13, T5.14, T5.15.
 
 | Colour | Means | Examples |
 |---|---|---|
-| Blue | data leaves the app; journeys; neutral information | "Sends data to an outside service", way there and back, the bahn.de note, the link note |
+| Blue | data goes to a map, event, weather or train service; journeys; neutral information | "Sends data to an outside service", way there and back, the bahn.de note, the link note |
 | Green | money that fits (every cost known); done | "Within budget", "Shared with your rating." |
-| Violet | the AI; the children | "AI-generated", "Child 1: 3-5 years", "Sent to the AI model with later questions", "Only the AI model reads it" |
+| Violet | the AI, including what the AI model service reads; the children | "AI-generated", "Child 1: 3-5 years", "Sent to the AI model with later questions", "Only the AI model reads it" |
 | Orange | the day trip | the trip box and the trip settings |
 | Yellow | waiting or still unknown | "2 steps are waiting for you", "Within budget so far" |
 | Gray | secondary facts | "Sources", the service name, testing settings |
@@ -74,13 +74,14 @@ exact caption colour are measured in the running app (T5.15).
 
 - **Approval panel (T5.16; the three equal buttons in T5.2):** a yellow box "N steps are waiting for you"; one bordered
   card per step with an icon tile, "Step n of m", a blue "Sends data to an outside service" badge with
-  every service's name, or a violet "Only the AI model reads it" (no green badge: by the registers no step stays
-  fully inside the app; owner decision 2026-11-27, T5.16), a plain title from `PROGRESS_TOOL_LABELS`, the
+  the name of every map, event, weather, geocoding or train service it contacts, or, for a step whose only outside
+  service is the AI model service, a violet "Only the AI model reads it" with "OpenRouter (AI models)" (no green
+  badge: by the registers no step stays fully inside the app; owner decisions 2026-11-27, T5.16), a plain title from `PROGRESS_TOOL_LABELS`, the
   explanation, every argument as an editable field, the tool name as small plain text; an unknown
   cost shows a yellow badge holding only the fixed word "unknown", while its label (written by the
   model) stays plain text; the reject reason field, then the three equal buttons; the disabled chat
   box says "Answer the steps above first: approve, change or reject". A memory save
-  (`remember_preference`, T5.11) never gets a data-flow badge: what it saves goes to the AI model with
+  (`remember_preference`, T5.11) never gets the blue badge or "Only the AI model reads it": what it saves goes to the AI model with
   later questions (2.11, 4.2), so it gets a violet "Sent to the AI model with later questions" badge
   next to the app's own "🧠 Save to memory: …" text, shown only while memory is on (while it is off,
   the step says "(Memory is off: it will not be saved)" instead).
