@@ -713,3 +713,92 @@ def test_a_stale_decision_on_a_finished_turn_carries_no_pause(tools):
     with pytest.raises(StaleDecision) as stale:
         resume_turn(graph, "s5", {"action": "reject"}, turn_start_index=0, expected_pause="p1")
     assert stale.value.current is None
+
+
+def _train_tool(train_calls: list) -> list[StructuredTool]:
+    """A fake train tool with the real argument schema, so `PlaceName` checks its towns."""
+    from src.tools.registry import TrainArgs
+
+    def find_train_connection(from_city, to_town, travel_date, depart_after=None) -> str:
+        """Fake train search that records what it received."""
+        train_calls.append({"from_city": from_city, "to_town": to_town, "date": travel_date})
+        return json.dumps({"journeys": []})
+
+    return [StructuredTool.from_function(find_train_connection, args_schema=TrainArgs)]
+
+
+def test_the_forms_edited_arguments_reach_the_tool():
+    """T5.2 AC2: what the form sends after an edit is what the train tool receives."""
+    from datetime import date, timedelta
+
+    from src.approval_form import form_to_args, initial_values
+
+    soon = date.today() + timedelta(days=2)
+    model_args = {"from_city": "Berlin", "to_town": "Potsdam", "travel_date": soon.isoformat()}
+    train_calls: list = []
+    graph, _ = _graph(
+        [_call("find_train_connection", model_args, "t1"), AIMessage("ok")],
+        _train_tool(train_calls),
+    )
+    paused = start_turn(graph, "f1", "train?", **CONTEXT)
+    call = paused.pending_tool_calls[0]
+    values = initial_values(call)
+    values["to_town"] = "Brandenburg an der Havel"
+    values["travel_date"] = soon + timedelta(days=1)
+    args, problems = form_to_args("find_train_connection", values)
+    assert problems == []
+    decision = {"action": "edit", "tool_calls": [{"id": "t1", "args": args}]}
+    assert decision_problem(decision, paused.pending_tool_calls) is None
+    resume_turn(
+        graph,
+        "f1",
+        decision,
+        turn_start_index=paused.start_index,
+        expected_ids=["t1"],
+        expected_pause=paused.pause_id,
+    )
+    assert train_calls == [
+        {
+            "from_city": "Berlin",
+            "to_town": "Brandenburg an der Havel",
+            "date": soon + timedelta(days=1),
+        }
+    ]
+
+
+def _forged_town_turn(town: str, thread: str):
+    """Pause on a train call and return the graph, the pause, a forged edit and the tool log."""
+    from datetime import date, timedelta
+
+    soon = (date.today() + timedelta(days=2)).isoformat()
+    model_args = {"from_city": "Berlin", "to_town": "Potsdam", "travel_date": soon}
+    train_calls: list = []
+    graph, _ = _graph(
+        [_call("find_train_connection", model_args, "t1"), AIMessage("ok")],
+        _train_tool(train_calls),
+    )
+    paused = start_turn(graph, thread, "train?", **CONTEXT)
+    forged = {
+        "action": "edit",
+        "tool_calls": [{"id": "t1", "args": {**model_args, "to_town": town}}],
+    }
+    return graph, paused, forged, train_calls
+
+
+@pytest.mark.parametrize("town", ["Lena ist 7", "Mein Sohn Max", "Autismus Zentrum"])
+def test_a_name_age_or_health_word_that_skips_the_form_is_refused_on_the_server(town):
+    """T5.2 AC3: resume_turn runs decision_problem itself, so nothing runs or reaches the model."""
+    graph, paused, forged, train_calls = _forged_town_turn(town, "f2")
+    assert decision_problem(forged, paused.pending_tool_calls)
+    with pytest.raises(InputRejected):
+        resume_turn(graph, "f2", forged, turn_start_index=paused.start_index)
+    assert train_calls == []
+
+
+@pytest.mark.parametrize("town", ["berlin bitte", "Potsdam, dann weiter nach Werder"])
+def test_a_sentence_that_skips_the_form_is_refused_by_the_tools_place_name_check(town):
+    """T5.2 AC3: a sentence that holds no personal data is still no town: PlaceName refuses it."""
+    graph, paused, forged, train_calls = _forged_town_turn(town, "f3")
+    assert decision_problem(forged, paused.pending_tool_calls) is None
+    resume_turn(graph, "f3", forged, turn_start_index=paused.start_index)
+    assert train_calls == []

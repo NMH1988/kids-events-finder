@@ -24,6 +24,7 @@ Keep the entry short and record what the code does not say: decisions, gotchas, 
 
 ## Entries
 
+- [2026-11-24 · T5.2 Parent-friendly approval form instead of raw JSON · PR #31 (closes #21)](progress/2026-11-24-T5.2.md)
 - [2026-11-24 · T1.8 Owner task O4: run the evaluations and fill docs/EVALUATION.md · PR #27 (closes #19)](progress/2026-11-24-T1.8.md)
 - [2026-11-25 · T5.11 Long-term memory: the family's preferences across conversations · PR #38 (closes #35)](progress/2026-11-25-T5.11.md)
 - [2026-11-26 · T5.12 UI design from the mockups into the Epic 5 tickets · PR #43 (closes #39)](progress/2026-11-26-T5.12.md)

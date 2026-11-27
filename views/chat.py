@@ -8,12 +8,13 @@ import threading
 import time
 import uuid
 from collections.abc import Callable
+from datetime import date, timedelta
 
 import streamlit as st
 from langgraph.checkpoint.memory import InMemorySaver
 from streamlit.runtime.scriptrunner_utils.exceptions import ScriptControlException
 
-from src import config, memory, services
+from src import approval_form, config, memory, services
 from src.agent.runner import (
     InputRejected,
     StaleDecision,
@@ -34,6 +35,7 @@ from src.tools.external import (
     TRANSITOUS_SOURCES_URL,
 )
 from src.tools.registry import RagSettings
+from views.browse import category_label
 from views.memory import memory_store
 from views.sidebar import Settings
 
@@ -41,7 +43,8 @@ logger = logging.getLogger(__name__)
 
 TOOL_EXPLANATIONS = {
     "search_knowledge_base": "Searches the app's own curated list. Nothing leaves the app.",
-    "find_nearby_places": "Sends the city and a place category to OpenStreetMap (Overpass API).",
+    "find_nearby_places": "Looks up the city and country with Open-Meteo, then sends its location "
+    "and a place category to OpenStreetMap (Overpass API).",
     "search_family_events": "Looks up the city with Open-Meteo, then sends the town name, country "
     "and dates to Ticketmaster's event search.",
     "get_weather_forecast": "Sends the city, country and dates to Open-Meteo's weather service.",
@@ -93,6 +96,16 @@ EXAMPLES = (
 TRIP_EXAMPLES = (
     "Day trip by regional train this Saturday?",
     "Chuyến đi trong ngày bằng tàu, không quá ngân sách",
+)
+# Shown at the approval buttons when the parent changed a field (Approve runs the AI's plan).
+CHANGED_NOTE = (
+    'You changed a field. Press "Run with my edits" to send your values, or undo the change to '
+    "approve the AI's plan."
+)
+TOO_LONG_TO_EDIT = "These arguments are too long to edit here. You can approve or reject them."
+REPEATED_IDS_WARNING = (
+    "The AI planned these steps in a way the app cannot check one by one. Please reject them; "
+    "the AI will plan again."
 )
 PROGRESS_TITLE = "Working on your question…"
 PROGRESS_DONE = "Done"
@@ -415,6 +428,102 @@ def parse_edited_args(text: str) -> dict | None:
     return parsed
 
 
+def _json_editor(call: dict, panel: str) -> tuple[dict | None, bool]:
+    """Show a call's arguments and an "Advanced" JSON editor; return the edit and if it changed."""
+    # Model-written arguments are shown as plain code, never as Markdown, and stay visible
+    # whether or not the parent opens the editor.
+    original = approval_form.shown_json(call["args"])
+    st.code(original, language=None)
+    if len(original) > config.MAX_DECISION_CHARS:
+        # The editor would cut the text, so nothing could be edited unchanged: the arguments
+        # stay shown above for Approve or Reject.
+        st.caption(TOO_LONG_TO_EDIT)
+        # Unchanged arguments, so "Run with my edits" stays usable for the panel's other calls;
+        # `decision_problem` still caps the whole decision's length on the server.
+        return call["args"], False
+    with st.expander("Advanced: edit the arguments as JSON"):
+        text = st.text_area(
+            "Arguments (you can edit them)",
+            original,
+            key=f"args_{panel}_{call['id']}",
+            height=130,
+            max_chars=config.MAX_DECISION_CHARS,
+        )
+    parsed = parse_edited_args(text)
+    if parsed is None:
+        st.error("This is not a valid JSON object.")
+    return parsed, text != original
+
+
+def _form_widget(field: approval_form.FormField, value, form: approval_form.ToolForm, key: str):
+    """Draw one labelled form field, filled with the model's value, and return what it holds."""
+    if field.kind == "town":
+        return st.text_input(
+            field.label, value=value or "", max_chars=approval_form.PLACE_MAX_CHARS, key=key
+        )
+    if field.kind in ("country", "category"):
+        options = approval_form.COUNTRIES if field.kind == "country" else approval_form.CATEGORIES
+        return st.selectbox(
+            field.label,
+            options,
+            index=options.index(value) if value in options else None,
+            format_func=(
+                (lambda c: f"{config.COUNTRIES[c]} ({c})")
+                if field.kind == "country"
+                else category_label
+            ),
+            placeholder=f"Choose {field.label.lower()}",
+            key=key,
+        )
+    if field.kind == "date":
+        today = date.today()
+        # The picker offers the tool's range; a model date outside it stays shown (and refused)
+        # instead of being changed.
+        low = min(today, value) if value else today
+        high = today + timedelta(days=form.max_days_ahead or 0)
+        return st.date_input(
+            field.label,
+            value=value,
+            min_value=low,
+            max_value=max(high, value) if value else high,
+            format="YYYY-MM-DD",
+            key=key,
+        )
+    return st.time_input(
+        field.label,
+        value=value,
+        step=timedelta(minutes=5),
+        help=(
+            f"Leave empty to use the tool's default "
+            f"({approval_form.DEFAULT_DEPART_AFTER.strftime('%H:%M')})."
+            if field.optional
+            else None
+        ),
+        key=key,
+    )
+
+
+def _form_editor(call: dict, values: dict, panel: str) -> tuple[dict | None, bool]:
+    """Show one labelled field per argument; return the edit (None if refused) and if it changed."""
+    form = approval_form.FORMS[call["name"]]
+    shown = {
+        field.name: _form_widget(
+            field, values[field.name], form, f"{field.name}_{panel}_{call['id']}"
+        )
+        for field in form.fields
+    }
+    args, problems = approval_form.form_to_args(call["name"], shown)
+    for problem in problems:
+        # Fixed app text with field labels only; never the parent's or the model's values.
+        st.error(problem)
+    # An empty town field starts as "" for a town the model left out.
+    changed = any(
+        shown[f.name] != ("" if f.kind == "town" and values[f.name] is None else values[f.name])
+        for f in form.fields
+    )
+    return (None if problems else args), changed
+
+
 def _render_approval(settings: Settings) -> None:
     """Show the planned tool calls and let the parent approve, edit or reject them."""
     pending = st.session_state.pending
@@ -428,8 +537,14 @@ def _render_approval(settings: Settings) -> None:
         edited: list[dict] = []
         # What "Approve" runs: the original arguments, except the parent's budget table.
         approved: list[dict] = []
-        bad_json = False
+        # True when a field or the JSON editor holds a value the tool would refuse.
+        cannot_edit = False
+        # True when the parent changed a field: Approve would then run values no longer shown.
+        changed = False
         has_budget = False
+        # A model that repeats a call id would give two widgets the same key and break the panel:
+        # such calls are only shown, and only Reject is offered.
+        repeated_ids = len(set(expected_ids)) != len(expected_ids)
         for call in result.pending_tool_calls:
             with st.container(border=True):
                 needs = call["id"] in result.needs_approval
@@ -440,8 +555,12 @@ def _render_approval(settings: Settings) -> None:
                     off = "" if settings.memory_on else " (Memory is off: it will not be saved)"
                     st.text(f"🧠 Save to memory: {memory_save_text(call['args'])}{off}")
                 else:
-                    st.text(f"{'🌍' if needs else '📚'} {call['name']}")
+                    name = approval_form.visible_text(str(call["name"]))
+                    st.text(f"{'🌍' if needs else '📚'} {name}")
                 st.caption(TOOL_EXPLANATIONS.get(call["name"], ""))
+                if repeated_ids:
+                    st.code(approval_form.shown_json(call.get("args")), language=None)
+                    continue
                 if call["name"] == "check_budget":
                     has_budget = True
                     budget_args = {
@@ -452,32 +571,36 @@ def _render_approval(settings: Settings) -> None:
                     approved.append(budget_args)
                     continue
                 approved.append({"id": call["id"], "args": call["args"]})
-                text = st.text_area(
-                    "Arguments (you can edit them)",
-                    json.dumps(call["args"], indent=2, ensure_ascii=False),
-                    key=f"args_{panel}_{call['id']}",
-                    height=130,
-                    max_chars=config.MAX_DECISION_CHARS,
-                )
-                parsed = parse_edited_args(text)
-                if parsed is not None:
-                    edited.append({"id": call["id"], "args": parsed})
+                values = approval_form.initial_values(call)
+                if values is None:
+                    args, call_changed = _json_editor(call, panel)
                 else:
-                    bad_json = True
+                    args, call_changed = _form_editor(call, values, panel)
+                changed = changed or call_changed
+                if args is not None:
+                    edited.append({"id": call["id"], "args": args})
+                else:
+                    cannot_edit = True
                     edited.append({"id": call["id"], "args": call["args"]})
-                    st.error(
-                        "This is not a valid JSON object. Approve will send the original arguments."
-                    )
         feedback = st.text_input(
             "Reason if you reject (optional)",
             key=f"reject_reason_{panel}",
             placeholder="e.g. only indoor places, please",
             max_chars=config.MAX_REJECT_REASON_CHARS,
         )
+        if repeated_ids:
+            st.warning(REPEATED_IDS_WARNING)
+        elif changed:
+            st.caption(CHANGED_NOTE)
         c1, c2, c3 = st.columns(3)
         decision = None
         if c1.button(
-            "✅ Approve", key=f"approve_{panel}", type="primary", use_container_width=True
+            "✅ Approve",
+            key=f"approve_{panel}",
+            # Same button type as "Run with my edits" and Reject: yes and no weigh the same (4.2;
+            # owner decisions of 2026-11-25 and 2026-11-26).
+            disabled=changed or repeated_ids,
+            use_container_width=True,
         ):
             # Approve runs the original arguments; with a budget call, the parent's table is part
             # of approving, so their amounts always replace the model's.
@@ -487,7 +610,7 @@ def _render_approval(settings: Settings) -> None:
         if c2.button(
             "✏️ Run with my edits",
             key=f"edit_{panel}",
-            disabled=bad_json,
+            disabled=cannot_edit or repeated_ids,
             use_container_width=True,
         ):
             decision = {"action": "edit", "tool_calls": edited}

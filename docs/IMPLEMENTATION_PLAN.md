@@ -9,7 +9,7 @@ Epics, tickets, acceptance criteria, dependencies, order and status. This file a
 
 `tests/test_docs_layout.py` checks that these agree.
 
-**Status of this plan:** set up by T1.4 (issue #12) on 2026-11-23, following the layout of the owner's earlier project. T1.1-T1.3 and T2.1 were done before the plan existed; their tickets were written after the fact from their commits and PR descriptions. The open tickets come from the GitHub issues #4-#10 of 2026-11-20; their acceptance criteria were drafted by Claude: T3.1-T3.4's approved by the owner on 2026-11-23 (with the layout), T4.1-T4.3's still to be written. Epic 5 (T5.1-T5.6) was proposed by Claude at the owner's request on 2026-11-24; the owner approved the list and the acceptance criteria that day (T5.6 criteria 8-14, added in T1.8, have their scope approved and their wording confirmed when the ticket starts). T5.8-T5.10 are follow-ups from the T1.8 evaluation, opened at the owner's request on 2026-11-24; their criteria were drafted by Claude and are approved by the owner before each starts. T5.11 (long-term memory) was added on 2026-11-25 after the owner asked to check the course topics (first numbered T5.7; renumbered before its first commit because open PRs already use T5.7-T5.10); the owner approved its acceptance criteria that day.
+**Status of this plan:** set up by T1.4 (issue #12) on 2026-11-23, following the layout of the owner's earlier project. T1.1-T1.3 and T2.1 were done before the plan existed; their tickets were written after the fact from their commits and PR descriptions. The open tickets come from the GitHub issues #4-#10 of 2026-11-20; their acceptance criteria were drafted by Claude: T3.1-T3.4's approved by the owner on 2026-11-23 (with the layout), T4.1-T4.3's still to be written. Epic 5 (T5.1-T5.6) was proposed by Claude at the owner's request on 2026-11-24; the owner approved the list and the acceptance criteria that day (T5.6 criteria 8-14, added in T1.8, have their scope approved and their wording confirmed when the ticket starts). T5.7 (issue #30) was added on 2026-11-24 from the T5.2 reviews at the owner's request; its acceptance criteria are still to be approved. T5.8-T5.10 are follow-ups from the T1.8 evaluation, opened at the owner's request on 2026-11-24; their criteria were drafted by Claude and are approved by the owner before each starts. T5.11 (long-term memory) was added on 2026-11-25 after the owner asked to check the course topics (first numbered T5.7; renumbered before its first commit because open PRs already use T5.7-T5.10); the owner approved its acceptance criteria that day. T5.16 (issue #44) was added on 2026-11-26 from the reviews of the T5.2 merge, at the owner's request: it takes the approval panel's design that T5.12 had handed to PR #31; its criteria were drafted by Claude and are approved by the owner before it starts.
 
 ## Status legend
 
@@ -61,7 +61,7 @@ Deadline: **2026-12-16** (Capstone review). The owner tasks O1-O7 come first for
 | [T1.10](tickets/T1.10.md) | ui-designer agent: research and propose a legally safe UI design | S | none | done |
 | [T5.1](tickets/T5.1.md) | Live progress while the agent works | M | none | done |
 | [T5.11](tickets/T5.11.md) | Long-term memory: the family's preferences across conversations | M | none | done |
-| [T5.2](tickets/T5.2.md) | Parent-friendly approval form instead of raw JSON | M | T5.1 | todo |
+| [T5.2](tickets/T5.2.md) | Parent-friendly approval form instead of raw JSON | M | T5.1 | done |
 | [T5.6](tickets/T5.6.md) | Offline red-team tests: injection checks, answer checks and the approval gate | L | none | todo |
 | [T5.8](tickets/T5.8.md) | Wrong-country measure by website, and a re-run | S | T1.8 | todo |
 | [T5.9](tickets/T5.9.md) | Faster answers: under 30 seconds on average | M | T1.8 | todo |
@@ -69,8 +69,10 @@ Deadline: **2026-12-16** (Capstone review). The owner tasks O1-O7 come first for
 | [T5.4](tickets/T5.4.md) | Clear messages when the agent stops | S | T5.1 | todo |
 | [T5.3](tickets/T5.3.md) | Trip plan box from the tool results | L | none | todo |
 | [T5.5](tickets/T5.5.md) | Source credits for data from earlier turns | M | none | todo |
+| [T5.7](tickets/T5.7.md) | Hidden characters in model output and the knowledge base caption | S | T5.2 | todo |
 | [T5.12](tickets/T5.12.md) | UI design from the mockups into the Epic 5 tickets | S | T1.10 | done |
 | [T5.15](tickets/T5.15.md) | Light and dark colour theme with tested contrast | S | T5.12, T5.2 | todo |
+| [T5.16](tickets/T5.16.md) | Approval panel design from the mockups | M | T5.2, T5.12 | todo |
 | [T5.13](tickets/T5.13.md) | Settings line above the chat and the sidebar in family-first order | M | T5.12, T5.11 | todo |
 | [T5.14](tickets/T5.14.md) | Feedback row with an honest share state | S | T5.12 | todo |
 | [T3.1](tickets/T3.1.md) | Before a public deployment: AI provider with a DPA | M | none | todo |
@@ -129,6 +131,7 @@ Interface and agent improvements before the Capstone review (2026-12-16), for th
 - [T5.4 Clear messages when the agent stops (S)](tickets/T5.4.md)
 - [T5.5 Source credits for data from earlier turns (M)](tickets/T5.5.md)
 - [T5.6 Offline red-team tests: injection checks, answer checks and the approval gate (L)](tickets/T5.6.md)
+- [T5.7 Hidden characters in model output and the knowledge base caption (S)](tickets/T5.7.md)
 - [T5.8 Wrong-country measure by website, and a re-run (S)](tickets/T5.8.md)
 - [T5.9 Faster answers: under 30 seconds on average (M)](tickets/T5.9.md)
 - [T5.10 Harder retrieval evaluation set (M)](tickets/T5.10.md)
@@ -137,3 +140,4 @@ Interface and agent improvements before the Capstone review (2026-12-16), for th
 - [T5.13 Settings line above the chat and the sidebar in family-first order (M)](tickets/T5.13.md)
 - [T5.14 Feedback row with an honest share state (S)](tickets/T5.14.md)
 - [T5.15 Light and dark colour theme with tested contrast (S)](tickets/T5.15.md)
+- [T5.16 Approval panel design from the mockups (M)](tickets/T5.16.md)

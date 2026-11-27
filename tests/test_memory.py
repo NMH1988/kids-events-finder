@@ -525,8 +525,8 @@ def test_the_model_cannot_forge_the_switch_or_the_store():
     assert memory.preferences(store) == []
 
 
-def _paused_with_memory_call(store):
-    """Start a turn (memory on) whose step saves a preference next to an outside call: it pauses."""
+def _paused_with_memory_call(store, memory_on: bool = True):
+    """Start a turn whose step saves a preference next to an outside call: it pauses."""
 
     def get_weather_forecast(city: str) -> str:
         """Fake outside weather tool (needs approval)."""
@@ -539,7 +539,7 @@ def _paused_with_memory_call(store):
     model = ScriptedChatModel(responses=[both, AIMessage("Sunny, go to the zoo.")])
     tools = [*_memory_tool(), StructuredTool.from_function(get_weather_forecast)]
     graph = build_graph(model, tools, InMemorySaver(), store)
-    paused = start_turn(graph, "t1", "We love zoos. Weather?", memory_on=True, **CONTEXT)
+    paused = start_turn(graph, "t1", "We love zoos. Weather?", memory_on=memory_on, **CONTEXT)
     assert paused.status == "needs_approval"
     return graph, model, paused
 
@@ -600,6 +600,19 @@ def test_resuming_with_memory_on_saves():
     """With the switch still on at approval time the preference is saved and reported."""
     store = InMemoryStore()
     graph, _, paused = _paused_with_memory_call(store)
+    done = resume_turn(
+        graph, "t1", {"action": "approve"}, turn_start_index=paused.start_index, memory_on=True
+    )
+    assert done.remembered == [{"topic": "zoo", "feeling": "likes"}]
+    assert memory.preferences(store) == [{"topic": "zoo", "feeling": "likes"}]
+
+
+def test_switching_memory_on_during_a_pause_saves_the_approved_save():
+    """Owner decision 2026-11-26 (2.11): a save paused with memory off, approved once it is on."""
+    store = InMemoryStore()
+    graph, _, paused = _paused_with_memory_call(store, memory_on=False)
+    assert "m1" in [call["id"] for call in paused.pending_tool_calls]
+    assert memory.preferences(store) == []
     done = resume_turn(
         graph, "t1", {"action": "approve"}, turn_start_index=paused.start_index, memory_on=True
     )

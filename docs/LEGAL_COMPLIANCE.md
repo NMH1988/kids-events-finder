@@ -239,7 +239,11 @@ The users are parents, but the app handles data about children, who are speciall
   cannot decide what is saved; and only once per topic in one step. **Every save waits for the
   parent's approval** (`config.TOOLS_ALWAYS_REVIEWED`, also with auto-approve on; owner decision
   2026-11-25): the approval panel shows the kind of place and "likes" or "avoids", and nothing is
-  stored if the parent rejects. With the switch off the call is refused without a pause. Without
+  stored if the parent rejects. With the switch off the call is refused without a pause. A save that
+  pauses next to another step while the switch is off is decided by the switch at approval time
+  (2.8): if the parent switches memory on first, the panel shows the save without the "Memory is
+  off" note and approving stores it (owner decision 2026-11-26, T5.2;
+  `test_switching_memory_on_during_a_pause_saves_the_approved_save`). Without
   the server setting below the model is not offered the tool at all. Each saved preference is
   shown under the answer. Remembered preferences change which places the AI suggests first
   (5.3). Without a login the memory belongs to the computer that runs the app (one local profile
@@ -452,6 +456,7 @@ The terms, limits and attribution rules of each outside service, with the dates 
 |---|---|---|---|---|
 | Chat message, country and city, children's age groups | Answer the question | Contract (Art. 6(1)(b)) | Server memory, OpenRouter → model provider | Deleted on new conversation or after 2 h idle |
 | Trip settings: budget, number of adults, Deutschlandticket holders; ticket comparison results; budget items (labels, amounts, notes typed by the parent) | Plan a budget day trip | Contract (Art. 6(1)(b)) | Server memory, OpenRouter → model provider | As above |
+| Approval panel: the reason the parent types when rejecting a step, and the tool values the parent edits (town names, country, place type, dates, departure time in the form; any argument in the JSON editor for other tools; budget items) | Run, change or skip the planned tool calls | Contract (Art. 6(1)(b)) | Server memory, OpenRouter → model provider (the reject reason and the edited values become part of the conversation the model reads); edited values for a live tool also go to that tool's services, as in the rows below | As above |
 | Start and destination town names → coordinates, date, time | Train journeys | Contract (Art. 6(1)(b)) | Open-Meteo geocoder, Transitous | Not stored by the app |
 | Town or city name, country, place category | Nearby places | Contract (Art. 6(1)(b)) | Open-Meteo geocoder, Overpass (OpenStreetMap) | Not stored by the app; the service sees the server's IP address and User-Agent, not the parent's |
 | Town or city name, country, dates | Family events | Contract (Art. 6(1)(b)) | Open-Meteo geocoder, then Ticketmaster (US) with the geocoder's town name | Not stored by the app; only with the optional key |
