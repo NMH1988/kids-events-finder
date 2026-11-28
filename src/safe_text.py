@@ -19,7 +19,7 @@ _ID_HASH_CHARS = 12
 
 
 def clean_text(value: Any) -> Any:
-    """Return the value with every lone surrogate in its strings (also keys) replaced."""
+    """Return the value with every lone surrogate in its strings (also string keys) replaced."""
     if isinstance(value, str):
         return _LONE_SURROGATE.sub(REPLACEMENT, value)
     if isinstance(value, dict):
