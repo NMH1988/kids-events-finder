@@ -24,7 +24,7 @@ Keep the entry short and record what the code does not say: decisions, gotchas, 
 
 ## Entries
 
-- [2026-11-28 · T5.18 Message ids: ticket and criteria · PR to come (refs #51)](progress/2026-11-28-T5.18.md)
+- [2026-11-28 · T5.18 Message ids: ticket and criteria · PR #52 (refs #51)](progress/2026-11-28-T5.18.md)
 - [2026-11-27 · T5.17 Malformed model output: ticket and criteria; T5.3 hidden characters criterion · PR #50 (refs #49, #22, #23)](progress/2026-11-27-T5.17.md)
 - [2026-11-27 · T5.7 Hidden characters in model output and the knowledge base caption · PR #48 (closes #30)](progress/2026-11-27-T5.7-2.md)
 - [2026-11-27 · T5.7 Hidden characters: criteria approved · PR #47 (refs #30)](progress/2026-11-27-T5.7.md)
