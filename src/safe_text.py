@@ -23,7 +23,12 @@ def clean_text(value: Any) -> Any:
     if isinstance(value, str):
         return _LONE_SURROGATE.sub(REPLACEMENT, value)
     if isinstance(value, dict):
-        return {clean_text(k): clean_text(v) for k, v in value.items()}
+        # Only string keys are cleaned; any other key is kept as it is, so a key the depth
+        # check does not look at is never walked (security round 4 of PR #48).
+        return {
+            (_LONE_SURROGATE.sub(REPLACEMENT, k) if isinstance(k, str) else k): clean_text(v)
+            for k, v in value.items()
+        }
     if isinstance(value, list):
         return [clean_text(v) for v in value]
     if isinstance(value, tuple):

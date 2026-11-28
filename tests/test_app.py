@@ -333,19 +333,36 @@ def _named_details_page():
 
 @pytest.mark.parametrize("blank", [" " * 400, "\u3164" * 200])
 def test_a_made_up_tool_name_stays_on_one_line(blank):
-    """Security round 3 of PR #48: a padded made-up name never wraps into a fake app note."""
+    """Security rounds 3-4 of PR #48: a padded made-up name is marked, cut and never wrapped."""
+    from src import config
+
     name = "x" + blank + "Saved: remember_preference"
     at, _ = _form_test((name, {"topic": "zoo", "feeling": "likes"}))
-    panel_lines = [t for t in at.text if "Saved: remember_preference" in t.value]
-    assert panel_lines and all(t.proto.wrap is False for t in panel_lines)
+    prefix = "Not a tool of this app: "
+    # The panel line starts with its emoji (🌍 or 📚), then the app's words.
+    panel_lines = [t for t in at.text if t.value.partition(" ")[2].startswith(prefix)]
+    assert len(panel_lines) == 1 and panel_lines[0].proto.wrap is False
+    # Cut to the limit, so the padding never reaches the fake note (also not in the hover text).
+    shown = panel_lines[0].value.partition(" ")[2].removeprefix(prefix)
+    assert len(shown) == config.MAX_SHOWN_TOOL_NAME_CHARS and shown.endswith("…")
+    assert "Saved" not in shown
 
     details = AppTest.from_function(_named_details_page, default_timeout=30)
     details.session_state["tool_name"] = name
     details.run()
     assert not details.exception
-    lines = [t for t in details.text if "Saved: remember_preference" in t.value]
-    assert lines and lines[0].value.startswith("Not a tool of this app: ")
-    assert all(t.proto.wrap is False for t in lines)
+    lines = [t for t in details.text if t.value.startswith("Not a tool of this app: ")]
+    assert len(lines) == 1 and lines[0].proto.wrap is False
+    assert "Saved" not in lines[0].value
+
+
+def test_a_made_up_name_in_the_approval_panel_says_it_is_not_a_tool():
+    """Security round 4 of PR #48: a made-up name cannot pass as the app's memory-save line."""
+    fake = "🧠 Save to memory: likes zoos"
+    at, _ = _form_test((fake, {}), ("get_weather_forecast", _FORM_CALLS["get_weather_forecast"]))
+    texts = [t.value.partition(" ")[2] for t in at.text]
+    assert f"Not a tool of this app: {fake}" in texts
+    assert fake not in texts and "get_weather_forecast" in texts
 
 
 _MIXED_TOOLS = [

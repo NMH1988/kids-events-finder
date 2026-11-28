@@ -315,6 +315,16 @@ def _render_remembered(message: dict) -> None:
         )
 
 
+def shown_tool_name(name: object) -> str:
+    """Return a tool name for the page: escaped, and a made-up name cut to a short length."""
+    shown = approval_form.visible_text(str(name))
+    if name in TOOL_EXPLANATIONS or len(shown) <= config.MAX_SHOWN_TOOL_NAME_CHARS:
+        return shown
+    # A made-up name is model text: cut, so padding cannot push a fake note onto a line of its
+    # own on the page or in the hover text of a cut-off line (security round 4).
+    return shown[: config.MAX_SHOWN_TOOL_NAME_CHARS - 1] + "…"
+
+
 def call_status(tool: dict) -> str:
     """Return the app's word for a call: ran, not run, saved, not saved, or not a tool."""
     # The app's word comes first on the line, so a made-up tool name such as
@@ -352,7 +362,7 @@ def _render_details(message: dict) -> None:
                 # the approval panel, so nothing can open a link, an image or reorder the text.
                 # One line, never wrapped: blanks in a made-up name cannot push text that looks
                 # like the app's own note onto a line of its own (security round 3).
-                st.text(f"{call_status(tool)}: {approval_form.visible_text(name)}", wrap=False)
+                st.text(f"{call_status(tool)}: {shown_tool_name(name)}", wrap=False)
                 st.code(approval_form.shown_json(args), language=None)
         else:
             st.markdown("- No tools were called.")
@@ -586,7 +596,12 @@ def _render_approval(settings: Settings) -> None:
                     off = "" if settings.memory_on else " (Memory is off: it will not be saved)"
                     st.text(f"🧠 Save to memory: {memory_save_text(call['args'])}{off}")
                 else:
-                    name = approval_form.visible_text(str(call["name"]))
+                    # A name that is not one of the app's tools says so first, as in the answer
+                    # details, so it cannot pass as the app's own memory-save line (security
+                    # round 4).
+                    name = shown_tool_name(call["name"])
+                    if call["name"] not in TOOL_EXPLANATIONS:
+                        name = f"Not a tool of this app: {name}"
                     st.text(f"{'🌍' if needs else '📚'} {name}", wrap=False)
                 st.caption(TOOL_EXPLANATIONS.get(call["name"], ""))
                 if repeated_ids:

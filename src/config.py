@@ -83,6 +83,9 @@ CALCULATION_TOOLS: frozenset[str] = frozenset({"compare_train_tickets", "check_b
 # app tells a call that did not run from one that did without reading its text (T5.7). A fixed
 # value without the reason; the artifact is never sent to the model.
 REJECTED_BY_PARENT = "rejected_by_parent"
+# The longest a made-up tool name (not one of the app's tools) is shown on the page, after its
+# hidden characters are escaped; longer names are cut with "…" (T5.7, security round 4).
+MAX_SHOWN_TOOL_NAME_CHARS = 40
 # Progress steps shown while the agent works (T5.1). Fixed app text only: never the model's text,
 # tool arguments or tool results, so nothing reaches the page before the grounding check.
 PROGRESS_START = "Thinking about your question"

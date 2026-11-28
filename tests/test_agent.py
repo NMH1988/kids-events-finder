@@ -429,6 +429,20 @@ def test_a_deep_forged_decision_is_refused_before_it_is_cleaned(tools, calls):
     assert calls == []
 
 
+def test_a_deep_tuple_key_is_never_walked_by_the_cleaning():
+    """Security round 4 of PR #48: only string keys are cleaned, so a deep tuple key is kept."""
+    from src.safe_text import clean_decision, clean_text
+
+    key: object = "k"
+    for _ in range(1500):
+        key = (key,)
+    value = {key: "v" + SURROGATE, "a" + SURROGATE: 1}
+    cleaned = clean_text(value)
+    assert cleaned[key] == "v" + FFFD and cleaned["a" + FFFD] == 1
+    decision = {"action": "edit", "tool_calls": [{"id": "w1", "args": value}]}
+    assert clean_decision(decision)["tool_calls"][0]["args"][key] == "v" + FFFD
+
+
 def test_a_deep_tuple_decision_is_refused(tools, calls):
     """Security round 3 of PR #48: the depth check counts tuples, as the cleaning walks them."""
     from src.privacy_check import json_depth, string_values
