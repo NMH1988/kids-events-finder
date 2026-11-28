@@ -385,4 +385,5 @@ def test_lone_surrogate_in_service_text_is_replaced(monkeypatch):
     args = {"city": "Berlin", "country": "DE", "start_date": "2099-01-01", "end_date": "2099-01-02"}
     out = built["search_family_events"].invoke(args)
     out.encode("utf-8")
-    assert json.loads(out)["results"][0]["name"] == "Show ?"
+    # T5.7: U+FFFD, from the same helper as the model's own messages (not "?").
+    assert json.loads(out)["results"][0]["name"] == "Show �"

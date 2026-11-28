@@ -18,7 +18,7 @@
 
 | Tool | Data | Approval needed |
 |---|---|---|
-| `search_knowledge_base` | Curated places (advanced RAG over Chroma + BM25) | No: stays inside the app |
+| `search_knowledge_base` | Curated places (advanced RAG over Chroma + BM25) | No: the search text goes only to the AI model service (to find matches), no map, event, weather, geocoding or train service |
 | `find_nearby_places` | OpenStreetMap (Overpass API) | Yes |
 | `search_family_events` | Ticketmaster Discovery API, family events | Yes |
 | `get_weather_forecast` | Open-Meteo | Yes |
@@ -80,7 +80,7 @@ copy .streamlit\secrets.toml.example .streamlit\secrets.toml   # then add your k
 ## Tests and evaluation
 
 ```powershell
-.venv\Scripts\python.exe -m pytest -q          # 2148 offline tests (2026-11-27): LLM and network calls are faked
+.venv\Scripts\python.exe -m pytest -q          # 2185 offline tests (2026-11-28): LLM and network calls are faked
 .venv\Scripts\ruff.exe check .
 .venv\Scripts\python.exe -m scripts.evaluate_retrieval   # retrieval variants: hit@5, MRR
 .venv\Scripts\python.exe -m scripts.evaluate_agent --judge   # grounded rate, relevance, wrong-country rate, latency, tokens, LLM judge
