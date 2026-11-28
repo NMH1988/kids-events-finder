@@ -69,7 +69,7 @@ Deadline: **2026-12-16** (Capstone review). The owner tasks O1-O7 come first for
 | [T5.4](tickets/T5.4.md) | Clear messages when the agent stops | S | T5.1 | todo |
 | [T5.3](tickets/T5.3.md) | Trip plan box from the tool results | L | none | todo |
 | [T5.5](tickets/T5.5.md) | Source credits for data from earlier turns | M | none | todo |
-| [T5.7](tickets/T5.7.md) | Hidden characters in model output and the knowledge base caption | M | T5.2 | todo |
+| [T5.7](tickets/T5.7.md) | Hidden characters in model output and the knowledge base caption | M | T5.2 | done |
 | [T5.12](tickets/T5.12.md) | UI design from the mockups into the Epic 5 tickets | S | T1.10 | done |
 | [T5.15](tickets/T5.15.md) | Light and dark colour theme with tested contrast | S | T5.12, T5.2 | todo |
 | [T5.16](tickets/T5.16.md) | Approval panel design from the mockups | M | T5.2, T5.12 | todo |

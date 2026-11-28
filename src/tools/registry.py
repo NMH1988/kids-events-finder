@@ -17,6 +17,7 @@ from src import budget, config, family, fares, memory, privacy_check
 from src.errors import AppInputError
 from src.family import AgeBand
 from src.rag.retriever import AdvancedRetriever
+from src.safe_text import clean_text
 from src.tools import external
 
 logger = logging.getLogger(__name__)
@@ -137,8 +138,9 @@ def _safe(tool_name: str, func, **kwargs) -> str:
     """Run a tool function and return JSON; failures become an error message, not an exception."""
     try:
         text = json.dumps(func(**kwargs), ensure_ascii=False, default=str)
-        # A lone surrogate from a service would make the next model request fail: replace it.
-        return text.encode("utf-8", "replace").decode("utf-8")
+        # A lone surrogate from a service would make the next model request fail: it becomes
+        # U+FFFD, as in the model's own messages (T5.7).
+        return clean_text(text)
     except AppInputError as exc:
         # The app wrote this message, so the model may see it.
         return json.dumps({"error": str(exc), "results": []})

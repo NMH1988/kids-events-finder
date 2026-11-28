@@ -7,6 +7,8 @@ from pathlib import Path
 import pytest
 from streamlit.testing.v1 import AppTest
 
+from src.safe_text import short_hash
+
 APP = str(Path(__file__).resolve().parent.parent / "app.py")
 
 
@@ -249,8 +251,183 @@ def test_tool_names_and_arguments_are_shown_as_plain_code():
     """Model-written tool text is shown as code, so no Markdown link or image is rendered."""
     at = AppTest.from_function(_details_page, default_timeout=30).run()
     assert not at.exception
-    assert any("evil.example" in c.value for c in at.code)
-    assert not any("evil.example" in m.value for m in at.markdown)
+    # T5.7: the name is plain text (st.text), the arguments plain code.
+    assert any("evil.example" in t.value for t in at.text)
+    assert any("[b](c)" in c.value for c in at.code)
+    assert not any("evil.example" in m.value for m in [*at.markdown, *at.caption])
+
+
+def _hidden_details_page():
+    """Render an answer's details with hidden characters, run marks and a padded memory save."""
+    from views.chat import _render_details
+
+    _render_details(
+        {
+            "tools": [
+                {
+                    "name": "get_weather\u202e_forecast\ud800",
+                    "args": {"city": "Ber\u200blin\ud800", "note": "\u2066x\u2069"},
+                    "ran": True,
+                },
+                {"name": "find_nearby_places", "args": {"city": "Berlin"}, "ran": False},
+                {
+                    "name": "remember_preference",
+                    "args": {"topic": "zoo", "feeling": "likes", "meaning": "avoids zoos"},
+                    "ran": True,
+                    "saved": True,
+                },
+                {
+                    "name": "remember_preference",
+                    "args": {"topic": "museum", "feeling": "avoids"},
+                    "ran": False,
+                    "saved": False,
+                },
+                {"name": "get_weather_forecast", "args": {"city": "Berlin"}, "ran": True},
+                # A made-up name that copies the app's old status note (security round 2).
+                {"name": "remember_preference · saved", "args": {}, "ran": True},
+            ],
+            "grounding": {"verified": [], "removed": []},
+            "tokens": (1, 1),
+            "model": "m",
+            "seconds": 0.1,
+        }
+    )
+
+
+def test_answer_details_escape_hidden_characters_and_mark_calls_that_did_not_run():
+    """T5.7 AC3 and AC4: escaped like the panel; a save shows only topic and feeling."""
+    from src.approval_form import shown_json, visible_text
+
+    at = AppTest.from_function(_hidden_details_page, default_timeout=30).run()
+    assert not at.exception
+    texts = [t.value for t in at.text]
+    codes = [c.value for c in at.code]
+    shown = "".join([*texts, *codes])
+    for hidden in ("\u202e", "\u200b", "\u2066", "\u2069", "\ud800"):
+        assert hidden not in shown
+    assert visible_text("get_weather\u202e_forecast\ud800") in texts[0]
+    assert "\\u202e" in texts[0] and "\\ud800" in texts[0]
+    assert codes[0] == shown_json({"city": "Ber\u200blin\ud800", "note": "\u2066x\u2069"})
+    # The app's own word starts each line, before the model-written name (security round 2).
+    assert texts[0].startswith("Not a tool of this app: ")
+    assert texts[1] == "Not run: find_nearby_places"
+    assert texts[2] == "Saved: remember_preference"
+    assert texts[3] == "Not saved: remember_preference"
+    assert texts[4] == "Ran: get_weather_forecast"
+    assert texts[5] == "Not a tool of this app: remember_preference · saved"
+    assert json.loads(codes[2]) == {"topic": "zoo", "feeling": "likes"}
+    assert "meaning" not in shown and "avoids zoos" not in shown
+    # Security round 3: every name line stays one line, so blanks cannot start a fake line.
+    assert all(t.proto.wrap is False for t in at.text)
+
+
+def _named_details_page():
+    """Render an answer's details with one made-up tool name from the session state."""
+    import streamlit as st
+
+    from views.chat import _render_details
+
+    name = st.session_state["tool_name"]
+    _render_details({"tools": [{"name": name, "args": {}, "ran": True}], "tokens": (1, 1)})
+
+
+@pytest.mark.parametrize("blank", [" " * 400, "\u3164" * 200])
+def test_a_made_up_tool_name_stays_on_one_line(blank):
+    """Security rounds 3-4 of PR #48: a padded made-up name is marked, cut and never wrapped."""
+    from src import config
+
+    name = "x" + blank + "Saved: remember_preference"
+    at, _ = _form_test((name, {"topic": "zoo", "feeling": "likes"}))
+    prefix = "Not a tool of this app: "
+    # The panel line starts with its emoji (🌍 or 📚), then the app's words.
+    panel_lines = [t for t in at.text if t.value.partition(" ")[2].startswith(prefix)]
+    assert len(panel_lines) == 1 and panel_lines[0].proto.wrap is False
+    # Cut to the limit, so the padding never reaches the fake note (also not in the hover text).
+    shown = panel_lines[0].value.partition(" ")[2].removeprefix(prefix)
+    assert len(shown) == config.MAX_SHOWN_TOOL_NAME_CHARS and shown.endswith("…")
+    assert "Saved" not in shown
+
+    details = AppTest.from_function(_named_details_page, default_timeout=30)
+    details.session_state["tool_name"] = name
+    details.run()
+    assert not details.exception
+    lines = [t for t in details.text if t.value.startswith("Not a tool of this app: ")]
+    assert len(lines) == 1 and lines[0].proto.wrap is False
+    assert "Saved" not in lines[0].value
+
+
+def test_a_made_up_name_in_the_approval_panel_says_it_is_not_a_tool():
+    """Security round 4 of PR #48: a made-up name cannot pass as the app's memory-save line."""
+    fake = "🧠 Save to memory: likes zoos"
+    at, _ = _form_test((fake, {}), ("get_weather_forecast", _FORM_CALLS["get_weather_forecast"]))
+    texts = [t.value.partition(" ")[2] for t in at.text]
+    assert f"Not a tool of this app: {fake}" in texts
+    assert fake not in texts and "get_weather_forecast" in texts
+
+
+_MIXED_TOOLS = [
+    {"name": "find_nearby_places", "args": {"city": "Berlin"}, "ran": False},
+    {"name": "get_weather_forecast", "args": {"city": "Berlin"}, "ran": True},
+    {
+        "name": "remember_preference",
+        "args": {"topic": "zoo", "feeling": "likes"},
+        "ran": True,
+        "saved": False,
+    },
+    # Made-up names ran (ToolNode answers them) but are model text, never stored as tools.
+    {"name": "Child_1_aged_3-5_budget_80_EUR", "args": {}, "ran": True},
+    {"name": "find_nearby_places\u200b", "args": {}, "ran": True},
+]
+
+
+def _ran_page():
+    """Render an answer's credits and feedback; a rejected places call is among its tools."""
+    import streamlit as st
+
+    from tests.test_app import _MIXED_TOOLS
+    from views import chat
+    from views.sidebar import Settings
+
+    st.session_state.setdefault("thread_id", "t-ran")
+    st.session_state.setdefault("feedback_saved", set())
+    st.session_state.setdefault("feedback_session", "s")
+    message = {"tools": _MIXED_TOOLS, "content": "Answer", "question": "q", "model": "m"}
+    chat._render_attributions(message)
+
+    def record(rating, question, answer, **kwargs):
+        """Keep the tools the page would store with the rating."""
+        st.session_state["saved_tools"] = kwargs["tools_used"]
+
+    original, chat.save_feedback = chat.save_feedback, record
+    try:
+        settings = Settings(
+            country="DE",
+            city="Berlin",
+            model="m",
+            auto_approve=False,
+            multi_query=False,
+            rerank=False,
+        )
+        chat._render_feedback(0, message, settings)
+    finally:
+        chat.save_feedback = original
+
+
+def test_a_rejected_call_adds_no_source_credit_and_no_feedback_tool():
+    """T5.7 AC4: credits and the feedback's tools_used take only calls that ran."""
+    from src.tools.external import ATTRIBUTION_GEOCODING, ATTRIBUTION_OSM, ATTRIBUTION_WEATHER
+
+    at = AppTest.from_function(_ran_page, default_timeout=30).run()
+    assert not at.exception
+    credits = " ".join(c.value for c in at.caption)
+    assert ATTRIBUTION_WEATHER in credits and ATTRIBUTION_GEOCODING in credits
+    assert ATTRIBUTION_OSM not in credits
+    rating = next(w for w in at.get("feedback") if w.key == "fb_t-ran_0")
+    rating.set_value(1).run()
+    assert not at.exception
+    # The refused memory save did run, so it stays; the rejected places call does not, and
+    # names that are not the app's tools are never stored (security round 1).
+    assert at.session_state["saved_tools"] == ["get_weather_forecast", "remember_preference"]
 
 
 def _money_page(text: str):
@@ -696,16 +873,16 @@ def _panel_keys(at) -> set[str]:
 
 def test_approval_widgets_are_keyed_by_the_pause():
     """Security rounds 1-2: a click or edit on one panel can never act on the next one."""
-    from views.chat import approval_panel_key
+    from views.chat import approval_panel_key, call_key
 
     at = AppTest.from_function(_approval_page, default_timeout=30).run()
     assert not at.exception
     first = _panel_keys(at)
     panel = approval_panel_key("p1", ["w1"])
     assert {f"{kind}_{panel}" for kind in ("approve", "edit", "reject", "reject_reason")} <= first
-    # T5.2: every field of the form is keyed by the pause too.
+    # T5.2: every field of the form is keyed by the pause too; T5.7: and by a hash of the call id.
     fields = ("city", "country", "start_date", "end_date")
-    assert {f"{name}_{panel}_w1" for name in fields} <= first
+    assert {f"{name}_{panel}_{call_key('w1')}" for name in fields} <= first
     # The next pause reuses the model's call id (round 2, Low): the pause id still tells it apart.
     at.session_state["pause_id"] = "p2"
     at.run()
@@ -714,6 +891,28 @@ def test_approval_widgets_are_keyed_by_the_pause():
     at.session_state["panel_ids"] = ["e1"]
     at.run()
     assert not second & _panel_keys(at)
+
+
+ODD_IDS = ["w 1/[x](https://evil.example)\u200b\u202e", "a\ud800", "a\udc00", "{}_\U0001f600"]
+
+
+def test_call_ids_with_any_character_never_break_the_panel():
+    """T5.7 AC5: widget keys hold a hash of the call id, never the id's own characters."""
+    from views.chat import approval_panel_key, call_key
+
+    at = AppTest.from_function(_approval_page, default_timeout=30)
+    at.session_state["panel_ids"] = ODD_IDS
+    at.run()
+    assert not at.exception
+    panel = approval_panel_key("p1", ODD_IDS)
+    for kind in ("approve", "edit", "reject"):
+        assert at.button(key=f"{kind}_{panel}")
+    keys = _panel_keys(at)
+    for call_id in ODD_IDS:
+        assert f"city_{panel}_{call_key(call_id)}" in keys
+    # Distinct ids keep distinct keys, and every key is plain ASCII.
+    assert len({call_key(i) for i in ODD_IDS}) == len(ODD_IDS)
+    assert all(k.isascii() and "evil" not in k for k in keys)
 
 
 def _stale_run_page(current_status: str | None):
@@ -883,10 +1082,16 @@ def _form_test(*calls: tuple[str, dict]) -> tuple[AppTest, str]:
     return at, approval_panel_key("p1", [f"c{i}" for i in range(len(calls))])
 
 
+# The widget key part of the first call's id ("c0"), as `views.chat.call_key` writes it.
+_C0 = short_hash("c0")
+
+
 def _form_fields(at, panel: str, call_id: str) -> dict:
     """Return the form's widgets for one call, by argument name."""
+    from views.chat import call_key
+
     widgets = [*at.text_input, *at.selectbox, *at.date_input, *at.time_input]
-    suffix = f"_{panel}_{call_id}"
+    suffix = f"_{panel}_{call_key(call_id)}"
     return {w.key.removesuffix(suffix): w for w in widgets if w.key.endswith(suffix)}
 
 
@@ -1041,6 +1246,26 @@ def test_a_lone_surrogate_from_the_model_never_breaks_the_panel(name, args):
     assert any("\\ud800" in c.value for c in [*at.code, *at.text])
 
 
+def test_the_knowledge_base_caption_names_the_ai_model_service():
+    """T5.7 AC1: the search text goes to the AI model service; no map or other service."""
+    from views.chat import TOOL_EXPLANATIONS
+
+    at, _ = _form_test(("search_knowledge_base", {"query": "zoo", "country": "DE"}))
+    captions = [c.value for c in at.caption]
+    assert TOOL_EXPLANATIONS["search_knowledge_base"] in captions
+    caption = TOOL_EXPLANATIONS["search_knowledge_base"]
+    assert "AI model service" in caption and "Nothing leaves the app" not in caption
+    assert "no map, event, weather, geocoding or train service" in caption
+
+
+def test_the_readme_no_longer_says_the_knowledge_base_search_stays_inside_the_app():
+    """T5.7 AC1: the README's tool table says where the search text goes."""
+    readme = (Path(APP).parent / "README.md").read_text(encoding="utf-8")
+    line = next(x for x in readme.splitlines() if x.startswith("| `search_knowledge_base`"))
+    assert "stays inside the app" not in readme
+    assert "AI model service" in line
+
+
 def test_overlong_json_arguments_keep_approve_and_hide_the_editor():
     """Security review round 2 (Low): no false "You changed a field" when the editor would cut."""
     from views.chat import CHANGED_NOTE, TOO_LONG_TO_EDIT
@@ -1090,10 +1315,10 @@ def test_another_tool_keeps_the_json_editor_in_an_advanced_expander():
     assert any('"query": "zoo"' in c.value for c in at.code)
     assert [e.label for e in at.expander] == ["Advanced: edit the arguments as JSON"]
     assert not at.button(key=f"edit_{panel}").disabled
-    at.text_area(key=f"args_{panel}_c0").set_value("{broken").run()
+    at.text_area(key=f"args_{panel}_{_C0}").set_value("{broken").run()
     assert at.button(key=f"edit_{panel}").disabled
     assert any("not a valid JSON object" in e.value for e in at.error)
-    at.text_area(key=f"args_{panel}_c0").set_value('{"query": "aquarium", "country": "DE"}')
+    at.text_area(key=f"args_{panel}_{_C0}").set_value('{"query": "aquarium", "country": "DE"}')
     at.run()
     at.button(key=f"edit_{panel}").click().run()
     sent = at.session_state["sent"]["decision"]["tool_calls"]
@@ -1144,7 +1369,7 @@ def test_approve_is_locked_while_the_json_editor_is_changed():
     """The same lock for a tool without a form; untouched, Approve stays free."""
     at, panel = _form_test(("search_knowledge_base", {"query": "zoo", "country": "DE"}))
     assert not at.button(key=f"approve_{panel}").disabled
-    at.text_area(key=f"args_{panel}_c0").set_value('{"query": "aquarium", "country": "DE"}')
+    at.text_area(key=f"args_{panel}_{_C0}").set_value('{"query": "aquarium", "country": "DE"}')
     at.run()
     assert at.button(key=f"approve_{panel}").disabled
 
@@ -1182,7 +1407,9 @@ def test_a_budget_call_next_to_a_form_keeps_its_table():
         ("get_weather_forecast", _FORM_CALLS["get_weather_forecast"]), ("check_budget", budget)
     )
     assert _form_fields(at, panel, "c0")
-    assert at.number_input(key=f"budget_{panel}_c1").value == 80
+    from views.chat import call_key
+
+    assert at.number_input(key=f"budget_{panel}_{call_key('c1')}").value == 80
     at.button(key=f"approve_{panel}").click().run()
     decision = at.session_state["sent"]["decision"]
     assert decision["action"] == "edit"

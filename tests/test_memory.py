@@ -950,3 +950,84 @@ def test_the_model_sees_the_trimmed_history_while_the_thread_keeps_everything(mo
     last_call = model.received[-1][1:]
     assert last_call[-1].content == "question 3"
     assert len(last_call) < 7
+
+
+# --- T5.7 AC4: only calls that ran count as run; a save counts as saved only when it was ---
+
+
+def _runs(result) -> dict[str, tuple]:
+    """Return each used tool's (ran, saved) flags by name."""
+    return {t["name"]: (t["ran"], t.get("saved")) for t in result.tools_used}
+
+
+def test_rejected_calls_are_marked_as_not_run():
+    """A rejected outside call and a rejected save did not run; the save is not saved."""
+    graph, _, paused = _paused_with_memory_call(InMemoryStore())
+    decision = {"action": "reject", "feedback": "not now"}
+    done = resume_turn(graph, "t1", decision, turn_start_index=paused.start_index, memory_on=True)
+    assert _runs(done) == {
+        "remember_preference": (False, False),
+        "get_weather_forecast": (False, None),
+    }
+
+
+def test_an_approved_save_is_marked_as_saved():
+    """An approved save the tool stored is saved; the outside call next to it ran."""
+    graph, _, paused = _paused_with_memory_call(InMemoryStore())
+    done = resume_turn(
+        graph, "t1", {"action": "approve"}, turn_start_index=paused.start_index, memory_on=True
+    )
+    assert _runs(done) == {
+        "remember_preference": (True, True),
+        "get_weather_forecast": (True, None),
+    }
+
+
+def test_a_save_the_tool_refuses_with_memory_on_ran_but_is_not_saved():
+    """Approved, but the parent never named the topic: the tool refuses, so "not saved"."""
+    store = InMemoryStore()
+    graph, paused = _paused_save(store, {"topic": "zoo", "feeling": "likes"})
+    done = resume_turn(
+        graph, "t1", {"action": "approve"}, turn_start_index=paused.start_index, memory_on=True
+    )
+    assert _runs(done) == {"remember_preference": (True, False)}
+    assert memory.preferences(store) == []
+
+
+def test_a_save_refused_because_memory_is_off_ran_but_is_not_saved():
+    """With memory off the save runs without a pause and is refused: ran, not saved."""
+    model = ScriptedChatModel(responses=[_remember("zoo", "likes"), AIMessage("Okay.")])
+    graph = build_graph(model, _memory_tool(), InMemorySaver(), InMemoryStore())
+    done = start_turn(graph, "t1", "We love zoos.", memory_on=False, **CONTEXT)
+    assert done.status == "done"
+    assert _runs(done) == {"remember_preference": (True, False)}
+
+
+def test_the_rejection_marker_is_a_fixed_value_never_sent_to_the_model():
+    """The marker is the app's fixed artifact; the model's request carries no artifact."""
+    from langchain_openai.chat_models.base import _convert_message_to_dict
+
+    graph, model, paused = _paused_with_memory_call(InMemoryStore())
+    decision = {"action": "reject", "feedback": "not now"}
+    resume_turn(graph, "t1", decision, turn_start_index=paused.start_index, memory_on=True)
+    rejections = [m for m in model.received[-1] if isinstance(m, ToolMessage)]
+    assert rejections and all(m.artifact == config.REJECTED_BY_PARENT for m in rejections)
+    sent = [_convert_message_to_dict(m) for m in rejections]
+    assert all(set(d) == {"content", "role", "tool_call_id"} for d in sent)
+    assert config.REJECTED_BY_PARENT not in json.dumps(sent)
+
+
+def test_a_refused_save_with_a_reused_id_is_not_saved():
+    """Security round 1: an earlier save's result never marks a later refused save as saved."""
+    store = InMemoryStore()
+    model = ScriptedChatModel(
+        responses=[
+            _remember("zoo", "likes", "X"),
+            _remember("museum", "likes", "X"),
+            AIMessage("Okay."),
+        ]
+    )
+    graph = build_graph(model, _memory_tool(), InMemorySaver(), store)
+    done = _turn_approved(graph, "t1", "We love zoos.", memory_on=True, **CONTEXT)
+    assert [t["saved"] for t in done.tools_used] == [True, False]
+    assert memory.preferences(store) == [{"topic": "zoo", "feeling": "likes"}]
